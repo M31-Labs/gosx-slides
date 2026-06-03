@@ -416,6 +416,74 @@ func TestNewServerExprAndIslandCoexist(t *testing.T) {
 	}
 }
 
+// TestNewServerServesSingleDocument is the nested-document hydration regression:
+// the deck must be served as ONE HTML document with the island runtime ENABLED,
+// not a document nested inside another document. Before the fix, the "/" route was
+// registered with App.Route and the handler returned its own server.HTMLDocument,
+// which the App then wrapped in its OWN document — so the outer <html> reported
+// the runtime OFF (the App never saw the islands, which were rendered on a private
+// renderer) while the real manifest/bootstrap sat illegally nested inside the
+// outer <body>, and nothing hydrated. After the fix the deck routes through
+// App.Page and registers islands on ctx.Runtime(), so the App emits exactly one
+// document whose single <head> carries the runtime-enabled contract, the manifest
+// (with a fetchable programRef), and the bootstrap.
+func TestNewServerServesSingleDocument(t *testing.T) {
+	deck, err := LoadIslandDeck(realDeckDir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	// Exactly one of each document-shell token — no nesting.
+	for _, tok := range []string{"<!DOCTYPE", "<html", "<head>", "<body", "</head>", "</body>", "</html>"} {
+		if got := strings.Count(strings.ToLower(body), strings.ToLower(tok)); got != 1 {
+			t.Errorf("served page has %d %q, want exactly 1 (nested document?):\n%s", got, tok, body)
+		}
+	}
+
+	// The document contract must report the runtime ENABLED (the bug left it off).
+	if !strings.Contains(body, `"runtime":true`) {
+		t.Errorf("document contract does not enable the runtime (expected \"runtime\":true):\n%s", body)
+	}
+	if !strings.Contains(body, `"manifest":true`) {
+		t.Errorf("document contract reports no manifest (expected \"manifest\":true):\n%s", body)
+	}
+	if strings.Contains(body, `"bootstrapMode":"none"`) {
+		t.Errorf("document contract bootstrapMode is \"none\" — runtime layer is OFF:\n%s", body)
+	}
+
+	// The manifest + bootstrap + wasm_exec must all live in the SINGLE <head>.
+	headStart := strings.Index(body, "<head>")
+	headEnd := strings.Index(body, "</head>")
+	if headStart < 0 || headEnd < 0 || headEnd < headStart {
+		t.Fatalf("could not locate a single <head>…</head> in the served page")
+	}
+	head := body[headStart:headEnd]
+	for _, want := range []string{`id="gosx-manifest"`, "wasm_exec.js", "bootstrap-runtime.js"} {
+		if !strings.Contains(head, want) {
+			t.Errorf("single <head> missing %q (runtime not wired into the document head):\n%s", want, head)
+		}
+	}
+
+	// The island manifest must carry a fetchable programRef (empty -> no
+	// hydration). The manifest JSON may be compact or pretty-printed, so match the
+	// key and value independently of inter-token whitespace.
+	if !strings.Contains(body, `"programRef"`) || !strings.Contains(body, "/gosx/islands/Counter.json") {
+		t.Errorf("manifest island has no fetchable programRef to /gosx/islands/Counter.json:\n%s", body)
+	}
+}
+
 // newDeckDirUnderModule writes a deck.md (+ optional component .gsx files) into a
 // fresh temp dir UNDER the module (so the go.mod replace resolves for any
 // tooling) and returns the dir. t.Cleanup removes it.

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"m31labs.dev/gosx"
-	"m31labs.dev/gosx/island"
+	"m31labs.dev/gosx/island/program"
 	"m31labs.dev/gosx/server"
 	"m31labs.dev/mdpp"
 )
@@ -109,19 +109,25 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		title = d.title()
 	}
 
-	// One island.Renderer PER REQUEST. RenderIslandFromProgram mutates renderer
-	// state (manifest.AddIsland, counter++) unguarded, so a single shared renderer
-	// both races under concurrent GETs and accumulates stale islands across
-	// sequential ones (the manifest is never reset). This mirrors gosx's canonical
-	// per-page pattern (server.NewPageRuntime -> fresh island.Renderer per
-	// response; see gosx/server/runtime.go). The compiled cache above stays shared
-	// — only the renderer is rebuilt here.
+	// The deck is an App.Page (NOT App.Route): the handler returns the page BODY,
+	// and the App builds ONE document around it. This is the fix for the
+	// nested-document hydration bug — App.Route would have wrapped a handler-built
+	// server.HTMLDocument in the App's OWN document, nesting <html> inside <body>
+	// so the island runtime never wired up. By routing through App.Page and
+	// registering every island on ctx.Runtime() (the App's PageRuntime), the App
+	// sees the islands, emits the correct document contract (runtime enabled), and
+	// auto-adds the runtime's manifest + bootstrap to the single <head> (gosx
+	// server.renderPageNode -> decoratePageContext). See examples/gosx-docs.
 	//
-	// In dev mode the DECK itself is re-loaded per request too (re-parse deck.md +
+	// Islands register on a fresh per-request renderer owned by ctx.Runtime()
+	// (server.NewPageRuntime mints one per response), so there is no shared mutable
+	// renderer to race or accumulate stale islands across requests.
+	//
+	// In dev mode the DECK itself is re-loaded per request (re-parse deck.md +
 	// re-compile its components), so a deck.md edit shows new content after the
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
-	app.Route("/", func(_ *http.Request) gosx.Node {
+	app.Page("/", func(ctx *server.Context) gosx.Node {
 		renderDeck, renderCompiled := d, compiled
 		if opts.Dev {
 			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
@@ -130,11 +136,15 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 				}
 			}
 		}
-		r := island.NewRenderer(renderDeck.deckName())
+		// Point each registered island at its served JSON program so the manifest
+		// carries a fetchable programRef (ctx.Runtime()'s renderer has no program
+		// dir by default, which would emit an empty programRef and break hydration).
+		rt := ctx.Runtime()
 		for _, name := range sortedKeys(renderCompiled) {
-			r.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
+			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
-		return renderDeck.renderPage(r, title, renderCompiled)
+		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
+		return renderDeck.renderPageBody(ctx, renderCompiled)
 	})
 
 	if opts.StageRuntime {
@@ -173,41 +183,57 @@ func ServeDeck(dir string, opts ServeOptions) error {
 	return deck.Serve(opts)
 }
 
-// renderPage renders the whole deck as one HTML document: every slide rendered
-// in order (minimal multi-slide handling — no presenter chrome), with the island
-// renderer's PageHead wiring the client bootstrap.
+// runtimeMounter adapts a *server.PageRuntime to the islandMounter interface the
+// lowering lanes (render_program.go / render_island.go) consume. Islands rendered
+// through it register on the App's PageRuntime, so the App's document contract
+// reports the runtime as active and auto-emits the manifest + bootstrap into the
+// single document <head> — the crux of the nested-document fix.
+type runtimeMounter struct{ rt *server.PageRuntime }
+
+// RenderIslandFromProgram registers the program as an island on the page runtime
+// and returns its hydratable shell. It satisfies islandMounter (same signature as
+// *island.Renderer.RenderIslandFromProgram).
+func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any) gosx.Node {
+	return m.rt.Island(prog, props)
+}
+
+// renderPageBody renders the whole deck as the page BODY for an App.Page handler
+// and registers per-slide head assets on the context. It does NOT build a
+// document — the App does that around the returned body, emitting exactly one
+// <html>/<head>/<body> with the correct runtime contract.
 //
-// Slice 4: slides render through the source-gen lane (renderProgramSlides) — the
-// deck is lowered to one GoSX source, compiled once, and each slide rendered via
-// route.RenderProgramComponent — so inline {expr} actually EVALUATES server-side
-// and inline <Component/> tags hydrate as real islands (inlined through r, which
-// registers them so PageHead below sees them). If the deck fails to compile, the
-// flow falls back to the original hand-built lane (renderIslandSlide) so a
-// transient bad deck still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPage(r *island.Renderer, title string, compiled map[string]*compiledComponent) gosx.Node {
+// Slides render through the source-gen lane (renderProgramSlides): the deck is
+// lowered to one GoSX source, compiled once, and each slide rendered via
+// route.RenderProgramComponent — so inline {expr} EVALUATES server-side and
+// inline <Component/> tags hydrate as real islands. Islands register on
+// ctx.Runtime() (via runtimeMounter), so the App's auto-added runtime head sees
+// them and ships the manifest + bootstrap. If the deck fails to compile, the flow
+// falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
+// still serves (prose + islands; {expr} as raw text).
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent) gosx.Node {
+	r := runtimeMounter{rt: ctx.Runtime()}
 	cd, _ := compileDeckProgram(d)
 	slideNodes := renderProgramSlides(r, d, cd, compiled)
-	body := gosx.El("main",
+
+	// Slide-visibility CSS + viewport go in the document head via the Context.
+	// The App composes ctx.Head() into the single <head>, after which it appends
+	// the runtime's own head (manifest + bootstrap) — so these never collide with
+	// the island bootstrap and only the active slide shows.
+	ctx.AddHead(
+		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
+		gosx.RawHTML("<style>"+navStyle()+"</style>"),
+	)
+
+	return gosx.El("main",
 		gosx.Attrs(gosx.Attr("class", "deck")),
 		gosx.Fragment(slideNodes...),
-		// Slice 6: the slide-nav controller runs at the END of the body, so the
-		// data-slide sections above already exist in the DOM when it wires up.
-		// It shows ONE slide at a time and handles keyboard + URL-hash nav; it is
-		// self-contained (no island-runtime dependency) and does not disturb the
-		// PageHead island bootstrap — hidden slides still hydrate their islands.
+		// The slide-nav controller runs at the END of the body, so the data-slide
+		// sections above already exist in the DOM when it wires up. It shows ONE
+		// slide at a time and handles keyboard + URL-hash nav; it is self-contained
+		// (no island-runtime dependency) and does not disturb the island bootstrap
+		// the App adds to the head — hidden slides still hydrate their islands.
 		gosx.RawHTML("<script>"+navScript()+"</script>"),
 	)
-	head := gosx.Fragment(
-		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
-		// Slice 6: slide-visibility CSS so only the active slide shows (the real
-		// lane otherwise stacks every slide). Scoped under main.deck with its own
-		// active class so it never collides with the fallback lane's styling.
-		gosx.RawHTML("<style>"+navStyle()+"</style>"),
-		// PageHead is emitted AFTER island mounts have been rendered into the
-		// body above, so its client-runtime plan sees the registered islands.
-		r.PageHead(),
-	)
-	return server.HTMLDocument(title, head, body)
 }
 
 // compileComponents compiles every distinct component referenced anywhere in the

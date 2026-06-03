@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"m31labs.dev/gosx"
-	"m31labs.dev/gosx/island"
 	"m31labs.dev/gosx/island/program"
 	"m31labs.dev/mdpp"
 )
@@ -17,6 +16,17 @@ import (
 //
 // It deliberately leaves the fallback lane (render.go's renderSlide) untouched;
 // this is a parallel renderer over the mdpp AST, not a replacement.
+
+// islandMounter is the minimal island-rendering surface the lowering lanes
+// need: register a compiled island program and return its server-rendered,
+// hydratable shell. Both *island.Renderer (via RenderIslandFromProgram) and the
+// page-runtime adapter (serve.go's runtimeMounter, which delegates to
+// server.PageRuntime.Island) satisfy it, so the same lowering code drives the
+// standalone unit lane and the live deck server without depending on a concrete
+// renderer.
+type islandMounter interface {
+	RenderIslandFromProgram(prog *program.Program, props any) gosx.Node
+}
 
 // compiledComponent is a once-compiled island program cached by component name.
 // CompileComponent recompiles on every call, so the server compiles each
@@ -32,7 +42,7 @@ type compiledComponent struct {
 // renderIslandSlide lowers one slide to a gosx.Node. components maps a component
 // name to its compiled program; a component with no entry (or a nil map) renders
 // as an inert placeholder so an unresolved reference never panics the page.
-func renderIslandSlide(r *island.Renderer, slide IslandSlide, components map[string]*compiledComponent) gosx.Node {
+func renderIslandSlide(r islandMounter, slide IslandSlide, components map[string]*compiledComponent) gosx.Node {
 	var children []gosx.Node
 	if slide.Node != nil {
 		for _, child := range slide.Node.Children {
@@ -51,7 +61,7 @@ func renderIslandSlide(r *island.Renderer, slide IslandSlide, components map[str
 // lowerNode lowers a single mdpp node to zero or more gosx nodes. Block-level
 // literals that are really a component tag are rendered as islands; ordinary
 // prose lowers to static HTML elements.
-func lowerNode(r *island.Renderer, n *mdpp.Node, components map[string]*compiledComponent) []gosx.Node {
+func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent) []gosx.Node {
 	if n == nil {
 		return nil
 	}
@@ -119,7 +129,7 @@ func lowerNode(r *island.Renderer, n *mdpp.Node, components map[string]*compiled
 // lowerInline lowers the inline children of a prose container (paragraph) to
 // gosx nodes: text segments (which may themselves embed a block-level component
 // tag) and folded inline components.
-func lowerInline(r *island.Renderer, parent *mdpp.Node, components map[string]*compiledComponent) []gosx.Node {
+func lowerInline(r islandMounter, parent *mdpp.Node, components map[string]*compiledComponent) []gosx.Node {
 	var out []gosx.Node
 	for _, child := range parent.Children {
 		switch child.Type {
@@ -152,7 +162,7 @@ func lowerInline(r *island.Renderer, parent *mdpp.Node, components map[string]*c
 // tag (a block-level component whose opening tag landed inside a text run), the
 // component is mounted as an island and the surrounding text is kept as text;
 // otherwise the whole literal is a single text node.
-func lowerTextLiteral(r *island.Renderer, literal string, components map[string]*compiledComponent) []gosx.Node {
+func lowerTextLiteral(r islandMounter, literal string, components map[string]*compiledComponent) []gosx.Node {
 	if literal == "" {
 		return nil
 	}
@@ -191,7 +201,7 @@ func lowerTextLiteral(r *island.Renderer, literal string, components map[string]
 // renderComponentRef mounts a component reference as a live island, lowering its
 // props. An unresolved component (not compiled / nil map) renders as an inert
 // span so the page degrades instead of panicking.
-func renderComponentRef(r *island.Renderer, ref ComponentRef, components map[string]*compiledComponent) gosx.Node {
+func renderComponentRef(r islandMounter, ref ComponentRef, components map[string]*compiledComponent) gosx.Node {
 	cc := components[ref.Name]
 	if cc == nil || cc.prog == nil {
 		return gosx.El("span",

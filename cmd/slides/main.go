@@ -198,7 +198,7 @@ func run(args []string) error {
 			return slides.DevDeck(dir, slides.DevOptions{Addr: addr(port), RebuildRuntime: rebuild})
 		}
 		fmt.Printf("gosx-slides real lane serving %s at http://%s\n", dir, addr(port))
-		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), RebuildRuntime: rebuild})
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), StageRuntime: true, RebuildRuntime: rebuild})
 	case "dev":
 		port, rest, err := takeIntFlag(args[1:], "port", 8080)
 		if err != nil {

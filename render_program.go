@@ -18,7 +18,6 @@ import (
 
 	"m31labs.dev/gosx"
 	"m31labs.dev/gosx/ir"
-	"m31labs.dev/gosx/island"
 	"m31labs.dev/gosx/route"
 )
 
@@ -93,7 +92,7 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 // If the deck failed to compile (cd.prog == nil), it falls back to the original
 // hand-built lane (renderIslandSlide) so a transient bad slide never blanks the
 // page — {expr} degrades to raw text there, but prose and islands still render.
-func renderProgramSlides(r *island.Renderer, deck *IslandDeck, cd *compiledDeck, compiled map[string]*compiledComponent) []gosx.Node {
+func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, compiled map[string]*compiledComponent) []gosx.Node {
 	if cd == nil || cd.prog == nil {
 		// Fallback lane: compile failed; render each slide the hand-built way so
 		// the page still serves (prose + islands; {expr} as raw text).
