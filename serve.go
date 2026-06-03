@@ -190,9 +190,19 @@ func (d *IslandDeck) renderPage(r *island.Renderer, title string, compiled map[s
 	body := gosx.El("main",
 		gosx.Attrs(gosx.Attr("class", "deck")),
 		gosx.Fragment(slideNodes...),
+		// Slice 6: the slide-nav controller runs at the END of the body, so the
+		// data-slide sections above already exist in the DOM when it wires up.
+		// It shows ONE slide at a time and handles keyboard + URL-hash nav; it is
+		// self-contained (no island-runtime dependency) and does not disturb the
+		// PageHead island bootstrap — hidden slides still hydrate their islands.
+		gosx.RawHTML("<script>"+navScript()+"</script>"),
 	)
 	head := gosx.Fragment(
 		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
+		// Slice 6: slide-visibility CSS so only the active slide shows (the real
+		// lane otherwise stacks every slide). Scoped under main.deck with its own
+		// active class so it never collides with the fallback lane's styling.
+		gosx.RawHTML("<style>"+navStyle()+"</style>"),
 		// PageHead is emitted AFTER island mounts have been rendered into the
 		// body above, so its client-runtime plan sees the registered islands.
 		r.PageHead(),
