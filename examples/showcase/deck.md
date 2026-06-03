@@ -45,13 +45,13 @@ Inline `{expr}` is evaluated server-side by the GoSX compiler:
 - this is slide number {slide.index}
 
 ```go
-//gosx:island
-func Counter(props any) Node {
-	count := signal.New(props.Initial)
-	return <button onClick={func() { count.Set(count.Get() + 1) }}>
-		count is {count.Get()}
-	</button>
+// Fenced code blocks are syntax-highlighted, per theme.
+func fib(n int) int {
+	if n < 2 {
+		return n
+	}
+	return fib(n-1) + fib(n-2)
 }
 ```
 
-The same compiler that type-checks the island above evaluates these.
+The same compiler that type-checks the island evaluates these expressions.
