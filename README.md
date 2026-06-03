@@ -1,51 +1,137 @@
 # gosx-slides
 
-`gosx-slides` is a Go-native presentation runtime shaped by the
-`hypha://m31labs/gosx-slides` v0.1 roadmap. This first implementation provides
-the authoring and runtime surface locally while the upstream GoSX and mdpp seams
-land separately.
+`gosx-slides` turns a directory of Markdown + GoSX components into a live,
+compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
+your `{expr}` is evaluated by the GoSX compiler — no JavaScript toolchain.
 
-## What works now
+For the complete capability reference (every command and flag, the authoring
+model, themes, islands, gotchas), see **[AGENTS.md](AGENTS.md)**.
 
-- `slides new` scaffolds a deck.
-- `slides check` parses a deck and reports slide, click, layout, and notes data.
-- `slides fmt` normalizes deck source spacing.
-- `slides inspect` reports layout mix, components, warnings, and estimated run
-  time.
-- `slides validate --profile conference|demo|lecture --strict` turns
-  profile-specific authoring rules into CI-friendly checks.
-- `slides rehearse` prints a speaker run sheet with timings, notes, and
-  component cues.
-- `slides components` lists the built-in component registry and packs.
-- `slides doctor` checks deck health and local export prerequisites.
-- `slides dev` serves the deck with keyboard navigation and file-change reloads.
-- `slides present` serves audience, presenter, and phone remote views with
-  locked-follow state, timer controls, slide navigation, presenter checkpoints,
-  and a client-side rehearsal recorder over server-sent events.
-- `slides export --format spa` writes a deterministic static SPA.
-- `slides export --format single` writes one portable `deck.html`.
-- `slides export --format pdf|png` uses a local Chrome/Chromium binary when
-  available.
-- SPA export also writes `deck.json`, `notes.html`, and `handout.html`.
-
-The renderer supports deck and per-slide frontmatter, notes, built-in layouts,
-step reveals, stepped code ranges, static diagram placeholders, Scene3D and
-Canvas demo surfaces, relative `{{include "path.md"}}` fragments, citations,
-query demos, parser/runtime evidence components, and offline navigation.
-
-## Quick start
+## Quickstart
 
 ```bash
-go run ./cmd/slides new my-talk
-go run ./cmd/slides dev my-talk/deck.md --port 8080
+go build -o slides ./cmd/slides
+./slides serve examples/showcase --port 8080
+# open http://127.0.0.1:8080
 ```
 
-Then open `http://127.0.0.1:8080`.
+`examples/showcase` is a complete deck: a themed title slide, server-evaluated
+`{expr}`, and a live `<Counter/>` island. First run stages the client WASM
+runtime into `examples/showcase/build/` (cached; gitignored).
+
+Hot-swap dev loop — edit a component and watch it swap in place, state preserved:
+
+```bash
+./slides serve examples/showcase --watch
+# edit examples/showcase/Counter.gsx → the island hot-swaps, no reload
+# edit examples/showcase/deck.md     → full reload with new content
+```
+
+## The real lane (`slides serve`)
+
+A deck is a **directory** with `deck.md` plus one `<Name>.gsx` per island:
+
+```text
+my-deck/
+  deck.md       # headmatter + slides
+  Counter.gsx   # defines the <Counter/> island
+```
+
+`deck.md`:
+
+````md
+---
+title: My Deck
+theme: aurora
+---
+
+```yaml
+layout: title
+```
+
+# My Deck
+
+Two plus three is {2 + 3}. Title: {deck.title}.
+
+---
+
+# A live island
+
+<Counter Initial={5}/>
+````
+
+What you get:
+
+- **Live islands.** `<Counter Initial={5}/>` resolves to `Counter.gsx`
+  (a `//gosx:island` component), compiles to bytecode, and hydrates in the
+  browser. Props bind by **exact attribute name** (`Initial={5}` → `props.Initial`).
+- **Real expressions.** `{2 + 3}`, `{strings.ToUpper("hi")}`, `{deck.title}`,
+  `{slide.index}` are evaluated server-side. Unknown identifiers render empty.
+- **Themes & layouts.** `theme:` in headmatter picks a theme; `layout:` in a
+  slide's ` ```yaml ``` ` fence picks a layout. Run `./slides themes` for the four
+  themes (`aurora`, `paper`, `neon`, `swiss`).
+- **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen; `#N` deep-links to
+  slide N.
+- **Hot-swap dev loop** via `--watch`.
+
+A few things bite if you don't know them — props bind by exact name, per-slide
+frontmatter is a ` ```yaml ``` ` fence (not a `---` block), slide separators need
+blank lines around them. All of these are spelled out in
+[AGENTS.md](AGENTS.md#gotchas--non-obvious).
+
+### Example decks
+
+| Deck | Demonstrates |
+|---|---|
+| `examples/showcase` | The full real lane — best starting point. |
+| `examples/real-deck` | The minimum: one slide, a propless `<Counter/>`. |
+| `examples/theme-{neon,paper,swiss}` | The same deck under each theme. |
+
+## The HTML presenter (fallback lane)
+
+The secondary lane is a zero-dependency Markdown → HTML presenter. It does **not**
+compile islands or evaluate `{expr}`; it renders a fixed registry of built-in
+components to static HTML, and adds speaker tooling and static export. Use it for
+a quick presenter, exports, or speaker prep — not for custom interactive islands.
+
+```bash
+./slides new my-talk
+./slides dev my-talk/deck.md --port 8080
+```
+
+Fallback-lane decks are a `deck.md` file (or a directory with a `slides/` folder),
+and use the `m31` / `noir` / `blueprint` / `ember` themes (distinct from the
+real-lane themes above).
+
+What this lane provides:
+
+- `slides new` — scaffold a deck (`--template default|gotreesitter`).
+- `slides dev` — presenter with keyboard nav and file-change reload.
+- `slides present` — audience + presenter + phone-remote views over SSE, with
+  locked-follow, a timer, presenter checkpoints, and a rehearsal recorder.
+- `slides check` / `inspect` / `validate` / `rehearse` / `doctor` — deck analysis,
+  CI-friendly validation profiles, speaker run sheets, health checks.
+- `slides fmt` — normalize deck source spacing.
+- `slides split` / `merge` — convert between one file and a `slides/*.md` directory.
+- `slides components` — list the built-in component registry.
+- `slides build` / `export` — static SPA, single-file `deck.html`, or PDF/PNG (via
+  a local Chrome). SPA export also writes `deck.json`, `notes.html`, `handout.html`.
+
+It supports deck/per-slide frontmatter, notes (`<Notes>…</Notes>` or HTML
+comments), built-in layouts, step reveals, stepped code ranges, relative
+`{{include "path.md"}}` fragments (this lane only), citations, and offline
+navigation.
+
+> Note: `slides check` / `inspect` / `validate` / `doctor` parse with the
+> fallback parser even when pointed at a real-lane deck, so a real-lane deck
+> reports oddly under them (see [AGENTS.md](AGENTS.md#gotchas--non-obvious)). To
+> check a real-lane deck, just `serve` it.
 
 ## CLI
 
 ```text
-slides new <name> [--theme m31]
+slides serve [deck-dir] [--port 8080] [--rebuild] [--watch]   real lane: live islands + evaluated {expr}; --watch = hot-swap loop
+slides new <name> [--theme m31] [--template default|gotreesitter]
 slides check [deck.md]
 slides fmt [deck.md]
 slides inspect [deck.md] [--json]
@@ -54,146 +140,26 @@ slides rehearse [deck.md]
 slides split <deck.md> --out <deck-dir>
 slides merge <deck-dir> --out <deck.md>
 slides components [--json]
+slides themes [--json]                                        real-lane themes (headmatter "theme: <name>")
 slides doctor [deck.md] [--json]
-slides dev [deck.md] [--port 8080]
+slides dev [deck.md] [--port 8080]                            fallback HTML presenter
 slides present [deck.md] [--port 8080]
 slides build [deck.md] [--out dist]
 slides export [deck.md] --format spa|single|pdf|png [--out dist]
+slides version
 ```
 
-## Authoring
+See **[AGENTS.md](AGENTS.md)** for the full reference, including flags, the
+authoring model, and the architecture.
 
-Decks are Markdown++-shaped markdown files:
+## Architecture (brief)
 
-```md
----
-title: Demo
-theme: m31
----
-
-# Demo
-
-<Step n={1}>First reveal.</Step>
-
----
-layout: two-cols
-clicks: 2
----
-
-Left column
-
-::right::
-
-Right column
-```
-
-Decks can also be directories:
-
-```text
-my-talk/
-  deck.md              # deck-wide frontmatter
-  slides/
-    01-open.md         # slide frontmatter + content
-    02-demo.md         # may contain one slide or `---` splits
-  public/
-    architecture.png
-```
-
-Every command accepts either `deck.md` or a deck directory. Use
-`slides split talk.md --out talk/` to break one file into `slides/*.md`, and
-`slides merge talk/ --out talk.md` to flatten it again.
-
-Deck files can include reusable fragments:
-
-```md
-{{include "partials/architecture.md"}}
-```
-
-Includes are resolved relative to the file that contains the directive and are
-tracked in `deck.json` as source files.
-
-Built-in themes are `m31`, `noir`, `blueprint`, and `ember`.
-Use `slides new my-talk --template gotreesitter --theme noir` for a technical
-parser/runtime talk starter.
-
-Code stepping uses fence metadata:
-
-````md
-```go {1-2|4|all}
-func main() {
-    println("hello")
-}
-```
-````
-
-Speaker notes can be written as `<Notes>...</Notes>` or HTML comments.
-
-Built-in presentation components:
-
-```md
-<Metrics>
-<Metric label="Runtime" value="Go" delta="no JS toolchain"/>
-</Metrics>
-
-<Callout tone="gold">A typed presentation surface.</Callout>
-
-<Poll question="Best feature?" options="Presenter sync|Static export|Live embeds"/>
-
-<Timeline items="Author|Render|Present|Export"/>
-
-<Agenda/>
-
-<Pipeline steps="Grammar blob: tables|Parser: LR plus GLR|Tree: normalized"/>
-
-<ParseTree root="source_file" tree="package_clause>package,identifier;function_declaration>func,identifier,block"/>
-
-<Benchmark title="Fork reduction" values="Before 5.95x|After 4.41x|C baseline 1.00x"/>
-
-<Citation href="hypha://m31labs/gotreesitter/object/concept.glr-fork-reduction"/>
-
-<QueryDemo lang="go" captures="@fn main">
-```go
-func main() {}
-```
-```query
-(function_declaration name: (identifier) @fn)
-```
-</QueryDemo>
-
-<ProfileBuckets buckets="scan 20|reduce 42|materialize 18"/>
-
-<ParityMatrix rows="Go pass|JavaScript watch|Python pass"/>
-
-<CorpusRun rows="Go stdlib 1.02x pass|JavaScript corpus 4.41x pass"/>
-
-<GrammarBlob steps="parser.c|tables|blob|registry"/>
-
-<Checkpoint id="demo-query" label="Live query demo"/>
-
-<Takeaway>Fork count is the first-order GLR performance lever.</Takeaway>
-```
-
-`{$step}` renders as a live click-step value inside the active slide.
-
-Run `slides components` for the full registry. Current packs are `core`,
-`presenter`, `evidence`, `parser`, `product`, `architecture`, and `showcase`.
-
-## Deep additions
-
-- Presenter rehearsal recording in `/presenter`, downloadable as
-  `rehearsal.json`.
-- Source-backed citation labels for `hypha://...` references plus citation
-  metadata in `deck.json`.
-- Query, profiling, parity, corpus, and grammar artifact components for
-  technical talks.
-- Validation profiles for conference talks, demos, and lectures.
-- Component packs exposed through `slides components`.
-- Presenter checkpoints for demo jumps while audience mode remains locked.
-
-## Upstream seams
-
-The Hyphae roadmap still has upstream work that belongs in `m31labs.dev/gosx`
-and `m31labs.dev/mdpp`: VM bytecode hot-swap, mdpp slide/component/expression
-AST nodes, and true AST-to-GoSX island lowering. This repo currently implements
-compatible authoring and runtime behavior with explicit adapters so those pieces
-can replace the local markdown lane without changing the CLI shape.
+The real lane lowers a deck to one generated GoSX source — the merged island
+definitions plus one `func Slide_N()` per slide — compiles it once with
+`gosx.Compile`, and renders each slide via `route.RenderProgramComponent` (which
+is what makes `{expr}` real). `serve` stages the client runtime and serves each
+island program at `/gosx/islands/<Name>.json`; `--watch` fronts it with the gosx
+dev proxy for hot-swap. It depends on local `m31labs.dev/gosx` and
+`m31labs.dev/mdpp` via `go.mod` `replace` directives. The fallback lane is
+entirely separate and shares no rendering code. Full details in
+[AGENTS.md](AGENTS.md#architecture-for-extending-it).
