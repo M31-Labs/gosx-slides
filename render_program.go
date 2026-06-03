@@ -104,13 +104,22 @@ func renderProgramSlides(r *island.Renderer, deck *IslandDeck, cd *compiledDeck,
 		return nodes
 	}
 
-	env := route.ProgramRenderEnv{
-		Funcs:        exprFuncs(),
-		RenderIsland: r.RenderIslandFromProgram,
-	}
+	deckVals := deckFrontmatterValues(deck)
+	funcs := exprFuncs()
 
 	var nodes []gosx.Node
 	for _, slide := range deck.Slides {
+		// Per-slide expression scope: prose can reference {deck.<key>} (headmatter)
+		// and {slide.<key>} (this slide's frontmatter, plus its index). Keys are the
+		// lowercase YAML keys as authored; an unknown key resolves empty (fail-soft).
+		env := route.ProgramRenderEnv{
+			Values: map[string]any{
+				"deck":  deckVals,
+				"slide": slideFrontmatterValues(slide),
+			},
+			Funcs:        funcs,
+			RenderIsland: r.RenderIslandFromProgram,
+		}
 		html, err := route.RenderProgramComponent(cd.prog, slideFuncName(slide.Index), env)
 		if err != nil {
 			// A single slide failing to render must not blank the deck: fall back
@@ -139,4 +148,43 @@ func exprFuncs() map[string]any {
 			"Join":      strings.Join,
 		},
 	}
+}
+
+// deckFrontmatterValues parses the deck's headmatter (the leading `---` block of
+// deck.md) into the value map bound as `deck` for slide expressions, so prose can
+// reference {deck.title}, {deck.theme}, etc. Keys are the lowercase YAML keys as
+// authored. A deck with no headmatter yields an empty map (refs resolve empty).
+func deckFrontmatterValues(deck *IslandDeck) map[string]any {
+	if deck == nil {
+		return map[string]any{}
+	}
+	headmatter, _, err := splitHeadmatter(string(deck.Source))
+	if err != nil {
+		return map[string]any{}
+	}
+	return stringMapToAny(parseFrontmatter(headmatter))
+}
+
+// slideFrontmatterValues builds the value map bound as `slide` for one slide's
+// expressions: its per-slide frontmatter keys (e.g. {slide.layout}) plus its
+// 0-based {slide.index}. The index is always present; frontmatter keys override
+// nothing reserved here.
+func slideFrontmatterValues(slide IslandSlide) map[string]any {
+	vals := map[string]any{"index": slide.Index}
+	if slide.Node != nil {
+		for k, v := range parseFrontmatter(slide.Node.Attr("frontmatter")) {
+			vals[k] = v
+		}
+	}
+	return vals
+}
+
+// stringMapToAny widens a string map to an any map so the route expression
+// evaluator can resolve member access (e.g. deck.title) against it.
+func stringMapToAny(m map[string]string) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

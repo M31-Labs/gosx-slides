@@ -83,6 +83,21 @@ func TestExprArithmeticEvaluates(t *testing.T) {
 	}
 }
 
+// TestExprResolvesDeckAndSlideFrontmatter proves richer expression scope: an
+// inline {deck.title} resolves from the deck headmatter and {slide.layout} from
+// the per-slide frontmatter, so slide prose can reference deck/slide context.
+func TestExprResolvesDeckAndSlideFrontmatter(t *testing.T) {
+	deckMD := "---\ntitle: My Talk\n---\n\n# Intro\n\nWelcome to {deck.title}.\n\n---\n\n```yaml\nlayout: center\n```\n\nLayout is {slide.layout}.\n"
+	deck := loadDeckFromSource(t, deckMD, nil)
+	html := renderSlidesHTML(t, deck)
+	if !strings.Contains(html, "Welcome to My Talk.") {
+		t.Fatalf("{deck.title} not resolved from headmatter:\n%s", html)
+	}
+	if !strings.Contains(html, "Layout is center.") {
+		t.Fatalf("{slide.layout} not resolved from per-slide frontmatter:\n%s", html)
+	}
+}
+
 // TestExprStringFuncEvaluates proves {strings.ToUpper("hi")} renders "HI" — the
 // bound strings namespace is reachable from inline prose.
 func TestExprStringFuncEvaluates(t *testing.T) {
