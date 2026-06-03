@@ -176,6 +176,20 @@ func run(args []string) error {
 			return fmt.Errorf("doctor found failures")
 		}
 		return nil
+	case "serve":
+		// Real lane: serve a deck whose slides host live GoSX islands, staging
+		// the client WASM runtime so they hydrate in the browser. Distinct from
+		// `dev`/`present`, which run the fallback HTML presenter.
+		port, rest, err := takeIntFlag(args[1:], "port", 8080)
+		if err != nil {
+			return err
+		}
+		// --rebuild forces a fresh GOOS=js runtime.wasm build; the wasm is
+		// existence-cached, so this is how a gosx runtime change is picked up.
+		rebuild, rest := takeBoolFlag(rest, "rebuild")
+		dir := deckDir(rest)
+		fmt.Printf("gosx-slides real lane serving %s at http://%s\n", dir, addr(port))
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), RebuildRuntime: rebuild})
 	case "dev":
 		port, rest, err := takeIntFlag(args[1:], "port", 8080)
 		if err != nil {
@@ -220,6 +234,23 @@ func deckPath(args []string) string {
 		return "deck.md"
 	}
 	return filepath.Clean(args[0])
+}
+
+// deckDir resolves a deck DIRECTORY argument for the real lane (which reads
+// <dir>/deck.md). It accepts either a directory or a path to a deck.md and
+// returns the containing directory; with no argument it defaults to ".".
+func deckDir(args []string) string {
+	if len(args) == 0 {
+		return "."
+	}
+	p := filepath.Clean(args[0])
+	if info, err := os.Stat(p); err == nil && !info.IsDir() {
+		return filepath.Dir(p)
+	}
+	if strings.HasSuffix(p, ".md") {
+		return filepath.Dir(p)
+	}
+	return p
 }
 
 func takeStringFlag(args []string, name, fallback string) (string, []string, error) {
@@ -320,6 +351,7 @@ Commands:
   merge <deck-dir> --out <deck.md>
   components [--json]
   doctor [deck.md] [--json]
+  serve [deck-dir] [--port 8080] [--rebuild]   (real lane: live GoSX islands, hydrated; --rebuild forces a fresh runtime.wasm)
   dev [deck.md] [--port 8080]
   present [deck.md] [--port 8080]
   build [deck.md] [--out dist]

@@ -18,6 +18,8 @@ require (
 	github.com/odvcencio/manta v0.0.13 // indirect
 	github.com/odvcencio/mll v0.0.1 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect

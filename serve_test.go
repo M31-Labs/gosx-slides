@@ -1,0 +1,324 @@
+package slides
+
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"testing"
+)
+
+// realDeckDir is the shipped end-to-end example: prose + a standalone <Counter/>.
+const realDeckDir = "examples/real-deck"
+
+// TestNewServerRendersIslandPage proves the real lane serves a deck whose slide
+// hosts a LIVE GoSX island: GET / returns a full HTML document containing the
+// prose (static) and the island mount markup (hydratable), with the client
+// bootstrap wired in the head.
+func TestNewServerRendersIslandPage(t *testing.T) {
+	deck, err := LoadIslandDeck(realDeckDir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	// Prose is server-rendered (static lane).
+	if !strings.Contains(body, "Live Counter") {
+		t.Errorf("GET / missing prose heading 'Live Counter'")
+	}
+	// The island is mounted (real hydratable island, not a placeholder).
+	if !strings.Contains(body, `data-gosx-island="Counter"`) {
+		t.Errorf("GET / missing live island mount markup")
+	}
+	if strings.Contains(body, `data-gosx-unresolved`) {
+		t.Errorf("GET / has an unresolved component (island failed to compile)")
+	}
+	// The client runtime is wired: PageHead emits the wasm_exec loader, and the
+	// browser bootstrap fetches /gosx/runtime.wasm from there.
+	if !strings.Contains(body, "/gosx/wasm_exec.js") {
+		t.Errorf("GET / head missing /gosx/wasm_exec.js bootstrap loader")
+	}
+	// The island's program asset URL is referenced for hydration.
+	if !strings.Contains(body, "/gosx/islands/Counter.json") {
+		t.Errorf("GET / missing island program asset reference")
+	}
+}
+
+// TestNewServerServesIslandJSON proves the compiled island program is served as
+// JSON at its mount path, and is the real Counter program (the dev-socket wire
+// form).
+func TestNewServerServesIslandJSON(t *testing.T) {
+	deck, err := LoadIslandDeck(realDeckDir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/gosx/islands/Counter.json", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET island JSON status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("island JSON Content-Type = %q, want application/json", ct)
+	}
+	var prog struct {
+		Name  string `json:"name"`
+		Nodes []any  `json:"nodes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &prog); err != nil {
+		t.Fatalf("island JSON not valid program JSON: %v", err)
+	}
+	if prog.Name != "Counter" {
+		t.Errorf("island program Name = %q, want Counter", prog.Name)
+	}
+	if len(prog.Nodes) == 0 {
+		t.Errorf("island program has no nodes")
+	}
+}
+
+// TestNewServerServesRuntimeAssets proves the standalone server stages and
+// serves the client runtime: /gosx/runtime.wasm (application/wasm) and
+// /gosx/wasm_exec.js — the assets the browser needs to hydrate the island
+// without `gosx dev`. Building runtime.wasm is slow, so it is staged once and
+// cached; if staging is unavailable the wasm assertions are skipped, but the
+// JSON+page assertions above still hold.
+func TestNewServerServesRuntimeAssets(t *testing.T) {
+	deck, err := LoadIslandDeck(realDeckDir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	buildDir := filepath.Join(realDeckDir, "build")
+	t.Cleanup(func() { _ = os.RemoveAll(buildDir) })
+
+	app, err := deck.NewServer(ServeOptions{StageRuntime: true})
+	if err != nil {
+		t.Fatalf("NewServer(StageRuntime): %v", err)
+	}
+	handler := app.Build()
+
+	// wasm_exec.js comes straight from the Go toolchain — always stageable.
+	t.Run("wasm_exec.js", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/gosx/wasm_exec.js", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /gosx/wasm_exec.js status = %d, want 200", rec.Code)
+		}
+		if n, _ := io.Copy(io.Discard, rec.Body); n == 0 {
+			t.Fatalf("/gosx/wasm_exec.js is empty")
+		}
+	})
+
+	t.Run("runtime.wasm", func(t *testing.T) {
+		if !isFileExists(filepath.Join(buildDir, "gosx-runtime.wasm")) {
+			t.Skip("runtime.wasm not staged (GOOS=js build unavailable in this env); slides serve stages it on demand")
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/gosx/runtime.wasm", nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /gosx/runtime.wasm status = %d, want 200", rec.Code)
+		}
+		if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "application/wasm") {
+			t.Errorf("runtime.wasm Content-Type = %q, want application/wasm", ct)
+		}
+	})
+}
+
+// TestNewServerConcurrentRequestsAreIdenticalAndRaceClean is the C1 regression:
+// the deck server must serve a stable, correct page under concurrent load. Before
+// the fix, NewServer captured ONE shared island.Renderer in the "/" closure, so
+// every request mutated shared renderer state (r.manifest.AddIsland, r.counter)
+// unguarded — a data race under `go test -race`, and the page accumulated stale
+// islands across requests (the body grew with each GET). After the fix the
+// renderer is constructed per-request, so all responses are byte-identical to a
+// single-request baseline and the handler is race-clean.
+func TestNewServerConcurrentRequestsAreIdenticalAndRaceClean(t *testing.T) {
+	deck, err := LoadIslandDeck(realDeckDir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	// The gosx server mints a unique per-request ID (gosx-<unixnano>-<seq>) and
+	// embeds it in the page's manifest JSON; that value is *correctly* different
+	// on every request and is unrelated to C1, so normalize it before comparing.
+	// The C1 symptom (stale-island accumulation) grows the manifest's island list
+	// and balloons the body by kilobytes — far beyond this one ID — so masking it
+	// keeps the regression sharp.
+	requestIDRe := regexp.MustCompile(`"requestID":"[^"]*"`)
+	get := func() (int, string) {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		return rec.Code, requestIDRe.ReplaceAllString(rec.Body.String(), `"requestID":"X"`)
+	}
+
+	// Baseline: the correct single-request output. It must mount exactly one
+	// live island (the deck has exactly one <Counter/>).
+	wantCode, want := get()
+	if wantCode != http.StatusOK {
+		t.Fatalf("baseline GET / status = %d, want 200", wantCode)
+	}
+	if got := strings.Count(want, `data-gosx-island="Counter"`); got != 1 {
+		t.Fatalf("baseline GET / mounts %d Counter islands, want exactly 1:\n%s", got, want)
+	}
+
+	const n = 32
+	bodies := make([]string, n)
+	codes := make([]int, n)
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			defer wg.Done()
+			codes[i], bodies[i] = get()
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < n; i++ {
+		if codes[i] != http.StatusOK {
+			t.Fatalf("concurrent GET / [%d] status = %d, want 200", i, codes[i])
+		}
+		if bodies[i] != want {
+			// Surface the accumulation symptom directly: island count and size.
+			t.Fatalf("concurrent GET / [%d] body differs from baseline (Counter mounts: got %d want %d; size got %d want %d) — shared renderer accumulated state across requests",
+				i,
+				strings.Count(bodies[i], `data-gosx-island="Counter"`),
+				strings.Count(want, `data-gosx-island="Counter"`),
+				len(bodies[i]), len(want),
+			)
+		}
+	}
+}
+
+// TestNewServerSoftDegradesMissingComponent is the I1.2 regression: a deck that
+// references a component whose <Name>.gsx does not exist (a typo or a not-yet-
+// created component) must NOT fail NewServer or 500 the presentation. It serves
+// 200 with the inert data-gosx-unresolved placeholder for that one component,
+// while the rest of the deck renders normally. Before the fix, compileComponents
+// treated the missing file as a hard error and the whole deck failed to build.
+func TestNewServerSoftDegradesMissingComponent(t *testing.T) {
+	dir := t.TempDir()
+	// A deck referencing a component that has no .gsx source.
+	deckMD := "# Degrade\n\nprose before\n\n<Missing initial={3}/>\n\nprose after\n"
+	if err := os.WriteFile(filepath.Join(dir, DeckFileName), []byte(deckMD), 0o644); err != nil {
+		t.Fatalf("write deck: %v", err)
+	}
+
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer must not fail on a missing component (got %v)", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200 (missing component must degrade, not 500)", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-gosx-unresolved="Missing"`) {
+		t.Fatalf("GET / missing the inert placeholder for the unresolved component:\n%s", body)
+	}
+	// Surrounding prose still renders.
+	if !strings.Contains(body, "prose before") || !strings.Contains(body, "prose after") {
+		t.Fatalf("GET / dropped surrounding prose around the unresolved component:\n%s", body)
+	}
+	// It must be an INERT placeholder, not a live island mount.
+	if strings.Contains(body, `data-gosx-island="Missing"`) {
+		t.Fatalf("GET / mounted a live island for a component with no source:\n%s", body)
+	}
+}
+
+// TestStageRuntimeAssetsRebuild is the I2 regression: runtime.wasm is
+// existence-cached (so a normal serve reuses it), but rebuild=true must force a
+// fresh GOOS=js build even when a cached artifact already exists — otherwise a
+// gosx runtime change is never picked up. We plant a tiny sentinel where the wasm
+// is cached, then assert: rebuild=false leaves the sentinel untouched (cache hit),
+// and rebuild=true replaces it with a real (much larger) wasm artifact. The
+// GOOS=js build is slow; if it is unavailable in this environment the rebuild leg
+// is skipped, but the cache-hit leg still holds.
+func TestStageRuntimeAssetsRebuild(t *testing.T) {
+	// The build runs with cmd.Dir = deckDir and must resolve m31labs.dev/gosx via
+	// the repo's go.mod replace, so use a deck dir UNDER the module (t.TempDir() is
+	// outside it and would not resolve the replace).
+	repoDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	deckDir := filepath.Join(repoDir, "testdata", "island-deck")
+	buildDir := filepath.Join(deckDir, "build")
+	t.Cleanup(func() { _ = os.RemoveAll(buildDir) })
+
+	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+		t.Fatalf("mkdir build: %v", err)
+	}
+	wasmPath := filepath.Join(buildDir, "gosx-runtime.wasm")
+	sentinel := []byte("STALE-SENTINEL-NOT-A-REAL-WASM")
+	if err := os.WriteFile(wasmPath, sentinel, 0o644); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+
+	// Cache hit: rebuild=false must NOT touch the existing (stale) artifact.
+	if _, err := StageRuntimeAssets(deckDir, false); err != nil {
+		t.Fatalf("StageRuntimeAssets(rebuild=false): %v", err)
+	}
+	got, err := os.ReadFile(wasmPath)
+	if err != nil {
+		t.Fatalf("read wasm after cache hit: %v", err)
+	}
+	if string(got) != string(sentinel) {
+		t.Fatalf("rebuild=false replaced the cached wasm (len %d); existence-cache must reuse it", len(got))
+	}
+
+	// Forced rebuild: rebuild=true must replace the stale sentinel with a real
+	// build, even though the file already exists.
+	if _, err := StageRuntimeAssets(deckDir, true); err != nil {
+		t.Skipf("rebuild=true failed (GOOS=js build unavailable in this env): %v", err)
+	}
+	rebuilt, err := os.ReadFile(wasmPath)
+	if err != nil {
+		t.Fatalf("read wasm after rebuild: %v", err)
+	}
+	if string(rebuilt) == string(sentinel) {
+		t.Fatalf("rebuild=true did NOT rebuild: the stale sentinel survived (len %d)", len(rebuilt))
+	}
+	// A real runtime.wasm is large; the sentinel is tiny. Guard against a
+	// degenerate replacement.
+	if len(rebuilt) < 1024 {
+		t.Fatalf("rebuilt wasm is implausibly small (%d bytes); expected a real GOOS=js artifact", len(rebuilt))
+	}
+}
+
+func isFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}

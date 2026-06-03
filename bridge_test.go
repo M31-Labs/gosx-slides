@@ -2,6 +2,8 @@ package slides
 
 import (
 	"testing"
+
+	"m31labs.dev/mdpp"
 )
 
 // TestLoadIslandDeckAndCompile proves Phase 1 Slice 1's lowering core: a deck's
@@ -66,6 +68,77 @@ func TestLoadIslandDeckAndCompile(t *testing.T) {
 	// The JSON wire form is non-empty (this is what the dev socket ships).
 	if len(wire) == 0 {
 		t.Fatal("CompileComponent returned empty JSON wire bytes")
+	}
+}
+
+// --- I1.1: component refs inside HTML comments must not leak ---
+
+// TestCollectComponentRefsIgnoresHTMLComment is the I1 regression: mdpp passes an
+// HTML comment through as a NodeHTMLBlock whose .Literal holds the comment text,
+// including any <Tag/> written inside it. Scanning that literal naively yields a
+// bogus ref (here <Ghost/>), which then fails the whole deck at compile time.
+// A component tag that lives only inside a comment must contribute ZERO refs.
+func TestCollectComponentRefsIgnoresHTMLComment(t *testing.T) {
+	src := []byte("# T\n\n<!-- TODO: add <Ghost/> later -->\n\nreal prose\n")
+	doc, err := mdpp.Parse(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	mdpp.SplitSlides(doc)
+	refs := collectComponentRefs(doc.Slides()[0])
+	if len(refs) != 0 {
+		t.Fatalf("refs = %d, want 0 (tag is only inside an HTML comment); got %#v", len(refs), refs)
+	}
+}
+
+// TestCollectComponentRefsMultiLineHTMLComment proves multi-line comments are
+// stripped too: a <Tag/> spanning into a multi-line <!-- ... --> block yields no
+// ref.
+func TestCollectComponentRefsMultiLineHTMLComment(t *testing.T) {
+	src := []byte("# T\n\n<!--\nnotes:\n<Ghost initial={3}/>\n-->\n\nbody\n")
+	doc, err := mdpp.Parse(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	mdpp.SplitSlides(doc)
+	refs := collectComponentRefs(doc.Slides()[0])
+	if len(refs) != 0 {
+		t.Fatalf("refs = %d, want 0 (tag inside multi-line comment); got %#v", len(refs), refs)
+	}
+}
+
+// TestCollectComponentRefsCommentDoesNotMaskRealTag proves stripping comments does
+// not swallow a genuine adjacent component: a real <Counter/> next to a commented
+// <Ghost/> still yields exactly the Counter ref.
+func TestCollectComponentRefsCommentDoesNotMaskRealTag(t *testing.T) {
+	src := []byte("# T\n\n<!-- <Ghost/> -->\n\n<Counter initial={3}/>\n")
+	doc, err := mdpp.Parse(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	mdpp.SplitSlides(doc)
+	refs := collectComponentRefs(doc.Slides()[0])
+	if len(refs) != 1 {
+		t.Fatalf("refs = %d, want 1 (only the real Counter); got %#v", len(refs), refs)
+	}
+	if refs[0].Name != "Counter" {
+		t.Fatalf("ref name = %q, want Counter; got %#v", refs[0].Name, refs)
+	}
+}
+
+// TestCollectComponentRefsCodeUnaffected guards that uppercase tags inside inline
+// code (`<Counter/>`) and fenced code blocks are NOT picked up as refs — those
+// arrive as NodeCodeSpan / NodeCodeBlock, which the ref scan never inspects.
+func TestCollectComponentRefsCodeUnaffected(t *testing.T) {
+	src := []byte("# T\n\nInline code `<Counter/>` is literal.\n\n```\n<Counter/>\n```\n")
+	doc, err := mdpp.Parse(src)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	mdpp.SplitSlides(doc)
+	refs := collectComponentRefs(doc.Slides()[0])
+	if len(refs) != 0 {
+		t.Fatalf("refs = %d, want 0 (tags are inside code, not real refs); got %#v", len(refs), refs)
 	}
 }
 

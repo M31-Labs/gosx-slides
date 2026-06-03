@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"m31labs.dev/gosx"
 	"m31labs.dev/gosx/ir"
@@ -126,20 +129,205 @@ func (d *IslandDeck) CompileComponent(name string) (*program.Program, []byte, er
 	return compileIslandComponent(d.Dir, name)
 }
 
+// componentNamePat is the MDX component-name rule (mirrors mdpp/components.go):
+// an uppercase initial, followed by identifier chars and optional dotted member
+// access (<Foo.Bar/>). Gating on an uppercase initial is what distinguishes a
+// GoSX component from ordinary HTML (<div>, <span>); kept local so mdpp stays
+// unmodified.
+const componentNamePat = `[A-Z][A-Za-z0-9_.]*`
+
+// blockComponentRe matches a component tag — self-closing (<Name .../>) or an
+// opening tag (<Name ...>) — anywhere inside a node's raw Literal. The props
+// group is everything between the name and the closing `>`/`/>`, excluding angle
+// brackets so a match cannot run across adjacent tags. Group 1 = name, group 2 =
+// raw props, group 3 = "/" when self-closing.
+//
+// Why scan literals at all: mdpp folds only INLINE uppercase tags into
+// NodeComponent. A component written on its own blank-line-delimited line — the
+// common case for real decks — arrives as a NodeHTMLBlock (self-closing) or as a
+// NodeText holding the opening tag plus a NodeHTMLInline close (paired). Neither
+// is a NodeComponent, so the inline-only walk misses it; this regex recovers it.
+var blockComponentRe = regexp.MustCompile(`<(` + componentNamePat + `)((?:\s[^<>]*?)?)\s*(/?)>`)
+
+// htmlCommentRe matches an HTML comment, including multi-line ones (the `(?s)`
+// flag lets `.` span newlines). mdpp passes `<!-- ... -->` through verbatim as a
+// NodeHTMLBlock whose .Literal holds the comment text, so a component tag written
+// inside a comment (`<!-- TODO: add <Ghost/> later -->`) would otherwise be
+// scanned as a real reference and brick the deck. We strip comments from a literal
+// before scanning it for component tags.
+var htmlCommentRe = regexp.MustCompile(`(?s)<!--.*?-->`)
+
+// stripHTMLComments removes HTML comments from a raw literal so component tags
+// that exist only inside a comment are never mistaken for references.
+func stripHTMLComments(literal string) string {
+	if !strings.Contains(literal, "<!--") {
+		return literal
+	}
+	return htmlCommentRe.ReplaceAllString(literal, "")
+}
+
 // collectComponentRefs walks a slide subtree in document order and returns every
-// inline component reference (mdpp.NodeComponent) it finds.
+// component reference it finds: both mdpp's folded inline NodeComponent leaves
+// (Slice 1) and block-level tags that mdpp left as raw HTML literals (Slice 2).
+//
+// A folded NodeComponent's own tag is consumed into the node (it has no child
+// literal carrying it), so scanning the literals of non-component nodes never
+// double-counts an inline component. We still skip the subtree under a
+// NodeComponent to avoid scanning any folded inner content.
 func collectComponentRefs(slide *mdpp.Node) []ComponentRef {
 	var refs []ComponentRef
 	slide.Walk(func(n *mdpp.Node) bool {
-		if n.Type == mdpp.NodeComponent {
+		switch n.Type {
+		case mdpp.NodeComponent:
 			refs = append(refs, ComponentRef{
 				Name:  n.Attr("name"),
 				Props: n.Attr("props"),
 			})
+			// Don't descend: a folded paired component's inner content is its
+			// children; any nested components there are out of Slice-2 scope and
+			// would otherwise be matched twice if they surfaced as literals.
+			return false
+		case mdpp.NodeHTMLBlock, mdpp.NodeHTMLInline, mdpp.NodeText:
+			refs = append(refs, scanLiteralComponents(n.Literal)...)
 		}
 		return true
 	})
 	return refs
+}
+
+// scanLiteralComponents finds component open/self-closing tags inside a raw
+// literal and returns them as refs in document order. Each opening tag matches
+// once (a paired <Name>…</Name> contributes a single ref from its open tag; the
+// closing tag has no name-with-props match). The uppercase-initial gate in the
+// pattern means lowercase HTML (<div>, <br/>) never matches.
+func scanLiteralComponents(literal string) []ComponentRef {
+	if literal == "" || !strings.Contains(literal, "<") {
+		return nil
+	}
+	// Drop HTML comments first: a `<Tag/>` written inside `<!-- ... -->` is not a
+	// real component reference (mdpp keeps comments verbatim in the literal).
+	literal = stripHTMLComments(literal)
+	var refs []ComponentRef
+	for _, m := range blockComponentRe.FindAllStringSubmatch(literal, -1) {
+		refs = append(refs, ComponentRef{
+			Name:  m[1],
+			Props: strings.TrimSpace(m[2]),
+		})
+	}
+	return refs
+}
+
+// parseProps parses a component's raw props source into a structured map for
+// lowering into the island program. Slice-2 scope: literal int, string, and
+// bool props only — the forms a static deck needs.
+//
+//	initial={3}        -> {"initial": 3}      (int literal in braces)
+//	delta={-2}         -> {"delta": -2}       (negative int)
+//	label="hi"         -> {"label": "hi"}     (quoted string)
+//	title={"Q3"}       -> {"title": "Q3"}     (quoted string in braces)
+//	live={true}        -> {"live": true}      (bool literal in braces)
+//	live               -> {"live": true}      (bare attribute = true)
+//
+// Richer expressions (signals, identifiers, arithmetic, objects) are NOT
+// evaluated here — a value that is none of the above is carried through as its
+// raw string so nothing is silently dropped. Real expression evaluation is a
+// follow-up (see hand-off notes).
+func parseProps(raw string) map[string]any {
+	props := map[string]any{}
+	for _, tok := range splitPropTokens(raw) {
+		name, value, hasValue := strings.Cut(tok, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if !hasValue {
+			// Bare attribute: <Counter live/> -> live=true.
+			props[name] = true
+			continue
+		}
+		props[name] = parsePropValue(strings.TrimSpace(value))
+	}
+	return props
+}
+
+// parsePropValue lowers a single raw prop value (the right-hand side of `=`) to
+// a Go value. Brace-wrapped expressions ({…}) are unwrapped first; then int,
+// bool, and quoted-string literals are recognized. Anything else is returned
+// verbatim as a string (no silent drop).
+func parsePropValue(v string) any {
+	v = strings.TrimSpace(v)
+	// Unwrap a JSX-style {expr}.
+	if strings.HasPrefix(v, "{") && strings.HasSuffix(v, "}") {
+		v = strings.TrimSpace(v[1 : len(v)-1])
+	}
+	// Quoted string.
+	if len(v) >= 2 && (v[0] == '"' || v[0] == '\'') && v[len(v)-1] == v[0] {
+		return v[1 : len(v)-1]
+	}
+	// Bool literal.
+	switch v {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	// Integer literal.
+	if i, err := strconv.Atoi(v); err == nil {
+		return i
+	}
+	// Float literal.
+	if f, err := strconv.ParseFloat(v, 64); err == nil {
+		return f
+	}
+	// Unrecognized: carry the raw source through (follow-up: real expr eval).
+	return v
+}
+
+// splitPropTokens splits a raw props string into individual `name`, `name=val`,
+// or `name={expr}` tokens, honoring quoted strings and brace groups so spaces
+// inside "..." or {...} do not split a token.
+func splitPropTokens(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var tokens []string
+	var cur strings.Builder
+	depth := 0          // brace nesting
+	var quote byte      // active quote char, 0 when not in a string
+	flush := func() {
+		if cur.Len() > 0 {
+			tokens = append(tokens, cur.String())
+			cur.Reset()
+		}
+	}
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		switch {
+		case quote != 0:
+			cur.WriteByte(c)
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+			cur.WriteByte(c)
+		case c == '{':
+			depth++
+			cur.WriteByte(c)
+		case c == '}':
+			if depth > 0 {
+				depth--
+			}
+			cur.WriteByte(c)
+		case depth == 0 && (c == ' ' || c == '\t' || c == '\n' || c == '\r'):
+			flush()
+		default:
+			cur.WriteByte(c)
+		}
+	}
+	flush()
+	return tokens
 }
 
 // compileIslandComponent reads <dir>/<name>.gsx and runs the proven GoSX
