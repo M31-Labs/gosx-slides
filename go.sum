@@ -83,3 +83,7 @@ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 lukechampine.com/blake3 v1.4.1 h1:I3Smz7gso8w4/TunLKec6K2fn+kyKtDxr/xcQEN84Wg=
 lukechampine.com/blake3 v1.4.1/go.mod h1:QFosUxmjB8mnrWFSNwKmvxHpfY72bmD2tQ0kBMM3kwo=
+m31labs.dev/gosx v0.24.3-0.20260603204418-016514630e98 h1:pxjRW5XNegdf+uLWpIbvZjHTpbp5gp9H9a3lJKf2h4g=
+m31labs.dev/gosx v0.24.3-0.20260603204418-016514630e98/go.mod h1:xfx5hzHDzahebMUYqpKJexz8Hr2zOdScOTPZ5rP8VcE=
+m31labs.dev/mdpp v0.4.7-0.20260603002650-038c4528c352 h1:1rPfhH8MllJkNi/FxQzvUjN3eAtlfF2U+fIAiTOgwIk=
+m31labs.dev/mdpp v0.4.7-0.20260603002650-038c4528c352/go.mod h1:JSvAMgqJLV2/KtI+Ms05rSkFGIPJBsU3KCETO42sXZQ=

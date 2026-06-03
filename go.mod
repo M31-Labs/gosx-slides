@@ -2,14 +2,10 @@ module m31labs.dev/gosx-slides
 
 go 1.26
 
-replace m31labs.dev/gosx => ../gosx
-
-replace m31labs.dev/mdpp => ../mdpp
-
 require (
 	github.com/fsnotify/fsnotify v1.9.0
-	m31labs.dev/gosx v0.24.2
-	m31labs.dev/mdpp v0.4.6
+	m31labs.dev/gosx v0.24.3-0.20260603204418-016514630e98
+	m31labs.dev/mdpp v0.4.7-0.20260603002650-038c4528c352
 )
 
 require (
