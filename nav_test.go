@@ -61,6 +61,38 @@ func TestServeInjectsSlideVisibilityStyle(t *testing.T) {
 	}
 }
 
+// TestNavStyleCarriesEnterTransition proves the slide-visibility stylesheet also
+// carries the reduced-motion-gated enter transition (the visual nicey), WITHOUT
+// disturbing the visibility rule both lanes depend on. The transition is a pure
+// opacity/transform animation on the active slide, gated behind
+// prefers-reduced-motion: no-preference, so it never touches `display`.
+func TestNavStyleCarriesEnterTransition(t *testing.T) {
+	css := navStyle()
+
+	// The visibility rule is still present and intact.
+	if !strings.Contains(css, ":not(."+navActiveClass+")") || !strings.Contains(css, "display: none !important") {
+		t.Fatalf("navStyle lost its slide-visibility rule:\n%s", css)
+	}
+	// The enter transition is gated behind reduced-motion and animates the active
+	// slide via a keyframe (so it cannot fight the display rule).
+	for _, want := range []string{
+		"@media (prefers-reduced-motion: no-preference)",
+		"@keyframes",
+		"." + navActiveClass + " {",
+		"animation:",
+	} {
+		if !strings.Contains(css, want) {
+			t.Errorf("navStyle missing enter-transition piece %q:\n%s", want, css)
+		}
+	}
+	// Critically: the transition must NOT set display, or it could override the
+	// visibility rule. Confirm the keyframe/animation block only animates
+	// opacity/transform.
+	if strings.Contains(css, "display: block") || strings.Contains(css, "display: flex") {
+		t.Errorf("navStyle transition must not set display (would fight visibility rule):\n%s", css)
+	}
+}
+
 // TestServeInjectsNavScript proves the served page carries the nav controller
 // <script> with the load-bearing pieces: it queries data-slide sections, wires
 // the Arrow/Space keyboard handlers, and syncs the URL hash via history. These

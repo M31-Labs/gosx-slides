@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"m31labs.dev/gosx"
+	"m31labs.dev/gosx/highlight"
 	"m31labs.dev/gosx/ir"
 	"m31labs.dev/gosx/route"
 )
@@ -146,7 +147,55 @@ func exprFuncs() map[string]any {
 			"Repeat":    strings.Repeat,
 			"Join":      strings.Join,
 		},
+		// codeNS backs the generated `{` + codeBlockFunc + `(lang, src)}` call that
+		// slidegen lowers a fenced code block to. It returns a gosx RawHTML Node
+		// (not a string) so the syntax-highlighted span markup survives the
+		// expression evaluator unescaped — a plain string would be HTML-escaped by
+		// the renderer (kindExpr), turning the <span> tokens into visible text. See
+		// codeBlockNode for the rationale and the probe that proved RawHTML rides
+		// the eval path; the highlighter itself escapes the code text, so the output
+		// is always safe.
+		codeNamespace: map[string]any{
+			codeBlockFunc: codeBlockNode,
+		},
 	}
+}
+
+// codeNamespace / codeBlockFunc name the bound expression function slidegen emits
+// for a fenced code block (e.g. `{__slidesCode.Block("go", "…")}`). They are
+// consts so the generator (slidegen.go) and this binding can never drift; the
+// namespace is `__`-prefixed so it cannot collide with a deck author's own
+// identifier in prose.
+const (
+	codeNamespace = "__slidesCode"
+	codeBlockFunc = "Block"
+)
+
+// codeBlockNode renders a fenced code block to a syntax-highlighted
+// `<pre class="code-block" data-lang="…"><code>…</code></pre>` Node. It is the
+// real-lane code-block renderer: slidegen lowers a ```lang fence to a call to
+// this (via the codeNamespace binding), so the gosx compiler evaluates the call
+// at render time and the returned RawHTML Node emits token <span>s the themes
+// style. Returning a Node (not a string) is load-bearing — a string would be
+// escaped by the expression renderer; the highlighter escapes the code text, so
+// the tokens are the only markup and the block is XSS-safe.
+//
+// lang is the fence info-string language (e.g. "go"); highlight.NormalizeLanguage
+// canonicalizes it (unknown -> plain escaped text). The trailing newline a fence
+// commonly carries is trimmed so the <pre> has no dangling blank last line.
+func codeBlockNode(lang, source string) gosx.Node {
+	source = strings.TrimRight(source, "\n")
+	// NormalizeLanguage returns one of a fixed, attribute-safe token set
+	// (go/gosx/javascript/json/bash/text), so it needs no escaping in the data-lang
+	// attribute. highlight.HTML escapes the code text itself.
+	normalized := highlight.NormalizeLanguage(lang)
+	var b strings.Builder
+	b.WriteString(`<pre class="code-block" data-lang="`)
+	b.WriteString(normalized)
+	b.WriteString(`"><code>`)
+	b.WriteString(highlight.HTML(normalized, source))
+	b.WriteString(`</code></pre>`)
+	return gosx.RawHTML(b.String())
 }
 
 // deckFrontmatterValues parses the deck's headmatter (the leading `---` block of

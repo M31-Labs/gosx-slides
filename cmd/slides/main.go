@@ -38,6 +38,24 @@ func run(args []string) error {
 			return fmt.Errorf("usage: slides new <name> [--theme m31] [--template default|gotreesitter]")
 		}
 		return slides.ScaffoldWithOptions(rest[0], slides.ScaffoldOptions{Theme: theme, Template: template})
+	case "init":
+		// Real-lane scaffold: a deck you can `slides serve` immediately (live
+		// islands + evaluated {expr} + highlighted code + theme). Distinct from
+		// `new`, which scaffolds the fallback presenter deck.
+		theme, rest, err := takeStringFlag(args[1:], "theme", "aurora")
+		if err != nil {
+			return err
+		}
+		if len(rest) != 1 {
+			return fmt.Errorf("usage: slides init <name> [--theme aurora|paper|neon|swiss]")
+		}
+		name := rest[0]
+		if err := slides.ScaffoldRealLane(name, slides.ScaffoldRealOptions{Theme: theme}); err != nil {
+			return err
+		}
+		fmt.Printf("created real-lane deck %q (theme %s)\n", name, theme)
+		fmt.Printf("run it:  slides serve %s\n", name)
+		return nil
 	case "check":
 		path := deckPath(args[1:])
 		summary, err := slides.Check(path)
@@ -368,7 +386,8 @@ func usage() {
 slides is the gosx-slides command.
 
 Commands:
-  new <name> [--theme m31] [--template default|gotreesitter]
+  new <name> [--theme m31] [--template default|gotreesitter]   (fallback-lane deck for the HTML presenter: dev/present)
+  init <name> [--theme aurora|paper|neon|swiss]                 (real-lane deck you can serve immediately: live islands + evaluated {expr} + highlighted code)
   check [deck.md]
   fmt [deck.md]
   inspect [deck.md] [--json]

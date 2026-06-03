@@ -280,6 +280,21 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// Code span text is opaque: quote it as a string-literal expression.
 		return "<code>{" + strconv.Quote(n.Text()) + "}</code>"
 
+	case mdpp.NodeCodeBlock:
+		// A fenced ```lang block. We CANNOT emit highlighted span-HTML as text
+		// (prose is quoted with strconv.Quote and would escape the spans), so
+		// instead we lower to a CALL to the bound codeNamespace.codeBlockFunc
+		// (render_program.go) — `{__slidesCode.Block("<lang>", "<code>")}`. The
+		// gosx compiler evaluates that call at render time and the function returns
+		// a RawHTML <pre class="code-block">…tokens…</pre> Node that rides the eval
+		// path unescaped (proven safe: the highlighter escapes the code text). Both
+		// args are Go string literals, so a fence containing `<`, `{`, `"` etc. can
+		// never corrupt the generated source. Language is mdpp's Attrs["language"]
+		// (empty for a bare fence -> plain escaped text via NormalizeLanguage).
+		lang := n.Attr("language")
+		return "{" + codeNamespace + "." + codeBlockFunc + "(" +
+			strconv.Quote(lang) + ", " + strconv.Quote(n.Literal) + ")}"
+
 	case mdpp.NodeLink:
 		href := n.Attr("href")
 		inner := lowerChildrenGSX(n)

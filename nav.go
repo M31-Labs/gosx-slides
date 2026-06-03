@@ -40,7 +40,25 @@ func navStyle() string {
 	// top of the active one. The active slide gets no display override here, so it
 	// falls back to its theme layout display (flex for layout-title/center) or the
 	// <section> default (block).
-	return `main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }`
+	//
+	// The active slide also runs a short ENTER transition (fade + slight upward
+	// settle) so advancing feels intentional, not a hard cut. It is purely an
+	// opacity/transform animation on `.deck-active` and never touches `display`, so
+	// it cannot disturb the visibility rule above (the only thing that controls
+	// which slide is shown). It is gated behind `prefers-reduced-motion:
+	// no-preference` so motion-sensitive viewers get an instant cut, and is theme-
+	// agnostic (it lives here, beside the visibility rule both lanes depend on).
+	// The easing matches the themes' settle curve (ease-out-quart).
+	return `main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes slidesDeckEnter {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  main.deck > .slide.` + navActiveClass + ` {
+    animation: slidesDeckEnter 220ms cubic-bezier(0.25,1,0.5,1) both;
+  }
+}`
 }
 
 // navScript is the real lane's self-contained navigation controller, returned as

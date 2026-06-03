@@ -44,4 +44,14 @@ Inline `{expr}` is evaluated server-side by the GoSX compiler:
 - six times seven is {6 * 7}
 - this is slide number {slide.index}
 
+```go
+//gosx:island
+func Counter(props any) Node {
+	count := signal.New(props.Initial)
+	return <button onClick={func() { count.Set(count.Get() + 1) }}>
+		count is {count.Get()}
+	</button>
+}
+```
+
 The same compiler that type-checks the island above evaluates these.
