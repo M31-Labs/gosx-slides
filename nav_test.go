@@ -47,12 +47,13 @@ func TestServeInjectsSlideVisibilityStyle(t *testing.T) {
 	if !strings.Contains(body, "<style>") {
 		t.Fatalf("served page has no <style> block:\n%s", body)
 	}
-	// The visibility rule: hide slides, show the active one, scoped to main.deck.
+	// The visibility rule: hide every slide EXCEPT the active one, scoped to
+	// main.deck, with !important so it beats a theme's layout display rule.
 	for _, want := range []string{
 		"main.deck",
+		":not(." + navActiveClass + ")",
 		"display: none",
-		navActiveClass,
-		"display: block",
+		"!important",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("slide-visibility style missing %q:\n%s", want, body)

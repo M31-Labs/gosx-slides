@@ -34,8 +34,13 @@ const navActiveClass = "deck-active"
 // global `.slide{display:none}` rule. Returned as the inner CSS text (no <style>
 // wrapper) so renderPage can place it via gosx.RawHTML.
 func navStyle() string {
-	return `main.deck > .slide { display: none; }
-main.deck > .slide.` + navActiveClass + ` { display: block; }`
+	// Hide every slide EXCEPT the active one, with !important so it beats a
+	// theme's higher-specificity layout rule (e.g. `.slide.layout-title { display:
+	// flex }`) — otherwise an inactive layout slide stays visible and stacks on
+	// top of the active one. The active slide gets no display override here, so it
+	// falls back to its theme layout display (flex for layout-title/center) or the
+	// <section> default (block).
+	return `main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }`
 }
 
 // navScript is the real lane's self-contained navigation controller, returned as

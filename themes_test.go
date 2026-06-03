@@ -98,7 +98,7 @@ func TestServeInjectsSelectedThemeIntoHead(t *testing.T) {
 		t.Errorf("selected theme CSS not in the single <head>:\n%s", head)
 	}
 	// The nav visibility style must still be present alongside the theme.
-	if !strings.Contains(head, "main.deck > .slide.deck-active") {
+	if !strings.Contains(head, "main.deck > .slide:not(.deck-active)") {
 		t.Errorf("nav visibility CSS missing from head (theme clobbered it?):\n%s", head)
 	}
 	// Other themes' CSS must NOT be injected — exactly one theme is served.

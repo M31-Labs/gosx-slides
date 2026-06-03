@@ -73,7 +73,7 @@ main.deck[data-theme="aurora"] h5,
 main.deck[data-theme="aurora"] h6 {
   font-family: var(--font-display);
   font-weight: 600;
-  line-height: 1.08;
+  line-height: 1.18;
   letter-spacing: -0.02em;
   margin: 0 0 var(--sp-3);
   text-wrap: balance;
@@ -82,6 +82,8 @@ main.deck[data-theme="aurora"] h1 {
   font-size: var(--fs-1);
   background: linear-gradient(180deg, #fff 0%, #cfd6ef 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
+  /* padding so background-clip:text doesn't clip the gradient glyph edges */
+  padding-bottom: 0.14em;
 }
 main.deck[data-theme="aurora"] h2 { font-size: var(--fs-2); }
 main.deck[data-theme="aurora"] h3 { font-size: var(--fs-3); color: var(--accent); }
