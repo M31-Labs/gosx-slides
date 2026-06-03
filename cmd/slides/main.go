@@ -157,6 +157,24 @@ func run(args []string) error {
 		}
 		printComponents(slides.BuiltInComponents())
 		return nil
+	case "themes":
+		// List the real-lane themes selectable via deck headmatter `theme: <name>`.
+		jsonOut, rest := takeBoolFlag(args[1:], "json")
+		if len(rest) != 0 {
+			return fmt.Errorf("usage: slides themes [--json]")
+		}
+		if jsonOut {
+			payload, err := json.MarshalIndent(slides.Themes(), "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(payload))
+			return nil
+		}
+		for _, theme := range slides.Themes() {
+			fmt.Println(theme)
+		}
+		return nil
 	case "doctor":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		report, err := slides.Doctor(deckPath(rest))
@@ -359,6 +377,7 @@ Commands:
   split <deck.md> --out <deck-dir>
   merge <deck-dir> --out <deck.md>
   components [--json]
+  themes [--json]                                       (real-lane themes selectable via deck headmatter "theme: <name>")
   doctor [deck.md] [--json]
   serve [deck-dir] [--port 8080] [--rebuild] [--watch]   (real lane: live GoSX islands, hydrated; --watch = hot-swap dev loop: .gsx hot-swaps in place, deck.md reloads; --rebuild forces a fresh runtime.wasm)
   dev [deck.md] [--port 8080]                            (fallback HTML presenter; for the real-lane hot-swap loop use serve --watch)

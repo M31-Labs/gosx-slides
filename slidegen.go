@@ -180,13 +180,16 @@ func mergeIslandDefs(defs map[string]islandDef) (imports []string, bodies []stri
 }
 
 // lowerSlideToGSX lowers one slide's mdpp subtree to a GoSX element expression:
-// `<section class="slide" data-slide="N"> …children… </section>`. Each child
-// node is lowered by lowerNodeToGSX. The class+data-slide shape matches the
-// original hand-built lane (renderIslandSlide) so existing slide styling/lookup
-// keyed on `.slide`/`data-slide` keeps working.
+// `<section class="slide layout-<name>" data-slide="N"> …children… </section>`.
+// Each child node is lowered by lowerNodeToGSX. The `.slide`/data-slide shape
+// matches the original hand-built lane (renderIslandSlide) so existing nav/lookup
+// keyed on them keeps working; the extra `layout-<name>` class comes from the
+// slide's `layout:` frontmatter (default | center | title — see layoutClass) so
+// themes (themes.go) can style per-slide layouts. The class always carries
+// exactly one well-formed layout token (unknown/absent -> layout-default).
 func lowerSlideToGSX(slide IslandSlide) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<section class="slide" data-slide="%d">`, slide.Index)
+	fmt.Fprintf(&b, `<section class="slide %s" data-slide="%d">`, slideLayoutClass(slide), slide.Index)
 	if slide.Node != nil {
 		for _, child := range slide.Node.Children {
 			b.WriteString(lowerNodeToGSX(child))
@@ -194,6 +197,19 @@ func lowerSlideToGSX(slide IslandSlide) string {
 	}
 	b.WriteString("</section>")
 	return b.String()
+}
+
+// slideLayoutClass returns the `layout-<name>` class for a slide, read from its
+// `layout:` frontmatter (parsed the same way slideFrontmatterValues does) and
+// normalized through layoutClass so an absent/unknown layout becomes
+// "layout-default". Centralizing the read here keeps lowerSlideToGSX simple and
+// guarantees the class agrees with the layouts every theme styles.
+func slideLayoutClass(slide IslandSlide) string {
+	layout := ""
+	if slide.Node != nil {
+		layout = parseFrontmatter(slide.Node.Attr("frontmatter"))["layout"]
+	}
+	return layoutClass(layout)
 }
 
 // lowerNodeToGSX lowers a single mdpp node to GoSX source text. The rules:

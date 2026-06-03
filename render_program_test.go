@@ -215,8 +215,10 @@ func TestGenerateDeckSourceShape(t *testing.T) {
 		"func Slide_1() Node {",
 		"func Counter() Node {", // island def inlined
 		"//gosx:island",         // directive preserved
-		`<section class="slide" data-slide="0">`,
-		`<section class="slide" data-slide="1">`,
+		// Slides carry a layout-<name> class from their `layout:` frontmatter
+		// (layout-default when absent — see slideLayoutClass/themes.go).
+		`<section class="slide layout-default" data-slide="0">`,
+		`<section class="slide layout-default" data-slide="1">`,
 		"{1 + 1}", // expr carried verbatim
 		"<Counter/>",
 	} {

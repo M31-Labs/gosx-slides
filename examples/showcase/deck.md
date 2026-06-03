@@ -1,14 +1,27 @@
 ---
 title: gosx-slides
+theme: aurora
 ---
 
+```yaml
+layout: title
+```
+
 # gosx-slides
+
+Beautiful, live presentations — compiled, not templated.
+
+---
+
+# The real lane
 
 This is the **real lane** — the prose you are reading is static server HTML.
 
 Deck title via an expression: {deck.title}. Uppercased: {strings.ToUpper("live gosx")}.
 
 Use the arrow keys (← / →) or Space to move between slides. Press `f` for fullscreen.
+
+> Themes and layouts are selected entirely from deck frontmatter.
 
 ---
 

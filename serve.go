@@ -215,17 +215,25 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	cd, _ := compileDeckProgram(d)
 	slideNodes := renderProgramSlides(r, d, cd, compiled)
 
-	// Slide-visibility CSS + viewport go in the document head via the Context.
-	// The App composes ctx.Head() into the single <head>, after which it appends
-	// the runtime's own head (manifest + bootstrap) — so these never collide with
-	// the island bootstrap and only the active slide shows.
+	// Resolve the deck's theme from its `theme:` headmatter (themeName falls back
+	// to the default for an absent/unknown value), so the served head always
+	// carries one real theme and `<main>` a matching data-theme hook.
+	theme := themeName(deckTheme(d))
+
+	// Slide-visibility CSS + the selected THEME + viewport go in the document head
+	// via the Context. The App composes ctx.Head() into the single <head>, after
+	// which it appends the runtime's own head (manifest + bootstrap) — so these
+	// never collide with the island bootstrap. The theme CSS is scoped under
+	// main.deck[data-theme="<name>"] (themes.go) and the nav rule under the bare
+	// main.deck, so they layer cleanly: themes never override slide visibility.
 	ctx.AddHead(
 		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
 		gosx.RawHTML("<style>"+navStyle()+"</style>"),
+		gosx.RawHTML("<style>"+themeCSS(theme)+"</style>"),
 	)
 
 	return gosx.El("main",
-		gosx.Attrs(gosx.Attr("class", "deck")),
+		gosx.Attrs(gosx.Attr("class", "deck"), gosx.Attr("data-theme", theme)),
 		gosx.Fragment(slideNodes...),
 		// The slide-nav controller runs at the END of the body, so the data-slide
 		// sections above already exist in the DOM when it wires up. It shows ONE
@@ -234,6 +242,18 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// the App adds to the head — hidden slides still hydrate their islands.
 		gosx.RawHTML("<script>"+navScript()+"</script>"),
 	)
+}
+
+// deckTheme reads the deck's raw `theme:` headmatter value as a string, returning
+// "" when it is absent (or not a string). It reuses deckFrontmatterValues (the
+// same headmatter the `{deck.theme}` expression sees) so the served theme and any
+// in-prose reference to it stay in sync, and guards the type assertion so a deck
+// without a theme key never panics — themeName then resolves "" to the default.
+func deckTheme(d *IslandDeck) string {
+	if v, ok := deckFrontmatterValues(d)["theme"].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // compileComponents compiles every distinct component referenced anywhere in the
