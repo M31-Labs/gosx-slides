@@ -7,6 +7,7 @@ replace m31labs.dev/gosx => ../gosx
 replace m31labs.dev/mdpp => ../mdpp
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	m31labs.dev/gosx v0.24.2
 	m31labs.dev/mdpp v0.4.6
 )

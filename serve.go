@@ -52,6 +52,20 @@ type ServeOptions struct {
 	// picked up — `slides serve --rebuild` (or deleting build/) forces a fresh
 	// build. No effect unless StageRuntime is also set.
 	RebuildRuntime bool
+
+	// Dev makes the deck server re-load the deck from disk on every GET / so
+	// live edits to deck.md (and its components) take effect on the next request
+	// without a manual restart. It is the in-process upstream behind the
+	// `slides dev`/`slides serve --watch` hot-swap loop: the dev proxy front
+	// (gosx/dev.Server) issues a full "reload" after a deck.md edit, and the
+	// re-loaded deck then renders the new content.
+	//
+	// Re-parsing a deck and re-compiling its islands is milliseconds, so paying
+	// it per request in dev is fine; the production `serve` lane leaves this
+	// false and compiles once at startup. A re-load failure (e.g. a deck.md the
+	// user is mid-edit) is non-fatal: the handler falls back to the deck the
+	// server started with so the page never 500s on a transient bad parse.
+	Dev bool
 }
 
 // NewServer builds (but does not start) a gosx server.App that serves the deck
@@ -64,8 +78,6 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
-
-	deckName := d.deckName()
 
 	// Compile each distinct component once (CompileComponent recompiles on every
 	// call — cache by name) and mount its JSON. The compiled cache is read-only
@@ -104,12 +116,25 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// per-page pattern (server.NewPageRuntime -> fresh island.Renderer per
 	// response; see gosx/server/runtime.go). The compiled cache above stays shared
 	// — only the renderer is rebuilt here.
+	//
+	// In dev mode the DECK itself is re-loaded per request too (re-parse deck.md +
+	// re-compile its components), so a deck.md edit shows new content after the
+	// dev proxy's full reload. A re-load failure falls back to the startup deck +
+	// cache so a mid-edit deck.md never 500s the page.
 	app.Route("/", func(_ *http.Request) gosx.Node {
-		r := island.NewRenderer(deckName)
-		for _, name := range sortedKeys(compiled) {
+		renderDeck, renderCompiled := d, compiled
+		if opts.Dev {
+			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
+				if freshCompiled, _ := fresh.compileComponents(); freshCompiled != nil {
+					renderDeck, renderCompiled = fresh, freshCompiled
+				}
+			}
+		}
+		r := island.NewRenderer(renderDeck.deckName())
+		for _, name := range sortedKeys(renderCompiled) {
 			r.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
-		return d.renderPage(r, title, compiled)
+		return renderDeck.renderPage(r, title, renderCompiled)
 	})
 
 	if opts.StageRuntime {
@@ -341,6 +366,59 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 	}
 
 	return deckDir, nil
+}
+
+// StageIslandPrograms compiles every distinct component referenced by the deck
+// at deckDir to its JSON wire program and writes it to <deckDir>/build/islands/
+// <Name>.json. This is the on-disk asset the dev proxy front (gosx/dev.Server)
+// serves at /gosx/islands/<Name>.json — it SHADOWS the proxied deck server's own
+// island mounts, so the initial page load (and a hard refresh after a hot-swap)
+// reads the bytecode from disk. The live hot-swap itself does not depend on this:
+// the "program" SSE event carries the fresh bytecode inline.
+//
+// It mirrors `gosx dev`'s compileDevIslands layout (build/islands/<Name>.json),
+// scoped to the components the deck actually references. A component that is
+// missing or fails to compile is SOFT-DEGRADED (skipped), matching NewServer: it
+// renders as the inert unresolved placeholder rather than failing the loop. Stale
+// JSON for components no longer referenced is cleared first so a removed component
+// does not leave a serveable orphan.
+func StageIslandPrograms(deckDir string) error {
+	absDeckDir, err := filepath.Abs(deckDir)
+	if err != nil {
+		return fmt.Errorf("resolve deck dir: %w", err)
+	}
+
+	deck, err := LoadIslandDeck(absDeckDir)
+	if err != nil {
+		return err
+	}
+
+	islandDir := filepath.Join(absDeckDir, "build", "islands")
+	if err := os.MkdirAll(islandDir, 0o755); err != nil {
+		return fmt.Errorf("create island build dir: %w", err)
+	}
+
+	// Clear any previously-staged island JSON so a renamed/removed component does
+	// not leave a stale, serveable file behind.
+	if entries, err := os.ReadDir(islandDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+				_ = os.Remove(filepath.Join(islandDir, entry.Name()))
+			}
+		}
+	}
+
+	// compileComponents compiles each distinct referenced component once and
+	// soft-degrades failures — exactly the cache NewServer mounts, so the staged
+	// JSON is byte-identical to what the production lane serves in-process.
+	compiled, _ := deck.compileComponents()
+	for _, name := range sortedKeys(compiled) {
+		path := filepath.Join(islandDir, name+".json")
+		if err := os.WriteFile(path, compiled[name].json, 0o644); err != nil {
+			return fmt.Errorf("write island %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 // resolveGoSXRoot returns the local gosx module directory (../gosx via the

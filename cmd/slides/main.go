@@ -179,7 +179,7 @@ func run(args []string) error {
 	case "serve":
 		// Real lane: serve a deck whose slides host live GoSX islands, staging
 		// the client WASM runtime so they hydrate in the browser. Distinct from
-		// `dev`/`present`, which run the fallback HTML presenter.
+		// the fallback `dev`/`present`, which run the HTML presenter.
 		port, rest, err := takeIntFlag(args[1:], "port", 8080)
 		if err != nil {
 			return err
@@ -187,7 +187,16 @@ func run(args []string) error {
 		// --rebuild forces a fresh GOOS=js runtime.wasm build; the wasm is
 		// existence-cached, so this is how a gosx runtime change is picked up.
 		rebuild, rest := takeBoolFlag(rest, "rebuild")
+		// --watch turns the real lane into the hot-swap dev loop: editing a
+		// component .gsx hot-swaps the live island in place (no reload, state
+		// preserved); editing deck.md full-reloads with the new content. It fronts
+		// the in-process deck server with the gosx dev proxy.
+		watch, rest := takeBoolFlag(rest, "watch")
 		dir := deckDir(rest)
+		if watch {
+			fmt.Printf("gosx-slides real lane (hot-swap) serving %s at http://%s\n", dir, addr(port))
+			return slides.DevDeck(dir, slides.DevOptions{Addr: addr(port), RebuildRuntime: rebuild})
+		}
 		fmt.Printf("gosx-slides real lane serving %s at http://%s\n", dir, addr(port))
 		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), RebuildRuntime: rebuild})
 	case "dev":
@@ -351,8 +360,8 @@ Commands:
   merge <deck-dir> --out <deck.md>
   components [--json]
   doctor [deck.md] [--json]
-  serve [deck-dir] [--port 8080] [--rebuild]   (real lane: live GoSX islands, hydrated; --rebuild forces a fresh runtime.wasm)
-  dev [deck.md] [--port 8080]
+  serve [deck-dir] [--port 8080] [--rebuild] [--watch]   (real lane: live GoSX islands, hydrated; --watch = hot-swap dev loop: .gsx hot-swaps in place, deck.md reloads; --rebuild forces a fresh runtime.wasm)
+  dev [deck.md] [--port 8080]                            (fallback HTML presenter; for the real-lane hot-swap loop use serve --watch)
   present [deck.md] [--port 8080]
   build [deck.md] [--out dist]
   export [deck.md] --format spa|single|pdf|png [--out dist]
