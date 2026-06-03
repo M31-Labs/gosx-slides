@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
 	github.com/odvcencio/gotreesitter v0.20.0 // indirect

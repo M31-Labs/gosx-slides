@@ -330,6 +330,23 @@ func splitPropTokens(raw string) []string {
 	return tokens
 }
 
+// readComponentSource reads the raw <Name>.gsx source for a component from the
+// deck directory. It is the source the Slice-4 generator inlines (after stripping
+// the package clause + imports via parseIslandDef) so the component's
+// //gosx:island definition can be compiled together with the generated Slide_N
+// funcs in a single deck program.
+func (d *IslandDeck) readComponentSource(name string) (string, error) {
+	if d == nil {
+		return "", fmt.Errorf("read component %q: nil deck", name)
+	}
+	path := filepath.Join(d.Dir, name+".gsx")
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read component %s: %w", path, err)
+	}
+	return string(source), nil
+}
+
 // compileIslandComponent reads <dir>/<name>.gsx and runs the proven GoSX
 // pipeline — Compile -> LowerIsland -> EncodeJSON — for the island matching
 // name. It returns the lowered island program and its JSON wire bytes. This is

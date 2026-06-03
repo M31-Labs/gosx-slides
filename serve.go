@@ -176,11 +176,17 @@ func ServeDeck(dir string, opts ServeOptions) error {
 // renderPage renders the whole deck as one HTML document: every slide rendered
 // in order (minimal multi-slide handling — no presenter chrome), with the island
 // renderer's PageHead wiring the client bootstrap.
+//
+// Slice 4: slides render through the source-gen lane (renderProgramSlides) — the
+// deck is lowered to one GoSX source, compiled once, and each slide rendered via
+// route.RenderProgramComponent — so inline {expr} actually EVALUATES server-side
+// and inline <Component/> tags hydrate as real islands (inlined through r, which
+// registers them so PageHead below sees them). If the deck fails to compile, the
+// flow falls back to the original hand-built lane (renderIslandSlide) so a
+// transient bad deck still serves (prose + islands; {expr} as raw text).
 func (d *IslandDeck) renderPage(r *island.Renderer, title string, compiled map[string]*compiledComponent) gosx.Node {
-	var slideNodes []gosx.Node
-	for _, slide := range d.Slides {
-		slideNodes = append(slideNodes, renderIslandSlide(r, slide, compiled))
-	}
+	cd, _ := compileDeckProgram(d)
+	slideNodes := renderProgramSlides(r, d, cd, compiled)
 	body := gosx.El("main",
 		gosx.Attrs(gosx.Attr("class", "deck")),
 		gosx.Fragment(slideNodes...),

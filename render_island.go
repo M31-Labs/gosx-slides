@@ -98,8 +98,11 @@ func lowerNode(r *island.Renderer, n *mdpp.Node, components map[string]*compiled
 		return nil
 
 	case mdpp.NodeExpression:
-		// Slice-2: render the expression's source as text (real evaluation is a
-		// follow-up — see hand-off notes).
+		// FALLBACK LANE ONLY: this hand-built lowering renders the expression's
+		// source as raw text. The live deck server (serve.go) renders through the
+		// Slice-4 source-gen lane (render_program.go) where {expr} actually
+		// EVALUATES; this path is reached only when that lane's compile fails, as a
+		// degrade so the page still serves.
 		return []gosx.Node{gosx.Text(n.Literal)}
 
 	default:
@@ -128,6 +131,8 @@ func lowerInline(r *island.Renderer, parent *mdpp.Node, components map[string]*c
 		case mdpp.NodeText:
 			out = append(out, lowerTextLiteral(r, child.Literal, components)...)
 		case mdpp.NodeExpression:
+			// Fallback-lane raw text; the source-gen lane evaluates {expr} (see the
+			// NodeExpression case in lowerNode).
 			out = append(out, gosx.Text(child.Literal))
 		case mdpp.NodeHTMLInline, mdpp.NodeHTMLBlock:
 			for _, ref := range scanLiteralComponents(child.Literal) {

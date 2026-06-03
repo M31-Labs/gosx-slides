@@ -218,9 +218,17 @@ func TestNewServerConcurrentRequestsAreIdenticalAndRaceClean(t *testing.T) {
 // TestNewServerSoftDegradesMissingComponent is the I1.2 regression: a deck that
 // references a component whose <Name>.gsx does not exist (a typo or a not-yet-
 // created component) must NOT fail NewServer or 500 the presentation. It serves
-// 200 with the inert data-gosx-unresolved placeholder for that one component,
-// while the rest of the deck renders normally. Before the fix, compileComponents
-// treated the missing file as a hard error and the whole deck failed to build.
+// 200 with an INERT placeholder for that one component, while the rest of the
+// deck renders normally. Before the I1.2 fix, compileComponents treated the
+// missing file as a hard error and the whole deck failed to build.
+//
+// Slice 4 note: slides now render through the source-gen lane, so an unresolved
+// <Missing/> is emitted by the gosx route renderer as its standard inert
+// component placeholder `<div data-gosx-component="Missing" …>` (no source to
+// inline, so it falls through to the default rendering) rather than the old
+// slides-specific data-gosx-unresolved span. The CONTRACT is unchanged: 200, an
+// inert non-hydrating placeholder, surrounding prose intact, and crucially NOT a
+// live island mount for a component with no source.
 func TestNewServerSoftDegradesMissingComponent(t *testing.T) {
 	dir := t.TempDir()
 	// A deck referencing a component that has no .gsx source.
@@ -245,7 +253,7 @@ func TestNewServerSoftDegradesMissingComponent(t *testing.T) {
 		t.Fatalf("GET / status = %d, want 200 (missing component must degrade, not 500)", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `data-gosx-unresolved="Missing"`) {
+	if !strings.Contains(body, `data-gosx-component="Missing"`) {
 		t.Fatalf("GET / missing the inert placeholder for the unresolved component:\n%s", body)
 	}
 	// Surrounding prose still renders.
@@ -316,6 +324,125 @@ func TestStageRuntimeAssetsRebuild(t *testing.T) {
 	if len(rebuilt) < 1024 {
 		t.Fatalf("rebuilt wasm is implausibly small (%d bytes); expected a real GOOS=js artifact", len(rebuilt))
 	}
+}
+
+// TestNewServerEvaluatesExpressions is the Slice-4 headline outcome through the
+// real HTTP handler: a deck whose slides carry inline {expr} serves a page where
+// those expressions are EVALUATED server-side — {2 + 3} -> "5",
+// {strings.ToUpper("hi")} -> "HI" (strings is the bound namespace), and a pure
+// string concat -> "abc" — not rendered as their raw source. This is the whole
+// point of the slice: a slide's {expr} runs through the gosx evaluator, not the
+// old raw-text path.
+func TestNewServerEvaluatesExpressions(t *testing.T) {
+	dir := newDeckDirUnderModule(t,
+		"# Eval\n\nThe answer is {2 + 3}.\n\nShout {strings.ToUpper(\"hi\")} now.\n\nJoined {\"a\" + \"b\" + \"c\"}.\n",
+		nil)
+
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "The answer is 5.") {
+		t.Errorf("GET / did not evaluate {2 + 3} to 5:\n%s", body)
+	}
+	if strings.Contains(body, "2 + 3") {
+		t.Errorf("GET / leaked raw expr source {2 + 3} instead of evaluating:\n%s", body)
+	}
+	if !strings.Contains(body, "HI") {
+		t.Errorf("GET / did not evaluate {strings.ToUpper(\"hi\")} to HI:\n%s", body)
+	}
+	if !strings.Contains(body, "abc") {
+		t.Errorf("GET / did not evaluate {\"a\" + \"b\" + \"c\"} to abc:\n%s", body)
+	}
+}
+
+// TestNewServerExprAndIslandCoexist proves a single served page evaluates an
+// inline {expr} AND hydrates a real <Counter/> island on the same slide, with
+// the island program served as JSON — the two Slice-4 capabilities together
+// through the HTTP server.
+func TestNewServerExprAndIslandCoexist(t *testing.T) {
+	dir := newDeckDirUnderModule(t,
+		"# Both\n\nThe answer is {2 + 3}.\n\n<Counter initial={3}/>\n",
+		map[string]string{"Counter": counterGSX})
+
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatalf("LoadIslandDeck: %v", err)
+	}
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "The answer is 5.") {
+		t.Errorf("GET / did not evaluate {2 + 3} alongside the island:\n%s", body)
+	}
+	if !strings.Contains(body, `data-gosx-island="Counter"`) {
+		t.Errorf("GET / missing live island mount for <Counter/>:\n%s", body)
+	}
+	if strings.Contains(body, "data-gosx-unresolved") || strings.Contains(body, `data-gosx-component="Counter"`) {
+		t.Errorf("GET / Counter did not inline as a live island (rendered as a placeholder):\n%s", body)
+	}
+
+	// The island program is served as JSON for hydration.
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/gosx/islands/Counter.json", nil))
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("GET island JSON status = %d, want 200", rec2.Code)
+	}
+	if ct := rec2.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("island JSON Content-Type = %q, want application/json", ct)
+	}
+}
+
+// newDeckDirUnderModule writes a deck.md (+ optional component .gsx files) into a
+// fresh temp dir UNDER the module (so the go.mod replace resolves for any
+// tooling) and returns the dir. t.Cleanup removes it.
+func newDeckDirUnderModule(t *testing.T, deckMD string, components map[string]string) string {
+	t.Helper()
+	repoDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	base := filepath.Join(repoDir, "testdata")
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatalf("mkdir testdata: %v", err)
+	}
+	dir, err := os.MkdirTemp(base, "serve-eval-")
+	if err != nil {
+		t.Fatalf("mkdtemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	if err := os.WriteFile(filepath.Join(dir, DeckFileName), []byte(deckMD), 0o644); err != nil {
+		t.Fatalf("write deck: %v", err)
+	}
+	for name, src := range components {
+		if err := os.WriteFile(filepath.Join(dir, name+".gsx"), []byte(src), 0o644); err != nil {
+			t.Fatalf("write component %s: %v", name, err)
+		}
+	}
+	return dir
 }
 
 func isFileExists(path string) bool {
