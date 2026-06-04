@@ -10,14 +10,8 @@ package main
 //
 // "Collapse forks" drops the JS bar from 5.95x to 4.41x (height + color +
 // caption all re-render); "Reset" puts it back. Genuinely reactive — the same
-// signal/Get/Set binding path as the showcase Counter.
-//
-// Authoring note (learned by dogfooding the island compiler): the only reactive
-// primitive an island render sees is signal.New(...).Get() bound in {text} or
-// inside style={"..." + s.Get()}. NOT supported: signal.Computed in render,
-// <If when={signal}> (renders once, never reactive), fmt.Sprintf in {}, or `if`
-// inside a handler/render func. So state is held as string signals and the two
-// buttons set them with branch-free multi-Set handlers.
+// signal/Get/Set binding path as the showcase Counter. State is held in string
+// signals bound via {s.Get()} in text and inside style={"..." + s.Get()}.
 //
 //gosx:island
 func Benchmark(props any) Node {

@@ -35,33 +35,14 @@ click them.
 - **Code stepping** — the methodology / safety-criterion / transfer-limit slides use ` ```go {1-2|4-6|8} ` fence meta; each `|` group is one reveal step the arrow keys walk through.
 - **Evaluated expressions, themes + web-fonts, layouts, speaker notes, overview, presenter view** — all from deck source.
 
-## Authoring live islands (`.gsx`) — what the island compiler actually supports
+## Authoring islands
 
 An island is `package main` + `//gosx:island` + `func Name(props any) Node { … }`
-beside `deck.md`; reference it as `<Name Prop={value}/>`. The deck compiles every
-island once and hydrates it. The render layer is **narrower than full GoSX JSX** —
-these rules are load-bearing (learned by dogfooding; ignore them and the island
-silently renders as `<span data-gosx-unresolved="Name">`):
+beside `deck.md`; reference it as `<Name Prop={value}/>`. Hold state in
+`signal.New(v)` and read it as `{s.Get()}` in text or inside `style={"…" + s.Get()}`;
+`onClick={handler}` wires events. Props bind by **exact attribute name**
+(`<Benchmark Before={5.95}/>` → `props.Before`). See `Benchmark.gsx` and
+`ParseTree.gsx` for worked examples.
 
-**Reactivity model — the only reactive primitive a render sees is `signal.New(...).Get()`.**
-
-- Hold state as `signal.New(v)`; read it as `{s.Get()}` in text **or** inside `style={"…" + s.Get()}`. Both re-render when the signal changes (same path as the showcase `Counter`).
-- Use **string-valued signals** for anything that drives CSS (`signal.New("100%")`, `…Set("74%")`) and concatenate: `style={"height:" + barH.Get()}`.
-- Props bind by **exact attribute name**: `<Benchmark Before={5.95}/>` → `props.Before`. `before={…}` (lowercase) is dropped.
-
-**Not supported in an island (these were each tried and failed):**
-
-- `signal.Computed(…)` / `signal.Derive(…)` in render — `unknown method "Get"` (the render VM only types `signal.New`).
-- `<If when={signal.Get()}>` for reactive conditionals — it renders **once** and never updates. (It works for *static* props, which is the only way the framework's own templates use it.)
-- `fmt.Sprintf` directly inside `{…}` — `unknown method "Sprintf"`. (`fmt.Sprint` is fine; or format inside a plain func body, never in render position.)
-- `if` inside a render-position helper func **or** inside an `onClick` handler — `unexpected token` (the handler/expr parser is statement-restricted).
-
-**The pattern that works for conditional UI:** there is no in-render and no in-handler
-branching, so don't toggle — give each state its own **branch-free multi-`Set`
-handler** and wire them to separate buttons. Benchmark uses *Collapse* / *Reset*;
-ParseTree uses per-node *reveal* + a *collapse* button, each setting `display`/caret
-string signals directly. See the header comments in both `.gsx` files.
-
-Other real-lane authoring notes (apply to any deck): slide separators are
-blank-line-surrounded `---`; per-slide frontmatter is a leading ` ```yaml ` fence,
-not a `---` block; **Markdown tables are not rendered** — use lists.
+Deck-authoring conventions: slide separators are blank-line-surrounded `---`;
+per-slide frontmatter is a leading ` ```yaml ` fence, not a `---` block.

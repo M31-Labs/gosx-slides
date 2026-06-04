@@ -12,11 +12,9 @@ package main
 // "agent-visible syntax trees" made literal — the same node names a query would
 // capture, expandable in the browser as genuine GoSX island state.
 //
-// Reactivity model (see Benchmark.gsx note): per-node visibility + caret are
-// string signals (display:none/block, ▸/▾) bound via {s.Get()} and
-// style={"display:" + s.Get()}; the reveal buttons set them with branch-free
-// multi-Set handlers (no `if`, no signal.Computed, no <If> — none are reactive
-// inside an island render).
+// Per-node visibility + caret are string signals (display:none/block, ▸/▾)
+// bound via {s.Get()} and style={"display:" + s.Get()}; the reveal buttons set
+// them on click.
 //
 //gosx:island
 func ParseTree(props any) Node {
