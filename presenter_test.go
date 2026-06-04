@@ -1,6 +1,9 @@
 package slides
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -188,4 +191,118 @@ func topLevelSelectors(css string) []string {
 		}
 	}
 	return sels
+}
+
+// TestPresenterScriptCarriesStepCounter proves the presenter footer counter is
+// step-aware: it reads getStep/getStepCount and emits a "· step K/N" segment so a
+// slide with stepped code blocks shows the live walkthrough position.
+func TestPresenterScriptCarriesStepCounter(t *testing.T) {
+	script := presenterScript()
+	for _, want := range []string{
+		"getStepCount", // reads the slide's step budget from navScript
+		"getStep",      // reads the active step
+		"step ",        // the "· step K/N" label
+		"pv-step",      // the styled step span
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("presenter step counter missing %q:\n%s", want, script)
+		}
+	}
+	// The footer-counter CSS must style the step segment.
+	if !strings.Contains(presenterStyle(), ".pv-step") {
+		t.Errorf("presenter style missing .pv-step rule")
+	}
+}
+
+// TestPresenterTimerPersistence proves the elapsed timer persists to localStorage
+// keyed to the deck path: save/load/clear are wired, the key is path-scoped, and
+// the stored state carries the absolute start so a reload resumes the elapsed
+// time. Reset removes the key.
+func TestPresenterTimerPersistence(t *testing.T) {
+	script := presenterScript()
+	for _, want := range []string{
+		"localStorage",                          // persistence backend
+		"gosx-slides:timer:' + location.pathname", // path-scoped key
+		"setItem",                               // saves state
+		"getItem",                               // restores state on reload
+		"removeItem",                            // Reset clears it
+		"startedAt",                             // absolute start persisted
+		"saveTimer",                             // save helper
+		"loadTimer",                             // restore helper
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("presenter timer persistence missing %q:\n%s", want, script)
+		}
+	}
+}
+
+// TestPresenterNoteMarkdownRenders proves the presenter's note renderer turns
+// BASIC inline markdown into the matching tags AND is XSS-safe. It EXECUTES the
+// generated renderNoteMarkdown via node (skipping if node is absent) so the test
+// checks real transform output, not just the source text: **bold** -> <strong>,
+// `code` -> <code>, *italic* -> <em>, "- " lines -> <ul><li>, and a raw <script>
+// in the note is escaped, never injected.
+func TestPresenterNoteMarkdownRenders(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not on PATH; skipping note-markdown execution check")
+	}
+	script := presenterScript()
+
+	// Drive renderNoteMarkdown(note) for a note exercising every feature + an XSS
+	// attempt. The presenter IIFE defines window.SlidesPresenter but renderNoteMarkdown
+	// is a closure inside init — so we eval the function body standalone by exposing
+	// it. Simplest: re-declare a tiny harness that pastes the helper functions. We
+	// extract them from the script via known markers so the test runs the REAL code.
+	start := strings.Index(script, "function escapeHTML(")
+	end := strings.Index(script, "function init(")
+	if start < 0 || end < 0 || end <= start {
+		t.Fatalf("could not locate the note-markdown helpers in presenterScript")
+	}
+	helpers := script[start:end]
+
+	note := "Say **hello** and `run()` then *pause*.\n- first\n- second\n<script>alert(1)</script>"
+	harness := "globalThis.localStorage = { _m:{}, getItem(k){return this._m[k]||null;}, setItem(k,v){this._m[k]=v;}, removeItem(k){delete this._m[k];} };\n" +
+		"globalThis.location = { pathname: '/deck' };\n" +
+		helpers +
+		"\nconst note = " + jsStringLiteral(note) + ";\n" +
+		"process.stdout.write(renderNoteMarkdown(note));\n"
+
+	f := filepath.Join(t.TempDir(), "notemd.js")
+	if err := os.WriteFile(f, []byte(harness), 0o644); err != nil {
+		t.Fatalf("write harness: %v", err)
+	}
+	out, err := exec.Command(node, f).CombinedOutput()
+	if err != nil {
+		t.Fatalf("node failed to run note-markdown harness: %v\n%s\n--- harness ---\n%s", err, out, harness)
+	}
+	got := string(out)
+
+	for _, want := range []string{
+		"<strong>hello</strong>",
+		"<code>run()</code>",
+		"<em>pause</em>",
+		"<ul>", "<li>first</li>", "<li>second</li>", "</ul>",
+		"&lt;script&gt;", // the XSS attempt is escaped
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rendered note markdown missing %q:\ngot: %s", want, got)
+		}
+	}
+	// The raw, unescaped script tag must NOT survive.
+	if strings.Contains(got, "<script>alert(1)</script>") {
+		t.Fatalf("note markdown injected raw HTML (XSS): %s", got)
+	}
+}
+
+// jsStringLiteral renders s as a double-quoted JS string literal safe to embed in
+// generated test JS (escapes backslash, quote, and the line terminators).
+func jsStringLiteral(s string) string {
+	r := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		"\n", `\n`,
+		"\r", `\r`,
+	)
+	return `"` + r.Replace(s) + `"`
 }

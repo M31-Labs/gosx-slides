@@ -1,5 +1,10 @@
 package slides
 
+import (
+	"strconv"
+	"strings"
+)
+
 // nav.go is the real lane's slide-navigation layer (Phase 1, Slice 6). The real
 // lane (serve.go's renderPage) lowers every slide to a
 // `<section class="slide" data-slide="N">…</section>` and stacks them in
@@ -41,6 +46,13 @@ const navActiveClass = "deck-active"
 // override the one-slide-at-a-time visibility so EVERY slide shows as a scaled
 // thumbnail card. Kept as a const so the style and the script agree.
 const navOverviewClass = "deck-overview"
+
+// navActiveStepAttr is the data-attribute navScript sets on the ACTIVE slide to
+// record which click STEP is currently lit (1-based; "0" / absent = no step yet,
+// every emphasized line shown). The theme CSS keys its code-block spotlight off
+// `.slide[data-active-step="K"] pre[data-steps] .ts-line[data-step~="K"]`. Kept as
+// a const so the style and the script can never drift on the attribute name.
+const navActiveStepAttr = "data-active-step"
 
 // navStyle is the slide-visibility stylesheet for the real lane: inside
 // `main.deck`, every `.slide` is hidden and only the one carrying navActiveClass
@@ -141,7 +153,60 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
   main.deck.` + navOverviewClass + ` > .slide:hover {
     transform: translateY(-4px);
   }
-}`
+}
+` + stepSpotlightCSS()
+}
+
+// navStepMax is the largest click-step index the generated spotlight CSS
+// enumerates. CSS cannot compare a slide's data-active-step value against a line's
+// data-step value (no attribute-to-attribute matching), so stepSpotlightCSS emits
+// one rule per step index 1..navStepMax. A real walkthrough rarely exceeds a
+// handful of `|`-groups; 16 is a generous ceiling. A fence with MORE steps than
+// this still steps correctly (navScript has no cap) — only the later steps fall
+// back to the no-spotlight look (every emphasized line lit) for those rare slides.
+const navStepMax = 16
+
+// stepSpotlightCSS returns the theme-agnostic click-through spotlight stylesheet
+// for code blocks: when the active slide carries data-active-step="K" (navScript
+// sets it once stepping begins), the lines tagged data-step~="K" stay fully lit
+// while the OTHER emphasized lines drop back to the dim level — so a `{2-3|6}`
+// fence lights 2-3 on the first ArrowRight, then 6 on the next, the rest dimmed.
+//
+// It is intentionally written ONCE here rather than per theme: it only refines the
+// per-theme [data-emphasized] .ts-line rules (themes_css.go) using the SAME
+// inherited tokens (--accent / --accent-soft / --fg), so it inherits each theme's
+// palette without knowing it. Specificity is higher than the per-theme
+// .ts-line.emphasis lit rule (it adds .slide, [data-active-step], [data-steps]), so
+// the dim-the-rest rule wins; the per-K re-light rule adds [data-step~="K"] on top
+// so the active step's lines win again. When NO step is active (data-active-step
+// absent — step 0, a reload, or a slide with no stepped block) none of these match,
+// so every emphasized line shows lit exactly as the static-emphasis feature did.
+func stepSpotlightCSS() string {
+	var b strings.Builder
+	b.WriteString(`/* ── Click-through code stepping (the marquee nicey) ─────────────────────────
+   navScript advances a STEP within a slide before moving to the next slide, and
+   writes data-active-step="K" on the active slide. While a step is active, the
+   active step's code lines stay lit and the rest dim. Theme-agnostic: uses the
+   inherited --accent / --accent-soft / --fg tokens, so it looks native per theme.
+   No active step (absent attr) => no match => every emphasized line lit (static). */
+main.deck > .slide[` + navActiveStepAttr + `] pre.code-block[data-steps] .ts-line.emphasis {
+  opacity: 0.4;
+  background: transparent;
+  border-left-color: transparent;
+}
+`)
+	// Per-step re-light rules: enumerate K so CSS can match a line's data-step word
+	// against the slide's active step value (CSS can't compare two attributes).
+	for k := 1; k <= navStepMax; k++ {
+		ks := strconv.Itoa(k)
+		b.WriteString(`main.deck > .slide[` + navActiveStepAttr + `="` + ks + `"] pre.code-block[data-steps] .ts-line.emphasis[data-step~="` + ks + `"] {
+  opacity: 1;
+  background: var(--accent-soft, rgba(128,128,128,0.16));
+  border-left-color: var(--accent, currentColor);
+}
+`)
+	}
+	return b.String()
 }
 
 // navScript is the real lane's self-contained navigation controller, returned as
@@ -161,6 +226,18 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
 //     the presenter window (audience view only; a no-op in the presenter window).
 //     Typing in an input/textarea/select is ignored. Arrow/Space default scrolling
 //     is prevented.
+//   - CLICK-THROUGH CODE STEPS: a slide whose code block(s) carry data-steps="N"
+//     (lowered from a `{2-3|6}` fence's `|`-groups) has N click steps. ArrowRight
+//     advances the STEP within the current slide first and only moves to the next
+//     slide once the steps are exhausted; ArrowLeft reverses (step down, then to
+//     the previous slide's LAST step). The active step is written as
+//     data-active-step on the active slide so the theme CSS spotlights that step's
+//     lines. Steps are EPHEMERAL: the URL hash stays slide-only (#n), so a reload
+//     lands on the slide with no step applied. A slide with no stepped block is a
+//     plain one-press-per-slide slide exactly as before. This mirrors the fallback
+//     lane's runtime_script.go step-then-slide model, applied to real-lane code
+//     blocks. The active {index, step} syncs over the BroadcastChannel so the
+//     presenter and audience step together.
 //   - OVERVIEW GRID (`o`): toggles navOverviewClass on `main.deck`, so navStyle's
 //     overview rules lay every slide out as a scaled thumbnail card. While open,
 //     cards become keyboard-operable (role=button + tabindex); ArrowLeft/Right (and
@@ -172,10 +249,11 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
 //   - Zero slides is a no-op (every guard short-circuits), so an empty deck
 //     never throws.
 //
-// It exposes `window.SlidesNav = { show, next, prev, current, openOverview,
-// closeOverview, toggleOverview, isOverview, onChange, openPresenter, isPresenter }`
-// for manual driving/debugging (and for the presenter chrome to drive state +
-// subscribe to changes) and is wrapped in an IIFE so it leaks nothing else. It has
+// It exposes `window.SlidesNav = { show, next, prev, current, step, stepCount,
+// openOverview, closeOverview, toggleOverview, isOverview, onChange, openPresenter,
+// isPresenter }` for manual driving/debugging (and for the presenter chrome to
+// drive state + subscribe to changes) and is wrapped in an IIFE so it leaks
+// nothing else. It has
 // NO dependency on the island runtime: hidden (display:none) slides still hydrate
 // their islands on load — CSS visibility does not block JS — so toggling the active
 // class (or the overview grid, or moving a section into a presenter preview) only
@@ -199,7 +277,34 @@ func navScript() string {
   // the BroadcastChannel, so prev/next in either drives the other.
   var present = /(^|[?&])present(=|&|$)/.test(location.search) || /present/.test(location.hash);
   var index = initialIndex();
+  // step is the ACTIVE click-step within the current slide (0 = no step lit yet;
+  // every emphasized line shows, the static-union look). It is ephemeral on
+  // purpose: the URL hash stays slide-only (#n), so a deep-link/reload lands on the
+  // slide with no step applied. A slide's step COUNT is the max data-steps among
+  // its code blocks (0 if none) — see stepCountFor.
+  var step = 0;
   var overview = false;
+
+  // stepCountFor returns how many click steps slide i has: the MAX data-steps over
+  // its code blocks (0 when the slide has no stepped code block). A slide can hold
+  // several stepped fences; advancing a step advances ALL of them in lockstep
+  // (they share the deck's data-active-step), so the slide's step budget is the
+  // largest single block's, and shorter blocks simply have no line for the later
+  // steps. Cached lazily per slide so the read happens once.
+  var stepCounts = [];
+  function stepCountFor(i) {
+    if (i < 0 || i >= slides.length) return 0;
+    if (stepCounts[i] != null) return stepCounts[i];
+    var max = 0;
+    var pres = slides[i].querySelectorAll('pre[data-steps]');
+    for (var p = 0; p < pres.length; p++) {
+      var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
+      if (n > max) max = n;
+    }
+    stepCounts[i] = max;
+    return max;
+  }
+  function maxStep() { return stepCountFor(index); }
 
   // Subscribers notified after every committed slide change (local, hash, or a
   // change applied from the peer window). The presenter chrome uses this to keep
@@ -215,10 +320,11 @@ func navScript() string {
   // --- Peer-to-peer sync (BroadcastChannel) --------------------------------
   // The presenter and audience windows are the SAME served page, opened twice.
   // They stay in sync with NO server/Hub: a BroadcastChannel keyed to this deck's
-  // path carries the active index. Any navigation in either window posts {index};
-  // the other applies it WITHOUT re-posting (the applying flag guards the echo, so
-  // two windows can't ping-pong into a loop). Older browsers without
-  // BroadcastChannel degrade silently to independent per-window navigation.
+  // path carries the active {index, step}. Any navigation in either window posts
+  // BOTH; the other applies them WITHOUT re-posting (the applying flag guards the
+  // echo, so two windows can't ping-pong into a loop) — so presenter and audience
+  // step through code together, not just change slides together. Older browsers
+  // without BroadcastChannel degrade silently to independent per-window navigation.
   var channel = null;
   var applyingRemote = false;
   try {
@@ -227,16 +333,17 @@ func navScript() string {
       channel.onmessage = function (event) {
         var data = event && event.data;
         if (!data || typeof data.index !== 'number') return;
-        if (data.index === index) return; // already there; nothing to do
+        var remoteStep = typeof data.step === 'number' ? data.step : 0;
+        if (data.index === index && remoteStep === step) return; // already there
         applyingRemote = true;
-        show(data.index, true);           // update URL hash, but don't re-broadcast
+        show(data.index, remoteStep, true); // update URL hash, but don't re-broadcast
         applyingRemote = false;
       };
     }
   } catch (e) { channel = null; }
   function broadcast() {
     if (!channel || applyingRemote) return;
-    try { channel.postMessage({ index: index }); } catch (e) {}
+    try { channel.postMessage({ index: index, step: step }); } catch (e) {}
   }
 
   function initialIndex() {
@@ -245,19 +352,48 @@ func navScript() string {
     return 0;
   }
 
-  function show(next, push) {
-    var prevIndex = index;
-    index = Math.max(0, Math.min(slides.length - 1, next));
+  // show(nextIndex, nextStep, push) commits a new (slide, step) position. nextStep
+  // is clamped to the destination slide's step budget, so callers can pass a
+  // sentinel like Infinity to mean "this slide's LAST step" (prev() uses that to
+  // land on the end of the previous slide's walkthrough). It toggles the active
+  // class, writes data-active-step on the active slide (and clears it elsewhere) so
+  // the theme CSS spotlights the active step's lines, keeps the URL hash slide-only
+  // (#n — steps are ephemeral), broadcasts {index, step}, and notifies subscribers.
+  function show(nextIndex, nextStep, push) {
+    var prevIndex = index, prevStep = step;
+    index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+    var budget = stepCountFor(index);
+    if (nextStep == null) nextStep = 0;
+    step = Math.max(0, Math.min(budget, nextStep));
     for (var i = 0; i < slides.length; i++) {
-      slides[i].classList.toggle(ACTIVE, i === index);
+      var on = i === index;
+      slides[i].classList.toggle(ACTIVE, on);
+      // Only the active slide carries data-active-step; remove it everywhere else so
+      // a previously-stepped slide resets to "no step" when you leave it. step 0
+      // means no spotlight yet (every emphasized line shown), so clear the attr then
+      // too — the CSS treats absent/0 as "show all emphasized, dim nothing extra".
+      if (on && step > 0) slides[i].setAttribute('` + navActiveStepAttr + `', String(step));
+      else slides[i].removeAttribute('` + navActiveStepAttr + `');
     }
     if (push) history.replaceState(null, '', '#' + (index + 1) + (present ? 'present' : ''));
     broadcast();
-    if (index !== prevIndex || push) notifyChange();
+    if (index !== prevIndex || step !== prevStep || push) notifyChange();
   }
 
-  function next() { show(index + 1, true); }
-  function prev() { show(index - 1, true); }
+  // next()/prev() implement STEP-THEN-SLIDE navigation (mirroring the fallback
+  // lane's runtime_script.go): ArrowRight advances the click step within the
+  // current slide until its steps are exhausted, and only THEN moves to the next
+  // slide (starting at step 0). ArrowLeft reverses: step down within the slide,
+  // and at step 0 move to the PREVIOUS slide landing on its LAST step (Infinity is
+  // clamped to that slide's budget by show), so back-stepping retraces the walk.
+  function next() {
+    if (step < maxStep()) show(index, step + 1, true);
+    else show(index + 1, 0, true);
+  }
+  function prev() {
+    if (step > 0) show(index, step - 1, true);
+    else show(index - 1, Infinity, true);
+  }
 
   // Open a presenter window for this deck: the SAME page with ?present, in a named
   // window so a second press focuses the existing one instead of stacking copies.
@@ -309,10 +445,11 @@ func navScript() string {
 
   function toggleOverview() { overview ? closeOverview() : openOverview(); }
 
-  // Jump to a slide from overview: select it, close the grid, land on it.
+  // Jump to a slide from overview: select it, close the grid, land on its START
+  // (step 0), so picking a slide always begins its walkthrough fresh.
   function jumpTo(i) {
     closeOverview();
-    show(i, true);
+    show(i, 0, true);
   }
 
   // One delegated click handler: find the [data-slide] card the click landed in.
@@ -380,11 +517,19 @@ func navScript() string {
     } catch (e) { return 1; }
   }
 
-  window.addEventListener('hashchange', function () { show(initialIndex(), false); });
+  // A hash change is a slide-only deep link (#n); steps are ephemeral, so land on
+  // the target slide at step 0. Pass push=false so we don't rewrite the hash we
+  // just read.
+  window.addEventListener('hashchange', function () { show(initialIndex(), 0, false); });
 
   window.SlidesNav = {
     show: show, next: next, prev: prev,
     current: function () { return index + 1; },
+    // step exposes the active click step (0-based within the slide) and stepCount
+    // its budget, so the presenter chrome can render "step K/N" and manual drivers
+    // can inspect the walkthrough position.
+    step: function () { return step; },
+    stepCount: function () { return maxStep(); },
     openOverview: openOverview, closeOverview: closeOverview,
     toggleOverview: toggleOverview,
     isOverview: function () { return overview; },
@@ -392,19 +537,22 @@ func navScript() string {
     openPresenter: openPresenter,
     isPresenter: function () { return present; }
   };
-  show(index, false);
+  show(index, 0, false);
 
   // Presenter chrome: only when this window is the presenter view. It is handed a
   // small api so it drives slide state through the SAME functions (so its prev/next
   // broadcast to the audience) and re-renders on every change (including remote
-  // ones applied from the audience window over the BroadcastChannel).
+  // ones applied from the audience window over the BroadcastChannel). getStep /
+  // getStepCount let the footer counter show the live walkthrough position.
   if (present && window.SlidesPresenter && typeof window.SlidesPresenter.init === 'function') {
     window.SlidesPresenter.init({
       slides: slides,
       count: slides.length,
       getIndex: function () { return index; },
+      getStep: function () { return step; },
+      getStepCount: function () { return maxStep(); },
       onChange: onChange,
-      show: function (i) { show(i, true); },
+      show: function (i) { show(i, 0, true); },
       next: next,
       prev: prev
     });

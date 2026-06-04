@@ -292,9 +292,11 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// `{`, `"` etc. can never corrupt the generated source. Language is mdpp's
 		// Attrs["language"] (empty for a bare fence -> plain escaped text via
 		// NormalizeLanguage); highlights is mdpp's Attrs["highlights"] — the fence's
-		// `{1-3|5}` line-range meta (empty for a plain fence -> no emphasis, every
-		// line full opacity). codeBlockNode parses the spec and emphasizes those
-		// lines / dims the rest.
+		// `{2-3|6}` line-range meta (empty for a plain fence -> no emphasis, every
+		// line full opacity). codeBlockNode parses the spec into ordered click STEPS:
+		// it tags each emphasized line data-step="K" and records data-steps="N" on the
+		// <pre>, so navScript can advance through the `|`-groups one ArrowRight at a
+		// time (a single group like `{1-3}` is one step = the old static emphasis).
 		lang := n.Attr("language")
 		highlights := n.Attr("highlights")
 		return "{" + codeNamespace + "." + codeBlockFunc + "(" +

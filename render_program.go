@@ -186,12 +186,24 @@ const (
 // commonly carries is trimmed so the <pre> has no dangling blank last line.
 //
 // highlights is the fence's `{…}` line-range meta (mdpp's Attrs["highlights"], raw
-// e.g. "1-3|5" or "2,4" or "all"; "" for a plain fence). When non-empty, the block
+// e.g. "2-3|6" or "2,4" or "all"; "" for a plain fence). When non-empty, the block
 // renders PER LINE (highlight.HTMLLines: each line wrapped in
 // `<span class="ts-line" data-line="N">`) and the lines in the spec get an extra
 // `emphasis` class; the rest are dimmed by the theme CSS. A `data-emphasized`
 // marker on the <pre> lets the CSS dim only when a spec is present, so a plain
 // fence (no spec) renders every line at full opacity exactly as before.
+//
+// CLICK-THROUGH STEPS: the `|`-separated groups are ordered click STEPS, not a
+// flat union. Each emphasized line is tagged `data-step="K"` (1-based) with the
+// step(s) it belongs to (SPACE-joined if a line recurs across groups, e.g.
+// "1 3", so the theme CSS can match the active step with a `~=` word selector),
+// and the <pre> records the total step count as `data-steps="N"`. A
+// single-group spec like `{1-3}` is one step (every matched line data-step="1"),
+// so the existing STATIC emphasis still lights exactly those lines. navScript
+// reads data-steps to drive the step model and sets data-active-step on the deck;
+// the theme CSS spotlights the active step. With no active step (data-steps="0",
+// or before the first ArrowRight on a stepped slide) every emphasized line shows,
+// so a stepped block reads like the old static union until you start stepping.
 func codeBlockNode(lang, source, highlights string) gosx.Node {
 	source = strings.TrimRight(source, "\n")
 	// NormalizeLanguage returns one of a fixed, attribute-safe token set
@@ -199,49 +211,69 @@ func codeBlockNode(lang, source, highlights string) gosx.Node {
 	// attribute. highlight.HTML / highlight.HTMLLines escape the code text itself.
 	normalized := highlight.NormalizeLanguage(lang)
 
-	emphasized := parseHighlightLines(highlights)
+	steps := parseHighlightSteps(highlights)
 
 	var b strings.Builder
 	b.WriteString(`<pre class="code-block" data-lang="`)
 	b.WriteString(normalized)
 	// When a (valid) spec is present, mark the block so the theme CSS dims the
-	// non-emphasized lines. Absent/garbage spec -> no marker -> every line full.
-	if len(emphasized) > 0 {
-		b.WriteString(`" data-emphasized="true`)
+	// non-emphasized lines, and record the ordered step count so navScript can
+	// advance through the groups. Absent/garbage spec -> no markers -> every line
+	// full opacity, no stepping.
+	if len(steps) > 0 {
+		b.WriteString(`" data-emphasized="true" data-steps="`)
+		b.WriteString(strconv.Itoa(len(steps)))
 	}
 	b.WriteString(`"><code>`)
-	if len(emphasized) == 0 {
+	if len(steps) == 0 {
 		// No emphasis: the original single-string path (one highlighted block, no
 		// per-line wrappers) — byte-identical to the pre-emphasis behavior.
 		b.WriteString(highlight.HTML(normalized, source))
 	} else {
-		// Per-line wrappers so individual lines can be emphasized/dimmed. The
-		// highlighter already escaped the code; we only ADD a class to lines in the
-		// spec, so the markup stays XSS-safe.
+		// Per-line wrappers so individual lines can be emphasized/dimmed/stepped. The
+		// highlighter already escaped the code; we only ADD a class + data-step to
+		// lines in the spec, so the markup stays XSS-safe.
 		for _, line := range highlight.HTMLLines(normalized, source) {
-			b.WriteString(emphasizeLine(line, emphasized))
+			b.WriteString(emphasizeLineSteps(line, steps))
 		}
 	}
 	b.WriteString(`</code></pre>`)
 	return gosx.RawHTML(b.String())
 }
 
-// emphasizeLine adds the `emphasis` class to a single `<span class="ts-line"
-// data-line="N">…` fragment from highlight.HTMLLines when N is in the emphasized
-// set, and returns it unchanged otherwise. It edits only the well-known opening
-// class attribute the highlighter emits (`class="ts-line"`), so it never touches
-// the inner token markup and cannot unbalance the spans.
-func emphasizeLine(line string, emphasized map[int]bool) string {
+// emphasizeLineSteps adds the `emphasis` class AND a `data-step="K"` attribute to
+// a single `<span class="ts-line" data-line="N">…` fragment from
+// highlight.HTMLLines when N belongs to one or more ordered click STEPS, and
+// returns it unchanged otherwise. steps is the ordered slice parseHighlightSteps
+// produced (one set per `|`-group); the step value(s) are 1-based group indices,
+// SPACE-joined when a line recurs across groups (e.g. data-step="1 3"), so the
+// theme CSS can match the active step with a `[data-step~="K"]` word selector. A
+// group that is the "all" sentinel matches every real line.
+//
+// It edits only the well-known opening class attribute the highlighter emits
+// (`class="ts-line"`), so it never touches the inner token markup and cannot
+// unbalance the spans. An emphasized line is lit when no step is active (the
+// static-union look) and spotlit/dimmed by data-active-step once stepping begins.
+func emphasizeLineSteps(line string, steps []map[int]bool) string {
 	n := lineNumberOf(line)
-	// The "all" sentinel emphasizes every real line; otherwise the line's own
-	// number must be in the set.
-	if n == 0 || (!emphasized[allLinesSentinel] && !emphasized[n]) {
+	if n == 0 {
 		return line
 	}
+	var in []string
+	for i, set := range steps {
+		if set[allLinesSentinel] || set[n] {
+			in = append(in, strconv.Itoa(i+1)) // 1-based step index
+		}
+	}
+	if len(in) == 0 {
+		return line // not in any step's spec -> plain, dimmed by the data-emphasized CSS
+	}
 	// highlight.HTMLLines always opens the line with the exact literal
-	// `class="ts-line"`; widen it to add the emphasis hook. Replace once so a
-	// data-line value that happened to contain the substring can't be touched.
-	return strings.Replace(line, `class="ts-line"`, `class="ts-line emphasis"`, 1)
+	// `class="ts-line"`; widen it to add the emphasis hook + the step tag. Replace
+	// once so a data-line value that happened to contain the substring can't be
+	// touched.
+	return strings.Replace(line, `class="ts-line"`,
+		`class="ts-line emphasis" data-step="`+strings.Join(in, " ")+`"`, 1)
 }
 
 // lineNumberOf extracts the 1-based N from a `data-line="N"` attribute in a
@@ -312,9 +344,69 @@ func parseHighlightLines(spec string) map[int]bool {
 	return lines
 }
 
-// allLinesSentinel is the key parseHighlightLines sets when the spec is "all":
-// emphasize every line. It is a value no real 1-based line number can be, so a
-// lookup for any positive N falls through to the sentinel branch in emphasizeLine.
+// parseHighlightSteps parses the same fence mini-DSL as parseHighlightLines but
+// PRESERVES the `|`-group ORDER as click STEPS instead of unioning them. Each
+// `|`-group becomes one set of 1-based line numbers (in input order); an empty or
+// all-garbage group is DROPPED (so a stray `||` never creates an empty step), and
+// an "all" group becomes the sentinel set {-1:true} matching every line. The
+// returned slice's length is the number of steps the block advances through
+// (data-steps); an empty/garbage spec yields nil (no steps, plain block).
+//
+// Examples:
+//
+//	"2-3|6" -> [{2,3}, {6}]            (two steps)
+//	"1-3"   -> [{1,2,3}]              (one step — the static-emphasis case)
+//	"1|all" -> [{1}, {-1}]            (second step lights every line)
+//	"|2|"   -> [{2}]                  (empty groups dropped)
+//	""      -> nil                    (plain block, no stepping)
+//
+// This is the ordered counterpart kept beside parseHighlightLines (which stays for
+// the flat static-union semantics its callers/tests rely on); the gosx highlighter
+// has the same model internally (highlight.HighlightStep), but its parser is
+// unexported, so the slides DSL mirrors it here.
+func parseHighlightSteps(spec string) []map[int]bool {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil
+	}
+	var steps []map[int]bool
+	for _, group := range strings.Split(spec, "|") {
+		set := map[int]bool{}
+		all := false
+		for _, item := range strings.Split(group, ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			if strings.EqualFold(item, "all") {
+				all = true
+				continue
+			}
+			if lo, hi, ok := parseLineRange(item); ok {
+				for n := lo; n <= hi; n++ {
+					set[n] = true
+				}
+			}
+		}
+		switch {
+		case all:
+			// "all" subsumes any explicit lines in the same group.
+			steps = append(steps, map[int]bool{allLinesSentinel: true})
+		case len(set) > 0:
+			steps = append(steps, set)
+		}
+		// A group that contributed nothing (empty/garbage) is dropped, so it never
+		// becomes a dead step you'd have to click past.
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	return steps
+}
+
+// allLinesSentinel is the key parseHighlightLines / parseHighlightSteps set when a
+// group is "all": emphasize every line. It is a value no real 1-based line number
+// can be, so a lookup for any positive N falls through to the sentinel branch.
 const allLinesSentinel = -1
 
 // parseLineRange parses one "N" or "N-M" item into an inclusive [lo, hi]. It

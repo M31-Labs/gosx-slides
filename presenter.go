@@ -305,7 +305,6 @@ main.deck.` + presenterModeClass + ` .pv-notes-body {
   font-size: clamp(0.95rem, 1.15vw, 1.15rem);
   line-height: 1.55;
   color: var(--fg, currentColor);
-  white-space: pre-wrap;
   margin: 0;
 }
 main.deck.` + presenterModeClass + ` .pv-notes-body[data-empty="1"] {
@@ -313,6 +312,19 @@ main.deck.` + presenterModeClass + ` .pv-notes-body[data-empty="1"] {
   font-style: italic;
   opacity: 0.8;
 }
+/* Rendered note markdown (renderNoteMarkdown emits these from **bold**, *italic*,
+   ` + "`code`" + `, and "- " bullets). Theme-agnostic: inherits the active palette. */
+main.deck.` + presenterModeClass + ` .pv-notes-body strong { color: var(--accent, currentColor); font-weight: 700; }
+main.deck.` + presenterModeClass + ` .pv-notes-body em { font-style: italic; }
+main.deck.` + presenterModeClass + ` .pv-notes-body code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+  background: var(--bg, rgba(128,128,128,0.12));
+  border: 1px solid var(--line, rgba(128,128,128,0.25));
+  border-radius: 5px; padding: 0.08em 0.36em;
+}
+main.deck.` + presenterModeClass + ` .pv-notes-body ul { margin: 0.3em 0; padding-left: 1.2em; list-style: disc; }
+main.deck.` + presenterModeClass + ` .pv-notes-body li { margin: 0.15em 0; }
 
 /* Footer instruments: timer + counter (mono so digits don't reflow), controls. */
 main.deck.` + presenterModeClass + ` .pv-timer {
@@ -334,6 +346,10 @@ main.deck.` + presenterModeClass + ` .pv-counter b {
   color: var(--fg, currentColor);
   font-weight: 700;
 }
+/* The click-step segment of the counter ("· step 2/2"), shown only on slides that
+   have stepped code blocks. Accent-tinted so the presenter sees the walkthrough
+   position at a glance without it competing with the slide number. */
+main.deck.` + presenterModeClass + ` .pv-counter .pv-step { color: var(--accent, currentColor); }
 main.deck.` + presenterModeClass + ` .pv-spacer { flex: 1 1 auto; }
 main.deck.` + presenterModeClass + ` .pv-controls {
   display: flex;
@@ -390,8 +406,8 @@ main.deck.` + presenterModeClass + ` .pv-btn:disabled {
 // <script> wrapper) so serve.go can append it to navScript's output. It defines a
 // SINGLE global, window.SlidesPresenter.init(api), and runs nothing on its own —
 // navScript calls init(api) only when the page is in presenter mode, handing it a
-// tiny api surface ({ slides, count, getIndex, onChange, show, next, prev }) so
-// this layer never reaches into navScript's internals.
+// tiny api surface ({ slides, count, getIndex, getStep, getStepCount, onChange,
+// show, next, prev }) so this layer never reaches into navScript's internals.
 //
 // What init does:
 //   - builds the chrome scaffold (current stage, next stage, notes panel, footer
@@ -401,11 +417,18 @@ main.deck.` + presenterModeClass + ` .pv-btn:disabled {
 //     into the stages (move, not clone, so islands keep their hydrated state),
 //     re-arranging them whenever the slide changes;
 //   - reads the current slide's note from its hidden <aside data-notes="N"> into
-//     the notes panel (or a graceful "No notes for this slide" placeholder);
-//   - ticks an elapsed mm:ss / h:mm:ss timer (rAF-free setInterval) since the
-//     window opened, with reset + pause/resume controls;
+//     the notes panel, rendering BASIC inline markdown (**bold**, *italic*,
+//     `code`, and "- " bullet lists) XSS-safely (escape first, then a fixed small
+//     set of tags), or a graceful "No notes for this slide" placeholder;
+//   - ticks an elapsed mm:ss / h:mm:ss timer (rAF-free setInterval) with reset +
+//     pause/resume controls, PERSISTED to localStorage keyed to the deck path so a
+//     presenter-window reload resumes the elapsed time (Reset clears it);
+//   - shows the current slide's CLICK-STEP position in the footer counter when the
+//     slide has stepped code blocks (e.g. "3 / 4 · step 2/2"), updating live as the
+//     presenter steps through (api.onChange fires on step changes too);
 //   - wires its prev/next buttons to api.next/api.prev (which drive navScript's
-//     real state, which in turn broadcasts to the audience window).
+//     real state — step-then-slide — and in turn broadcast {index, step} to the
+//     audience window).
 //
 // It subscribes to api.onChange so the previews/notes/counter re-render on EVERY
 // navigation — including ones that arrive from the OTHER window over the
@@ -419,6 +442,53 @@ func presenterScript() string {
     var m = Math.floor((s % 3600) / 60);
     var sec = s % 60;
     return h > 0 ? (h + ':' + pad(m) + ':' + pad(sec)) : (pad(m) + ':' + pad(sec));
+  }
+
+  // renderNoteMarkdown turns a speaker note into safe HTML with BASIC inline
+  // markdown: **bold**, *italic*, ` + "`code`" + `, and "- " bullet lists. It is
+  // XSS-safe by construction: the raw note is HTML-ESCAPED FIRST (so any <, >, &,
+  // or " in author prose becomes an entity and can never form a tag), and ONLY
+  // THEN are the markdown markers rewritten into a small, fixed set of tags
+  // (<strong>/<em>/<code>/<ul>/<li>/<br>). No raw HTML from the note survives —
+  // there is no passthrough path. Order matters: code spans are extracted first so
+  // their contents aren't re-processed; bold (**) before italic (*) so ** isn't
+  // mis-read as two * emphases.
+  function escapeHTML(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function renderInline(s) {
+    // Code spans first: capture, escape already-applied, leave inner verbatim.
+    s = s.replace(/` + "`" + `([^` + "`" + `]+)` + "`" + `/g, function (_, code) { return '<code>' + code + '</code>'; });
+    // Bold then italic (so ** wins over *). Non-greedy, no newlines inside.
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    return s;
+  }
+  function renderNoteMarkdown(note) {
+    var lines = escapeHTML(note).split('\n');
+    var out = [];
+    var inList = false;
+    var prose = []; // run of consecutive non-list, non-blank lines -> joined with <br>
+    function flushProse() {
+      if (prose.length) { out.push(prose.join('<br>')); prose = []; }
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var m = /^\s*[-*]\s+(.*)$/.exec(line); // "- item" or "* item" bullet
+      if (m) {
+        flushProse();
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push('<li>' + renderInline(m[1]) + '</li>');
+        continue;
+      }
+      if (inList) { out.push('</ul>'); inList = false; }
+      if (line.trim() === '') { flushProse(); continue; }
+      prose.push(renderInline(line));
+    }
+    flushProse();
+    if (inList) out.push('</ul>');
+    return out.join('');
   }
 
   function init(api) {
@@ -519,35 +589,86 @@ func presenterScript() string {
       place(next.screen, index + 1 < api.slides.length ? index + 1 : null);
       var note = notesByIndex[index];
       if (note) {
-        notesBody.textContent = note;
+        // Render basic inline markdown (bold/italic/code + - bullet lists). The
+        // transform escapes first, so author prose can never inject markup.
+        notesBody.innerHTML = renderNoteMarkdown(note);
         notesBody.removeAttribute('data-empty');
       } else {
         notesBody.textContent = 'No notes for this slide';
         notesBody.setAttribute('data-empty', '1');
       }
-      counter.innerHTML = '<b>' + (index + 1) + '</b> / ' + api.count;
+      // Counter: slide position, plus the click-step position when THIS slide has
+      // steps (e.g. "3 / 4 · step 2/2"). getStep/getStepCount come from navScript;
+      // guard for older api shapes so a missing fn degrades to the plain counter.
+      var stepCount = api.getStepCount ? api.getStepCount() : 0;
+      var stepHTML = '';
+      if (stepCount > 0) {
+        var st = api.getStep ? api.getStep() : 0;
+        stepHTML = ' <span class="pv-step">· step ' + st + '/' + stepCount + '</span>';
+      }
+      counter.innerHTML = '<b>' + (index + 1) + '</b> / ' + api.count + stepHTML;
       prevBtn.disabled = index <= 0;
       nextBtn.disabled = index >= api.count - 1;
     }
 
-    // --- Timer -------------------------------------------------------------
+    // --- Timer (persisted across reloads) ----------------------------------
+    // The elapsed timer survives a presenter-window reload by persisting its state
+    // to localStorage keyed to THIS deck's path. State is {startedAt, accumulated,
+    // paused}: startedAt is an absolute epoch ms, so on restore the running elapsed
+    // is simply now - startedAt + accumulated and continues seamlessly across the
+    // reload. Reset clears the stored state (and restarts from zero). A different
+    // deck path gets a different key, so two decks don't share a timer. localStorage
+    // failures (private mode, disabled) degrade silently to an in-memory timer.
+    var timerKey = 'gosx-slides:timer:' + location.pathname;
+    function saveTimer() {
+      try {
+        localStorage.setItem(timerKey, JSON.stringify({
+          startedAt: startedAt, accumulated: accumulated, paused: paused
+        }));
+      } catch (e) {}
+    }
+    function loadTimer() {
+      try {
+        var raw = localStorage.getItem(timerKey);
+        if (!raw) return null;
+        var s = JSON.parse(raw);
+        if (s && typeof s.startedAt === 'number' && typeof s.accumulated === 'number') return s;
+      } catch (e) {}
+      return null;
+    }
+
     var startedAt = Date.now();
     var accumulated = 0; // ms banked across pauses
     var paused = false;
+    var restored = loadTimer();
+    if (restored) {
+      startedAt = restored.startedAt;
+      accumulated = restored.accumulated;
+      paused = !!restored.paused;
+    } else {
+      saveTimer(); // first open: persist the start so a reload resumes from here
+    }
+
     function elapsed() { return accumulated + (paused ? 0 : (Date.now() - startedAt)); }
     function tickTimer() {
       timer.textContent = fmtElapsed(elapsed());
       timer.setAttribute('data-paused', paused ? '1' : '0');
     }
+    if (paused) pauseBtn.textContent = 'Resume'; // reflect a restored paused state
     var timerHandle = setInterval(tickTimer, 250);
     tickTimer();
 
     resetBtn.addEventListener('click', function () {
-      accumulated = 0; startedAt = Date.now(); tickTimer();
+      accumulated = 0; startedAt = Date.now(); paused = false;
+      pauseBtn.textContent = 'Pause';
+      try { localStorage.removeItem(timerKey); } catch (e) {}
+      saveTimer();
+      tickTimer();
     });
     pauseBtn.addEventListener('click', function () {
       if (paused) { startedAt = Date.now(); paused = false; pauseBtn.textContent = 'Pause'; }
       else { accumulated = elapsed(); paused = true; pauseBtn.textContent = 'Resume'; }
+      saveTimer();
       tickTimer();
     });
 
