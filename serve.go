@@ -230,6 +230,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// main.deck, so they layer cleanly: themes never override slide visibility.
 	ctx.AddHead(
 		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
+		// Load ONLY the selected theme's designer webfonts (preconnect + one css2
+		// stylesheet). The theme CSS keeps a system fallback at the end of every
+		// --font-* stack, so an offline deck still looks intentional; this link makes
+		// the designer faces actually render. fontLinks returns "" for a webfont-less
+		// theme, in which case this emits nothing.
+		gosx.RawHTML(fontLinks(theme)),
 		gosx.RawHTML("<style>"+navStyle()+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"</style>"),
 	)

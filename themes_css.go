@@ -137,6 +137,23 @@ main.deck[data-theme="aurora"] pre.code-block code {
   font: inherit; background: none; color: inherit;
   padding: 0; border: 0; border-radius: 0; white-space: pre;
 }
+/* Line-range emphasis: only when the fence carried a {…} spec (data-emphasized).
+   Each line is a block so a full-width accent band + left border can sit behind
+   the emphasized lines; the rest dim. A plain fence has no [data-emphasized], so
+   every .ts-line stays at full opacity (default below). */
+main.deck[data-theme="aurora"] pre.code-block .ts-line { display: block; }
+main.deck[data-theme="aurora"] pre.code-block[data-emphasized] .ts-line {
+  opacity: 0.4; border-left: 3px solid transparent;
+  margin: 0 calc(-1 * var(--sp-4)); padding: 0 calc(var(--sp-4) - 3px);
+}
+main.deck[data-theme="aurora"] pre.code-block[data-emphasized] .ts-line.emphasis {
+  opacity: 1; background: var(--accent-soft); border-left-color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  main.deck[data-theme="aurora"] pre.code-block[data-emphasized] .ts-line {
+    transition: opacity 200ms cubic-bezier(0.25,1,0.5,1);
+  }
+}
 main.deck[data-theme="aurora"] pre.code-block .ts-keyword { color: #f6b352; font-weight: 600; }
 main.deck[data-theme="aurora"] pre.code-block .ts-type,
 main.deck[data-theme="aurora"] pre.code-block .ts-namespace { color: #8fd0ff; }
@@ -283,6 +300,20 @@ main.deck[data-theme="paper"] pre.code-block {
 main.deck[data-theme="paper"] pre.code-block code {
   font: inherit; background: none; color: inherit;
   padding: 0; border: 0; border-radius: 0; white-space: pre;
+}
+/* Line-range emphasis (only with a {…} fence spec — see aurora for the rationale). */
+main.deck[data-theme="paper"] pre.code-block .ts-line { display: block; }
+main.deck[data-theme="paper"] pre.code-block[data-emphasized] .ts-line {
+  opacity: 0.42; border-left: 3px solid transparent;
+  margin: 0 calc(-1 * var(--sp-4)); padding: 0 calc(var(--sp-4) - 3px);
+}
+main.deck[data-theme="paper"] pre.code-block[data-emphasized] .ts-line.emphasis {
+  opacity: 1; background: var(--accent-soft); border-left-color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  main.deck[data-theme="paper"] pre.code-block[data-emphasized] .ts-line {
+    transition: opacity 200ms cubic-bezier(0.25,1,0.5,1);
+  }
 }
 main.deck[data-theme="paper"] pre.code-block .ts-keyword { color: #9a3412; font-weight: 700; }
 main.deck[data-theme="paper"] pre.code-block .ts-type,
@@ -432,6 +463,20 @@ main.deck[data-theme="neon"] pre.code-block code {
   font: inherit; background: none; color: inherit;
   padding: 0; border: 0; border-radius: 0; white-space: pre;
 }
+/* Line-range emphasis (only with a {…} fence spec — see aurora for the rationale). */
+main.deck[data-theme="neon"] pre.code-block .ts-line { display: block; }
+main.deck[data-theme="neon"] pre.code-block[data-emphasized] .ts-line {
+  opacity: 0.38; border-left: 3px solid transparent;
+  margin: 0 calc(-1 * var(--sp-4)); padding: 0 calc(var(--sp-4) - 3px);
+}
+main.deck[data-theme="neon"] pre.code-block[data-emphasized] .ts-line.emphasis {
+  opacity: 1; background: var(--accent-soft); border-left-color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  main.deck[data-theme="neon"] pre.code-block[data-emphasized] .ts-line {
+    transition: opacity 200ms cubic-bezier(0.25,1,0.5,1);
+  }
+}
 main.deck[data-theme="neon"] pre.code-block .ts-keyword { color: #c6ff4a; font-weight: 700; }
 main.deck[data-theme="neon"] pre.code-block .ts-type,
 main.deck[data-theme="neon"] pre.code-block .ts-namespace { color: #2ff2d6; }
@@ -577,6 +622,21 @@ main.deck[data-theme="swiss"] pre.code-block {
 main.deck[data-theme="swiss"] pre.code-block code {
   font: inherit; background: none; color: inherit;
   padding: 0; border: 0; border-radius: 0; white-space: pre;
+}
+/* Line-range emphasis (only with a {…} fence spec — see aurora for the rationale).
+   The block already has a 4px accent left rule; the per-line rule sits inside it. */
+main.deck[data-theme="swiss"] pre.code-block .ts-line { display: block; }
+main.deck[data-theme="swiss"] pre.code-block[data-emphasized] .ts-line {
+  opacity: 0.4; border-left: 3px solid transparent;
+  margin: 0 calc(-1 * var(--sp-4)); padding: 0 calc(var(--sp-4) - 3px);
+}
+main.deck[data-theme="swiss"] pre.code-block[data-emphasized] .ts-line.emphasis {
+  opacity: 1; background: var(--accent-soft); border-left-color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  main.deck[data-theme="swiss"] pre.code-block[data-emphasized] .ts-line {
+    transition: opacity 150ms cubic-bezier(0.25,1,0.5,1);
+  }
 }
 main.deck[data-theme="swiss"] pre.code-block .ts-keyword { color: #e3000f; font-weight: 700; }
 main.deck[data-theme="swiss"] pre.code-block .ts-type,

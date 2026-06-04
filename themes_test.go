@@ -107,6 +107,71 @@ func TestServeInjectsSelectedThemeIntoHead(t *testing.T) {
 	}
 }
 
+// TestServeInjectsThemeWebFonts proves the served head carries the SELECTED
+// theme's Google Fonts <link> (the designer faces its --font-* stacks name) plus
+// the preconnect hints — and not another theme's distinct font. This is the
+// web-font lift: without it the themes render in their system fallback.
+func TestServeInjectsThemeWebFonts(t *testing.T) {
+	// paper names Playfair Display + Source Serif 4 (distinct from the
+	// sans/Space-Grotesk themes), so it is a sharp probe for "the right theme's
+	// fonts loaded".
+	body := serveBody(t, "---\ntitle: T\ntheme: paper\n---\n\n# Hello\n\nbody\n", nil)
+	head := headOf(t, body)
+
+	for _, want := range []string{
+		`rel="preconnect"`,
+		"https://fonts.googleapis.com",
+		`https://fonts.gstatic.com" crossorigin`,
+		"https://fonts.googleapis.com/css2?family=",
+		"Playfair+Display", // paper's display face
+		"Source+Serif+4",   // paper's body face
+		"display=swap",     // no FOIT
+		`rel="stylesheet"`,
+	} {
+		if !strings.Contains(head, want) {
+			t.Errorf("served head missing web-font piece %q:\n%s", want, head)
+		}
+	}
+	// The system fallback must remain in the CSS so an offline deck still looks
+	// intentional (the link loads the designer face; the stack degrades to it).
+	if !strings.Contains(head, "Playfair Display") {
+		t.Errorf("theme CSS lost its Playfair Display fallback stack:\n%s", head)
+	}
+	// Another theme's distinct font must NOT load — only the active theme's fonts.
+	if strings.Contains(head, "Plus+Jakarta+Sans") {
+		t.Errorf("served head leaked a non-selected theme's webfont (Plus Jakarta Sans):\n%s", head)
+	}
+}
+
+// TestFontLinksPerTheme proves every registered theme declares webfont links whose
+// families match the designer faces its CSS names — the one-place-per-theme
+// contract (themes_fonts.go beside themes_css.go).
+func TestFontLinksPerTheme(t *testing.T) {
+	wantFamily := map[string]string{
+		"aurora": "Space+Grotesk",
+		"paper":  "Playfair+Display",
+		"neon":   "Space+Grotesk",
+		"swiss":  "Work+Sans",
+	}
+	for _, theme := range Themes() {
+		links := fontLinks(theme)
+		if links == "" {
+			t.Errorf("theme %q declares no font links", theme)
+			continue
+		}
+		if !strings.Contains(links, "css2?family=") || !strings.Contains(links, "display=swap") {
+			t.Errorf("theme %q font links not a css2 swap request:\n%s", theme, links)
+		}
+		if fam, ok := wantFamily[theme]; ok && !strings.Contains(links, fam) {
+			t.Errorf("theme %q font links missing expected family %q:\n%s", theme, fam, links)
+		}
+	}
+	// Unknown theme resolves to the default's fonts (never empty).
+	if fontLinks("totally-unknown") != fontLinks(defaultTheme) {
+		t.Errorf("fontLinks(unknown) did not fall back to the default theme")
+	}
+}
+
 // TestServeUnknownThemeFallsBackToDefault proves an unknown `theme:` value (and,
 // by the same path, an absent one) serves the default theme.
 func TestServeUnknownThemeFallsBackToDefault(t *testing.T) {

@@ -85,12 +85,46 @@ func TestNavStyleCarriesEnterTransition(t *testing.T) {
 			t.Errorf("navStyle missing enter-transition piece %q:\n%s", want, css)
 		}
 	}
-	// Critically: the transition must NOT set display, or it could override the
-	// visibility rule. Confirm the keyframe/animation block only animates
-	// opacity/transform.
-	if strings.Contains(css, "display: block") || strings.Contains(css, "display: flex") {
-		t.Errorf("navStyle transition must not set display (would fight visibility rule):\n%s", css)
+	// Critically: the ENTER-TRANSITION keyframe must NOT set display, or it could
+	// override the visibility rule. Scope the check to the slidesDeckEnter @keyframes
+	// block (the overview grid below legitimately uses display:grid/block to lay out
+	// thumbnail cards, so a whole-stylesheet check would be a false positive).
+	enter := keyframesBlock(css, "slidesDeckEnter")
+	if enter == "" {
+		t.Fatalf("could not locate the slidesDeckEnter @keyframes block:\n%s", css)
 	}
+	if strings.Contains(enter, "display:") {
+		t.Errorf("the enter-transition keyframe must not set display (would fight visibility rule):\n%s", enter)
+	}
+}
+
+// keyframesBlock returns the source of the `@keyframes <name> { … }` block in css
+// (from the opening brace to its matching close), or "" if not found. Used to scope
+// an assertion to the enter-transition keyframe rather than the whole stylesheet.
+func keyframesBlock(css, name string) string {
+	head := "@keyframes " + name
+	start := strings.Index(css, head)
+	if start < 0 {
+		return ""
+	}
+	open := strings.IndexByte(css[start:], '{')
+	if open < 0 {
+		return ""
+	}
+	open += start
+	depth := 0
+	for i := open; i < len(css); i++ {
+		switch css[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return css[start : i+1]
+			}
+		}
+	}
+	return ""
 }
 
 // TestServeInjectsNavScript proves the served page carries the nav controller
@@ -102,17 +136,74 @@ func TestServeInjectsNavScript(t *testing.T) {
 
 	script := extractFirstScript(t, body)
 	for _, want := range []string{
-		"data-slide",   // operates on the same sections the generator emits
-		"ArrowRight",   // next
-		"ArrowLeft",    // prev
-		"keydown",      // keyboard wiring
+		"data-slide",    // operates on the same sections the generator emits
+		"ArrowRight",    // next
+		"ArrowLeft",     // prev
+		"keydown",       // keyboard wiring
 		"location.hash", // reads the deep-link hash
-		"history",      // replaceState URL sync
-		navActiveClass, // toggles the active class
+		"history",       // replaceState URL sync
+		navActiveClass,  // toggles the active class
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("nav script missing %q:\n%s", want, script)
 		}
+	}
+}
+
+// TestServeInjectsOverviewGrid proves the overview-grid feature (the `o` key) is
+// wired end-to-end in the served page: navStyle carries the grid CSS gated on the
+// overview class, and the controller script carries the o/Esc handlers, the
+// click-to-jump delegation, and the card a11y wiring.
+func TestServeInjectsOverviewGrid(t *testing.T) {
+	body := serveBody(t, twoSlideDeck, nil)
+
+	// The overview CSS: a grid container gated on the overview class, plus the rule
+	// that reveals every slide as a card (display:block !important beats the
+	// single-slide :not(.deck-active) display:none).
+	for _, want := range []string{
+		"main.deck." + navOverviewClass,
+		"display: grid !important",
+		"grid-template-columns",
+		"> .slide {",
+		"display: block !important",
+		"zoom:", // the thumbnail scaling
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("overview grid CSS missing %q:\n%s", want, body)
+		}
+	}
+
+	// The controller: o toggles, Esc closes, a click on a card jumps, and cards are
+	// made keyboard-operable while open.
+	script := extractFirstScript(t, body)
+	for _, want := range []string{
+		navOverviewClass,           // toggles the overview class
+		"toggleOverview",           // the o handler
+		"'Escape'",                 // Esc closes
+		"addEventListener('click'", // click-to-jump delegation
+		"jumpTo",                   // selecting a card
+		"role", "button",           // card a11y while open
+		"openOverview", "closeOverview",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("overview controller missing %q:\n%s", want, script)
+		}
+	}
+}
+
+// TestNavStyleOverviewDoesNotBreakSingleSlideRule proves the overview rules layer
+// ON TOP of the one-slide-at-a-time visibility rule without removing it: the
+// :not(.deck-active) display:none rule is still present, and the overview reveal is
+// gated behind the overview class (so the deck is single-slide until `o`).
+func TestNavStyleOverviewDoesNotBreakSingleSlideRule(t *testing.T) {
+	css := navStyle()
+	if !strings.Contains(css, "main.deck > .slide:not(."+navActiveClass+") { display: none !important; }") {
+		t.Fatalf("overview CSS clobbered the single-slide visibility rule:\n%s", css)
+	}
+	// The display:block reveal must be scoped under the overview class (never bare).
+	reveal := "main.deck." + navOverviewClass + " > .slide {"
+	if !strings.Contains(css, reveal) {
+		t.Errorf("overview reveal rule not scoped under the overview class:\n%s", css)
 	}
 }
 

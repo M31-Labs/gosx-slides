@@ -14,6 +14,7 @@ package slides
 // real.
 
 import (
+	"strconv"
 	"strings"
 
 	"m31labs.dev/gosx"
@@ -183,19 +184,159 @@ const (
 // lang is the fence info-string language (e.g. "go"); highlight.NormalizeLanguage
 // canonicalizes it (unknown -> plain escaped text). The trailing newline a fence
 // commonly carries is trimmed so the <pre> has no dangling blank last line.
-func codeBlockNode(lang, source string) gosx.Node {
+//
+// highlights is the fence's `{…}` line-range meta (mdpp's Attrs["highlights"], raw
+// e.g. "1-3|5" or "2,4" or "all"; "" for a plain fence). When non-empty, the block
+// renders PER LINE (highlight.HTMLLines: each line wrapped in
+// `<span class="ts-line" data-line="N">`) and the lines in the spec get an extra
+// `emphasis` class; the rest are dimmed by the theme CSS. A `data-emphasized`
+// marker on the <pre> lets the CSS dim only when a spec is present, so a plain
+// fence (no spec) renders every line at full opacity exactly as before.
+func codeBlockNode(lang, source, highlights string) gosx.Node {
 	source = strings.TrimRight(source, "\n")
 	// NormalizeLanguage returns one of a fixed, attribute-safe token set
 	// (go/gosx/javascript/json/bash/text), so it needs no escaping in the data-lang
-	// attribute. highlight.HTML escapes the code text itself.
+	// attribute. highlight.HTML / highlight.HTMLLines escape the code text itself.
 	normalized := highlight.NormalizeLanguage(lang)
+
+	emphasized := parseHighlightLines(highlights)
+
 	var b strings.Builder
 	b.WriteString(`<pre class="code-block" data-lang="`)
 	b.WriteString(normalized)
+	// When a (valid) spec is present, mark the block so the theme CSS dims the
+	// non-emphasized lines. Absent/garbage spec -> no marker -> every line full.
+	if len(emphasized) > 0 {
+		b.WriteString(`" data-emphasized="true`)
+	}
 	b.WriteString(`"><code>`)
-	b.WriteString(highlight.HTML(normalized, source))
+	if len(emphasized) == 0 {
+		// No emphasis: the original single-string path (one highlighted block, no
+		// per-line wrappers) — byte-identical to the pre-emphasis behavior.
+		b.WriteString(highlight.HTML(normalized, source))
+	} else {
+		// Per-line wrappers so individual lines can be emphasized/dimmed. The
+		// highlighter already escaped the code; we only ADD a class to lines in the
+		// spec, so the markup stays XSS-safe.
+		for _, line := range highlight.HTMLLines(normalized, source) {
+			b.WriteString(emphasizeLine(line, emphasized))
+		}
+	}
 	b.WriteString(`</code></pre>`)
 	return gosx.RawHTML(b.String())
+}
+
+// emphasizeLine adds the `emphasis` class to a single `<span class="ts-line"
+// data-line="N">…` fragment from highlight.HTMLLines when N is in the emphasized
+// set, and returns it unchanged otherwise. It edits only the well-known opening
+// class attribute the highlighter emits (`class="ts-line"`), so it never touches
+// the inner token markup and cannot unbalance the spans.
+func emphasizeLine(line string, emphasized map[int]bool) string {
+	n := lineNumberOf(line)
+	// The "all" sentinel emphasizes every real line; otherwise the line's own
+	// number must be in the set.
+	if n == 0 || (!emphasized[allLinesSentinel] && !emphasized[n]) {
+		return line
+	}
+	// highlight.HTMLLines always opens the line with the exact literal
+	// `class="ts-line"`; widen it to add the emphasis hook. Replace once so a
+	// data-line value that happened to contain the substring can't be touched.
+	return strings.Replace(line, `class="ts-line"`, `class="ts-line emphasis"`, 1)
+}
+
+// lineNumberOf extracts the 1-based N from a `data-line="N"` attribute in a
+// highlight.HTMLLines fragment, returning 0 when absent or unparseable. The value
+// is machine-generated (strconv.Itoa) so it is always a bare integer.
+func lineNumberOf(line string) int {
+	const marker = `data-line="`
+	i := strings.Index(line, marker)
+	if i < 0 {
+		return 0
+	}
+	rest := line[i+len(marker):]
+	j := strings.IndexByte(rest, '"')
+	if j < 0 {
+		return 0
+	}
+	n, err := strconv.Atoi(rest[:j])
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// parseHighlightLines parses the fence line-range mini-DSL mdpp stores in a code
+// block's Attrs["highlights"] into the flat SET of 1-based line numbers to
+// emphasize. The grammar (matching mdpp's fence meta and gosx's own range parser):
+//
+//	groups   separated by '|'   — each '|' group is a future "click step"; for
+//	                              STATIC emphasis we union every group's lines.
+//	items    separated by ','   — within a group
+//	item     N         a single 1-based line
+//	         N-M       an inclusive range (M >= N)
+//	         all       every line (the sentinel)
+//
+// Whitespace around separators/items is ignored. "all" (case-insensitive) anywhere
+// yields the sentinel map{-1:true} so the caller can treat the whole block as
+// emphasized regardless of line count. Empty/garbage input yields an empty map, so
+// the caller falls back to rendering every line at full opacity (no emphasis).
+//
+// NOTE: click-through STEPPING (advancing through the '|' groups one at a time on
+// keypress) is a deliberate future slice — this flattens the groups to a single
+// static emphasis set. See the hand-off in the task report.
+func parseHighlightLines(spec string) map[int]bool {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil
+	}
+	lines := map[int]bool{}
+	for _, group := range strings.Split(spec, "|") {
+		for _, item := range strings.Split(group, ",") {
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			if strings.EqualFold(item, "all") {
+				return map[int]bool{allLinesSentinel: true}
+			}
+			if lo, hi, ok := parseLineRange(item); ok {
+				for n := lo; n <= hi; n++ {
+					lines[n] = true
+				}
+			}
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	return lines
+}
+
+// allLinesSentinel is the key parseHighlightLines sets when the spec is "all":
+// emphasize every line. It is a value no real 1-based line number can be, so a
+// lookup for any positive N falls through to the sentinel branch in emphasizeLine.
+const allLinesSentinel = -1
+
+// parseLineRange parses one "N" or "N-M" item into an inclusive [lo, hi]. It
+// returns ok == false for anything malformed, a non-positive line, or an inverted
+// range (M < N) — matching gosx highlight's parseRangeItem so the slides DSL and
+// the gosx one accept exactly the same inputs.
+func parseLineRange(item string) (lo, hi int, ok bool) {
+	if dash := strings.IndexByte(item, '-'); dash >= 0 {
+		a := strings.TrimSpace(item[:dash])
+		b := strings.TrimSpace(item[dash+1:])
+		lo, err1 := strconv.Atoi(a)
+		hi, err2 := strconv.Atoi(b)
+		if err1 != nil || err2 != nil || lo < 1 || hi < lo {
+			return 0, 0, false
+		}
+		return lo, hi, true
+	}
+	n, err := strconv.Atoi(item)
+	if err != nil || n < 1 {
+		return 0, 0, false
+	}
+	return n, n, true
 }
 
 // deckFrontmatterValues parses the deck's headmatter (the leading `---` block of

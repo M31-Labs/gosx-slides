@@ -284,16 +284,22 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// A fenced ```lang block. We CANNOT emit highlighted span-HTML as text
 		// (prose is quoted with strconv.Quote and would escape the spans), so
 		// instead we lower to a CALL to the bound codeNamespace.codeBlockFunc
-		// (render_program.go) — `{__slidesCode.Block("<lang>", "<code>")}`. The
-		// gosx compiler evaluates that call at render time and the function returns
-		// a RawHTML <pre class="code-block">…tokens…</pre> Node that rides the eval
-		// path unescaped (proven safe: the highlighter escapes the code text). Both
-		// args are Go string literals, so a fence containing `<`, `{`, `"` etc. can
-		// never corrupt the generated source. Language is mdpp's Attrs["language"]
-		// (empty for a bare fence -> plain escaped text via NormalizeLanguage).
+		// (render_program.go) — `{__slidesCode.Block("<lang>", "<code>", "<hl>")}`.
+		// The gosx compiler evaluates that call at render time and the function
+		// returns a RawHTML <pre class="code-block">…tokens…</pre> Node that rides
+		// the eval path unescaped (proven safe: the highlighter escapes the code
+		// text). All three args are Go string literals, so a fence containing `<`,
+		// `{`, `"` etc. can never corrupt the generated source. Language is mdpp's
+		// Attrs["language"] (empty for a bare fence -> plain escaped text via
+		// NormalizeLanguage); highlights is mdpp's Attrs["highlights"] — the fence's
+		// `{1-3|5}` line-range meta (empty for a plain fence -> no emphasis, every
+		// line full opacity). codeBlockNode parses the spec and emphasizes those
+		// lines / dims the rest.
 		lang := n.Attr("language")
+		highlights := n.Attr("highlights")
 		return "{" + codeNamespace + "." + codeBlockFunc + "(" +
-			strconv.Quote(lang) + ", " + strconv.Quote(n.Literal) + ")}"
+			strconv.Quote(lang) + ", " + strconv.Quote(n.Literal) + ", " +
+			strconv.Quote(highlights) + ")}"
 
 	case mdpp.NodeLink:
 		href := n.Attr("href")

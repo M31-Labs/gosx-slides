@@ -83,3 +83,118 @@ func TestThemeCSSCarriesCodeBlockStyling(t *testing.T) {
 		}
 	}
 }
+
+// TestCodeBlockEmphasizesHighlightedLines proves a fence with `{1-3}` meta renders
+// PER-LINE (ts-line wrappers) and marks lines 1-3 with the `emphasis` class while
+// leaving the others un-emphasized — the static line-range emphasis feature. The
+// <pre> also carries data-emphasized so the theme CSS dims the rest.
+func TestCodeBlockEmphasizesHighlightedLines(t *testing.T) {
+	// 5-line Go body; emphasize lines 1-3.
+	md := "---\ntitle: T\ntheme: aurora\n---\n\n# Code\n\n" +
+		"```go {1-3}\nline1 := 1\nline2 := 2\nline3 := 3\nline4 := 4\nline5 := 5\n```\n"
+	deck := loadDeckFromSource(t, md, nil)
+	html := renderSlidesHTML(t, deck)
+
+	if !strings.Contains(html, `data-emphasized="true"`) {
+		t.Fatalf("expected the code block to be marked data-emphasized:\n%s", html)
+	}
+	// Per-line wrappers from highlight.HTMLLines.
+	if !strings.Contains(html, `class="ts-line`) || !strings.Contains(html, `data-line="1"`) {
+		t.Fatalf("expected per-line ts-line wrappers with data-line, got:\n%s", html)
+	}
+	// Lines 1-3 emphasized; line 4 and 5 NOT.
+	for _, ln := range []string{"1", "2", "3"} {
+		marker := `class="ts-line emphasis" data-line="` + ln + `"`
+		if !strings.Contains(html, marker) {
+			t.Errorf("expected line %s to carry the emphasis class (%q):\n%s", ln, marker, html)
+		}
+	}
+	for _, ln := range []string{"4", "5"} {
+		bad := `class="ts-line emphasis" data-line="` + ln + `"`
+		if strings.Contains(html, bad) {
+			t.Errorf("line %s should NOT be emphasized but was:\n%s", ln, html)
+		}
+		// It must still be present as a plain ts-line.
+		if !strings.Contains(html, `class="ts-line" data-line="`+ln+`"`) {
+			t.Errorf("line %s missing its plain ts-line wrapper:\n%s", ln, html)
+		}
+	}
+}
+
+// TestCodeBlockNoHighlightsRendersPlain proves a fence with NO {…} meta renders
+// exactly as before — no data-emphasized marker and (for backward compatibility)
+// no per-line ts-line wrappers, so every line shows at full opacity.
+func TestCodeBlockNoHighlightsRendersPlain(t *testing.T) {
+	md := "---\ntitle: T\ntheme: aurora\n---\n\n# Code\n\n" +
+		"```go\nfunc main() {}\nx := 1\n```\n"
+	deck := loadDeckFromSource(t, md, nil)
+	html := renderSlidesHTML(t, deck)
+
+	if strings.Contains(html, "data-emphasized") {
+		t.Errorf("a plain fence must not be marked data-emphasized:\n%s", html)
+	}
+	if strings.Contains(html, "ts-line") {
+		t.Errorf("a plain fence must not emit per-line ts-line wrappers (no emphasis spec):\n%s", html)
+	}
+	// Still a real, highlighted code block (func -> ts-keyword).
+	if !strings.Contains(html, `<pre class="code-block"`) || !strings.Contains(html, `class="ts-keyword"`) {
+		t.Errorf("plain fence lost its highlighted code block:\n%s", html)
+	}
+}
+
+// TestCodeBlockEmphasisStaysEscaped proves the per-line emphasis path is still
+// XSS-safe: dangerous source in an emphasized fence is escaped, never injected.
+func TestCodeBlockEmphasisStaysEscaped(t *testing.T) {
+	md := "---\ntitle: T\ntheme: aurora\n---\n\n# Danger\n\n" +
+		"```text {1}\n<script>alert(1)</script>\n```\n"
+	deck := loadDeckFromSource(t, md, nil)
+	html := renderSlidesHTML(t, deck)
+
+	if strings.Contains(html, "<script>alert(1)</script>") {
+		t.Fatalf("dangerous code injected unescaped in the emphasis path:\n%s", html)
+	}
+	if !strings.Contains(html, "&lt;script&gt;") {
+		t.Errorf("expected the code's < and > escaped (&lt;script&gt;):\n%s", html)
+	}
+}
+
+// TestParseHighlightLines covers the line-range mini-DSL parser directly: comma
+// lists, N-M ranges, | groups (unioned for static emphasis), `all`, and garbage.
+func TestParseHighlightLines(t *testing.T) {
+	cases := []struct {
+		in   string
+		want map[int]bool
+	}{
+		{"", nil},
+		{"   ", nil},
+		{"2", map[int]bool{2: true}},
+		{"1-3", map[int]bool{1: true, 2: true, 3: true}},
+		{"1,4", map[int]bool{1: true, 4: true}},
+		{"1-3|5", map[int]bool{1: true, 2: true, 3: true, 5: true}}, // groups unioned
+		{" 1 - 2 , 4 ", map[int]bool{1: true, 2: true, 4: true}},    // whitespace tolerant
+		{"all", map[int]bool{allLinesSentinel: true}},
+		{"2|all", map[int]bool{allLinesSentinel: true}}, // all wins
+		{"0", nil},                       // non-positive dropped
+		{"3-1", nil},                     // inverted range dropped
+		{"abc", nil},                     // garbage dropped
+		{"x,2,y", map[int]bool{2: true}}, // garbage items skipped, valid kept
+	}
+	for _, c := range cases {
+		got := parseHighlightLines(c.in)
+		if !sameIntSet(got, c.want) {
+			t.Errorf("parseHighlightLines(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func sameIntSet(a, b map[int]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
+}
