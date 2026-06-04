@@ -25,8 +25,10 @@ import (
 // It is the real-lane counterpart to the fallback presenter (server.go) and does
 // not touch it: the fallback `Serve`/`ServerOptions` stay exactly as they were.
 
-// gosxModuleImportPath is the gosx module; gosx-slides `replace`s it to ../gosx,
-// so `go list` resolves it to the local checkout for asset staging.
+// gosxModuleImportPath is the gosx module. gosx-slides depends on it as a public
+// release (no replace), so `go list -m` resolves it to the module cache for asset
+// staging. A scaffolded deck's generated go.mod requires the same module, so the
+// same resolution works with cmd.Dir set to a deck dir outside this repo.
 const gosxModuleImportPath = "m31labs.dev/gosx"
 
 // ServeOptions configures the real-lane deck server.
@@ -384,8 +386,13 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		// Neutralize an ambient GOFLAGS (e.g. an exported `GOFLAGS=-mod=vendor`)
 		// that would otherwise skew the GOOS=js build, then set the wasm env
 		// explicitly — mirroring gosx's execEnvWithoutGoFlags (cmd/gosx/dev.go).
+		// GOFLAGS=-mod=mod (not empty) lets a freshly-scaffolded deck module
+		// (go.mod present, go.sum not yet populated — see scaffold_real.go) have its
+		// go.sum and indirect requires auto-filled during this build, so a portable
+		// deck resolves gosx on its FIRST serve. For the in-repo case (cmd.Dir
+		// inside gosx-slides, go.sum already complete) -mod=mod is a no-op.
 		cmd.Env = append(execEnvWithoutGoFlags(),
-			"GOOS=js", "GOARCH=wasm", "GOWORK=off", "GOFLAGS=",
+			"GOOS=js", "GOARCH=wasm", "GOWORK=off", "GOFLAGS=-mod=mod",
 		)
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
@@ -483,16 +490,26 @@ func StageIslandPrograms(deckDir string) error {
 	return nil
 }
 
-// resolveGoSXRoot returns the local gosx module directory (../gosx via the
-// replace) so its client/js assets can be staged.
+// resolveGoSXRoot returns the gosx module directory (the local module cache entry,
+// or the gosx-slides checkout's own resolution when projectDir is inside it) so
+// its client/js assets can be staged. It runs `go list` with cmd.Dir = projectDir,
+// so projectDir must be (or live inside) a Go module that requires gosx — for a
+// scaffolded deck that is the generated go.mod (scaffold_real.go).
+//
+// Both the module-mode list and its fallback run with GOFLAGS=-mod=mod so a
+// freshly-scaffolded deck (go.mod present, go.sum not yet populated) can resolve
+// and download gosx on its first serve. For the in-repo case this is a no-op.
 func resolveGoSXRoot(projectDir string) (string, error) {
+	listEnv := append(execEnvWithoutGoFlags(), "GOFLAGS=-mod=mod")
 	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", gosxModuleImportPath)
 	cmd.Dir = projectDir
+	cmd.Env = listEnv
 	out, err := cmd.Output()
 	if err != nil {
 		// Fall back to a non-module `go list` for older layouts.
 		cmd2 := exec.Command("go", "list", "-f", "{{.Dir}}", gosxModuleImportPath)
 		cmd2.Dir = projectDir
+		cmd2.Env = listEnv
 		out, err = cmd2.Output()
 		if err != nil {
 			return "", fmt.Errorf("resolve %s module root: %w", gosxModuleImportPath, err)

@@ -68,6 +68,7 @@ the current directory; a `[deck-dir]` argument defaults to `.`.
 
 | Command | Purpose |
 |---|---|
+| `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** real-lane deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` (`module <name>`, `require m31labs.dev/gosx <version>`) is what makes the deck serve from **any** directory (see the portability note below). |
 | `serve [deck-dir] [--port 8080] [--rebuild] [--watch]` | Serve a deck whose `<Component/>` are live hydrated islands and whose `{expr}` is evaluated by the GoSX compiler. |
 
 - `--port N` — listen port (default `8080`); binds **`127.0.0.1`** only (localhost).
@@ -435,6 +436,17 @@ swap, attribute swap).
   `runtime.wasm` into `<deck>/build/` on first run. It's existence-cached, so
   subsequent runs are instant; a gosx upgrade is picked up only with `--rebuild`
   (or by deleting `build/`).
+- **A `serve`-able deck must be (or live inside) a Go module that requires
+  `m31labs.dev/gosx`.** `serve` builds the `GOOS=js` `runtime.wasm` and resolves
+  the gosx module root with `cmd.Dir` set to the deck dir, so the deck dir needs a
+  resolvable `go.mod`. `slides init` generates that `go.mod` (`module <name>`,
+  `require m31labs.dev/gosx <version>`, pinned to the version the running `slides`
+  binary was built against), so **scaffolded decks are self-contained and serve
+  from any directory** — not just inside the gosx-slides repo. The first `serve`
+  auto-populates the deck's `go.sum` (the wasm build and module resolve run with
+  `GOFLAGS=-mod=mod`); the in-repo `examples/*` decks resolve up to the
+  gosx-slides `go.mod` instead. A hand-written deck (e.g. `examples/real-deck`)
+  with no `go.mod` of its own only serves from inside the repo.
 - ⚠️ **`serve` binds `127.0.0.1` only.** It is not reachable from other machines;
   use SSH port-forwarding to view remotely.
 - `build/` is gitignored (`build/` and `examples/*/build/`). Don't commit it.
@@ -473,8 +485,10 @@ if the generated deck source fails to compile, slides render through a hand-buil
 mdpp→`gosx.Node` lowering instead (prose + islands still render; `{expr}` degrades
 to raw text) so a transient bad deck never blanks the page.
 
-Dependencies: local `m31labs.dev/gosx` and `m31labs.dev/mdpp` via `replace`
-directives in `go.mod` (both point at sibling checkouts, `../gosx` and `../mdpp`).
+Dependencies: `m31labs.dev/gosx` and `m31labs.dev/mdpp` as **public releases** in
+`go.mod` (no `replace`; the module builds standalone). `slides init` pins the same
+gosx version it reads from the running binary's build info into a scaffolded deck's
+`go.mod`, so that deck requires the matching gosx.
 
 The fallback lane (`deck.go`, `parse.go`, `render.go`, `server.go`, `export.go`,
 `style.go`, …) is entirely separate and shares no code with the real lane.

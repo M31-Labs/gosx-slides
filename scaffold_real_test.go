@@ -10,9 +10,11 @@ import (
 // TestScaffoldRealLaneProducesServeableDeck is the headline scaffold guarantee:
 // `slides init <name>` writes a deck that loads + renders the WHOLE real lane
 // (island, evaluated {expr}, highlighted code block, theme) with no further
-// setup. It scaffolds into a temp dir UNDER the repo (so the go.mod replace
-// resolves for compilation), loads the deck, and renders it through the real
-// Slice-4 flow, asserting each pillar appears in the output.
+// setup. It scaffolds into a temp dir UNDER the repo and loads + renders the deck
+// through the real Slice-4 flow (an in-process compile that reads the .gsx files
+// directly — no subprocess `go build`), asserting each pillar appears in the
+// output. (Portability — serving from outside the repo — is covered by
+// TestScaffoldRealLaneWritesPortableGoMod plus the manual serve gate.)
 func TestScaffoldRealLaneProducesServeableDeck(t *testing.T) {
 	repoDir, err := os.Getwd()
 	if err != nil {
@@ -78,6 +80,88 @@ func TestScaffoldRealLaneProducesServeableDeck(t *testing.T) {
 	// Pillar 4: the chosen theme resolves (headmatter theme: neon).
 	if got := themeName(deckTheme(deck)); got != "neon" {
 		t.Errorf("scaffolded deck theme = %q, want neon", got)
+	}
+}
+
+// TestScaffoldRealLaneWritesPortableGoMod is the portability guarantee: `slides
+// init <name>` writes a go.mod that makes the deck a self-contained Go module
+// requiring gosx, plus a .gitignore for the staged build/. This is what lets a
+// scaffolded deck `slides serve` from ANY directory (StageRuntimeAssets +
+// resolveGoSXRoot run `go build`/`go list` with cmd.Dir = deck dir, so the deck
+// must itself require gosx). The end-to-end serve-from-outside-the-repo proof is
+// exercised manually (it fetches gosx and builds a GOOS=js wasm); here we assert
+// the on-disk module shape that makes it possible.
+func TestScaffoldRealLaneWritesPortableGoMod(t *testing.T) {
+	dir := t.TempDir()
+	name := filepath.Join(dir, "portdeck")
+	if err := ScaffoldRealLane(name, ScaffoldRealOptions{Theme: "neon"}); err != nil {
+		t.Fatalf("ScaffoldRealLane: %v", err)
+	}
+
+	// All five files exist (deck.md, Counter.gsx, go.mod, .gitignore, README).
+	for _, f := range []string{"deck.md", "Counter.gsx", "go.mod", ".gitignore", "README"} {
+		if _, err := os.Stat(filepath.Join(name, f)); err != nil {
+			t.Errorf("scaffold missing %s: %v", f, err)
+		}
+	}
+
+	// go.mod declares the deck module, targets go 1.26, and REQUIRES gosx — the
+	// load-bearing line for portability.
+	gomod, err := os.ReadFile(filepath.Join(name, "go.mod"))
+	if err != nil {
+		t.Fatalf("read scaffolded go.mod: %v", err)
+	}
+	src := string(gomod)
+	if !strings.Contains(src, "module portdeck") {
+		t.Errorf("go.mod missing `module portdeck`:\n%s", src)
+	}
+	if !strings.Contains(src, "go 1.26") {
+		t.Errorf("go.mod missing `go 1.26`:\n%s", src)
+	}
+	if !strings.Contains(src, "require "+gosxModuleImportPath+" v") {
+		t.Errorf("go.mod must require %s at a vN.N.N version:\n%s", gosxModuleImportPath, src)
+	}
+
+	// .gitignore keeps the staged build/ (and *.test) out of version control.
+	gi, err := os.ReadFile(filepath.Join(name, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read scaffolded .gitignore: %v", err)
+	}
+	if !strings.Contains(string(gi), "build/") {
+		t.Errorf(".gitignore must ignore build/:\n%s", gi)
+	}
+}
+
+// TestModuleNameFromDeck proves the deck path -> module path sanitization: it uses
+// the base name, lowercases, collapses illegal runs to single hyphens, and falls
+// back to "deck" for an empty/fully-stripped name, so realLaneGoMod always emits a
+// valid module path.
+func TestModuleNameFromDeck(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"portdeck", "portdeck"},
+		{"/tmp/portdeck", "portdeck"},
+		{"/tmp/My Deck", "my-deck"},
+		{"My_Cool.Deck", "my-cool-deck"},
+		{"weird!!!name", "weird-name"},
+		{"--leading-trailing--", "leading-trailing"},
+		{"!!!", "deck"},
+		{"", "deck"},
+		{".", "deck"},
+	}
+	for _, c := range cases {
+		if got := moduleNameFromDeck(c.in); got != c.want {
+			t.Errorf("moduleNameFromDeck(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// TestGoSXScaffoldVersion proves the pinned gosx version is a valid require target
+// (starts with "v") — whether sourced from the running binary's build info or the
+// fallback const — so a scaffolded go.mod never pins "(devel)" or an empty string.
+func TestGoSXScaffoldVersion(t *testing.T) {
+	v := gosxScaffoldVersion()
+	if !strings.HasPrefix(v, "v") {
+		t.Errorf("gosxScaffoldVersion() = %q, want a vN.N.N version (got non-release/empty)", v)
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
+	"strings"
 )
 
 // scaffold_real.go scaffolds a runnable REAL-LANE deck (Phase 1 nicey): a deck a
@@ -21,6 +23,16 @@ import (
 //     {expr} (proves the new code-block highlighting).
 //   - Counter.gsx — the working counter island (props.Initial), copied verbatim
 //     from examples/showcase so the scaffold is a known-good, hot-swappable island.
+//   - go.mod — `module <name>`, `go 1.26`, `require m31labs.dev/gosx <version>`.
+//     This is what makes the scaffolded deck PORTABLE: `slides serve` builds the
+//     GOOS=js runtime.wasm and resolves the gosx module root with cmd.Dir set to
+//     the deck dir, so the deck must itself be (or live inside) a Go module that
+//     requires gosx. Without this go.mod a deck serves only from inside the
+//     gosx-slides repo; with it, a deck serves from any directory. The pinned
+//     <version> is sourced from the running binary's build info (gosxScaffoldVersion)
+//     so the scaffold requires the SAME gosx the `slides` binary was built against.
+//   - .gitignore — ignores build/ (the staged ~30MB GOOS=js wasm + island JSON)
+//     and *.test, so a scaffolded deck is clean to commit.
 //   - README — a one-liner pointing at `slides serve <name>`.
 //
 // Authoring invariants the template MUST honor (they are the real lane's
@@ -42,12 +54,16 @@ type ScaffoldRealOptions struct {
 }
 
 // ScaffoldRealLane creates a new real-lane deck directory at name. It writes
-// <name>/deck.md, <name>/Counter.gsx, and <name>/README, then returns nil. It
-// refuses to overwrite an existing deck.md so re-running it never clobbers work.
+// <name>/deck.md, <name>/Counter.gsx, <name>/go.mod, <name>/.gitignore, and
+// <name>/README, then returns nil. It refuses to overwrite an existing deck.md so
+// re-running it never clobbers work.
 //
-// The returned deck is immediately runnable: `slides serve <name>` compiles the
-// Counter island, evaluates the slide exprs, highlights the code block, and
-// serves the chosen theme. The caller (cmd/slides) prints the serve hint.
+// The returned deck is immediately runnable AND PORTABLE: the generated go.mod
+// (module <name>, requiring m31labs.dev/gosx) lets `slides serve <name>` build the
+// runtime.wasm and resolve the gosx module root from any directory, not just
+// inside the gosx-slides repo. `slides serve <name>` compiles the Counter island,
+// evaluates the slide exprs, highlights the code block, and serves the chosen
+// theme. The caller (cmd/slides) prints the serve hint.
 func ScaffoldRealLane(name string, opts ScaffoldRealOptions) error {
 	if name == "" {
 		return fmt.Errorf("deck name is required")
@@ -76,6 +92,21 @@ func ScaffoldRealLane(name string, opts ScaffoldRealOptions) error {
 	// scaffold always ships a known-good, hot-swappable component whose prop name
 	// (Initial) matches the deck's <Counter Initial={3}/>.
 	if err := os.WriteFile(filepath.Join(name, "Counter.gsx"), []byte(realLaneCounter), 0o644); err != nil {
+		return err
+	}
+
+	// go.mod makes the deck a self-contained Go module that requires gosx, so
+	// `slides serve` (which runs the GOOS=js build and `go list -m` with cmd.Dir =
+	// deck dir) resolves gosx from ANY directory. The module path is derived from
+	// the deck dir's base name (sanitized), and the gosx version is pinned to what
+	// the running binary was built against.
+	if err := os.WriteFile(filepath.Join(name, "go.mod"), []byte(realLaneGoMod(name)), 0o644); err != nil {
+		return err
+	}
+
+	// .gitignore keeps the staged build artifacts (the ~30MB GOOS=js wasm + island
+	// JSON under build/) and compiled test binaries out of version control.
+	if err := os.WriteFile(filepath.Join(name, ".gitignore"), []byte(realLaneGitignore), 0o644); err != nil {
 		return err
 	}
 
@@ -166,8 +197,86 @@ And inline ` + "`{expr}`" + ` is evaluated by the GoSX compiler:
 
 // realLaneReadme is the generated README pointing at the serve command.
 func realLaneReadme(name string) string {
-	return fmt.Sprintf("Real-lane gosx-slides deck.\n\nRun it:\n\n    slides serve %s\n\nThen open the printed URL. Edit deck.md or Counter.gsx and use `slides serve --watch %s` for hot reload.\n", name, name)
+	return fmt.Sprintf("Real-lane gosx-slides deck.\n\nRun it:\n\n    slides serve %s\n\nThen open the printed URL. Edit deck.md or Counter.gsx and use `slides serve --watch %s` for hot reload.\n\nThis deck is self-contained: its go.mod requires m31labs.dev/gosx, so it serves\nfrom any directory. The first `slides serve` fetches gosx and builds the GOOS=js\nruntime.wasm into build/ (cached, gitignored), which can take a few minutes.\n", name, name)
 }
+
+// fallbackGoSXVersion pins the gosx version the scaffold requires when the running
+// binary carries no usable build info (e.g. `go run`/dev builds, where the dep
+// version reads as "(devel)" or is absent). It tracks the gosx version this module
+// is built against (see go.mod). gosxScaffoldVersion prefers the real build info.
+const fallbackGoSXVersion = "v0.24.3"
+
+// gosxScaffoldVersion returns the gosx module version to pin in a scaffolded
+// deck's go.mod. It reads the RUNNING binary's build info and uses the version of
+// the m31labs.dev/gosx dependency, so the scaffold requires the SAME gosx the
+// `slides` binary was built against. It falls back to fallbackGoSXVersion when
+// build info is unavailable or reports a non-release pseudo/"(devel)" version
+// (which would not be a valid `require` target).
+func gosxScaffoldVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fallbackGoSXVersion
+	}
+	for _, dep := range info.Deps {
+		if dep == nil || dep.Path != gosxModuleImportPath {
+			continue
+		}
+		// A real dependency version starts with "v" (e.g. v0.24.3). "(devel)" and
+		// the empty string are not valid require targets, so use the fallback.
+		if strings.HasPrefix(dep.Version, "v") {
+			return dep.Version
+		}
+		break
+	}
+	return fallbackGoSXVersion
+}
+
+// realLaneGoMod is the generated go.mod for a deck at deckPath. The module path is
+// the deck dir's sanitized base name; the gosx require is pinned to
+// gosxScaffoldVersion().
+func realLaneGoMod(deckPath string) string {
+	return fmt.Sprintf("module %s\n\ngo 1.26\n\nrequire %s %s\n",
+		moduleNameFromDeck(deckPath), gosxModuleImportPath, gosxScaffoldVersion())
+}
+
+// moduleNameFromDeck derives a valid Go module path from a deck directory path. It
+// uses the path's BASE name (so `slides init /tmp/foo` yields module `foo`, not
+// `/tmp/foo`) and sanitizes it to characters safe in a module path, lowercasing
+// and collapsing illegal runs to single hyphens. An empty or fully-stripped name
+// falls back to "deck" so the generated go.mod is always valid.
+func moduleNameFromDeck(deckPath string) string {
+	base := filepath.Base(filepath.Clean(deckPath))
+	var b strings.Builder
+	lastHyphen := false
+	for _, r := range strings.ToLower(base) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastHyphen = false
+		case r == '-' || r == '_' || r == '.':
+			// Collapse runs of separators (and any illegal rune below) to a single
+			// hyphen so we never emit a leading/trailing/doubled separator.
+			if b.Len() > 0 && !lastHyphen {
+				b.WriteByte('-')
+				lastHyphen = true
+			}
+		default:
+			if b.Len() > 0 && !lastHyphen {
+				b.WriteByte('-')
+				lastHyphen = true
+			}
+		}
+	}
+	name := strings.Trim(b.String(), "-")
+	if name == "" {
+		return "deck"
+	}
+	return name
+}
+
+// realLaneGitignore keeps the staged runtime build (the ~30MB GOOS=js wasm and
+// island JSON under build/) and compiled test binaries out of version control.
+const realLaneGitignore = "build/\n*.test\n"
 
 // realLaneCounter is the working counter island, copied verbatim from
 // examples/showcase/Counter.gsx. It seeds its state from props.Initial, so the

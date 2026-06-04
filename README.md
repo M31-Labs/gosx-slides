@@ -130,8 +130,9 @@ navigation.
 ## CLI
 
 ```text
+slides init <name> [--theme aurora|paper|neon|swiss]          real lane: scaffold a portable deck (deck.md + Counter.gsx + go.mod) you can serve from anywhere
 slides serve [deck-dir] [--port 8080] [--rebuild] [--watch]   real lane: live islands + evaluated {expr}; --watch = hot-swap loop
-slides new <name> [--theme m31] [--template default|gotreesitter]
+slides new <name> [--theme m31] [--template default|gotreesitter]   fallback HTML-presenter deck
 slides check [deck.md]
 slides fmt [deck.md]
 slides inspect [deck.md] [--json]
@@ -159,7 +160,8 @@ definitions plus one `func Slide_N()` per slide — compiles it once with
 `gosx.Compile`, and renders each slide via `route.RenderProgramComponent` (which
 is what makes `{expr}` real). `serve` stages the client runtime and serves each
 island program at `/gosx/islands/<Name>.json`; `--watch` fronts it with the gosx
-dev proxy for hot-swap. It depends on local `m31labs.dev/gosx` and
-`m31labs.dev/mdpp` via `go.mod` `replace` directives. The fallback lane is
-entirely separate and shares no rendering code. Full details in
-[AGENTS.md](AGENTS.md#architecture-for-extending-it).
+dev proxy for hot-swap. It depends on `m31labs.dev/gosx` and `m31labs.dev/mdpp` as
+public releases (no `replace`; builds standalone), and `slides init` scaffolds
+self-contained decks (with their own `go.mod` requiring gosx) that serve from any
+directory. The fallback lane is entirely separate and shares no rendering code.
+Full details in [AGENTS.md](AGENTS.md#architecture-for-extending-it).
