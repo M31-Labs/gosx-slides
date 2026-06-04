@@ -236,19 +236,37 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// the designer faces actually render. fontLinks returns "" for a webfont-less
 		// theme, in which case this emits nothing.
 		gosx.RawHTML(fontLinks(theme)),
-		gosx.RawHTML("<style>"+navStyle()+"</style>"),
+		// navStyle (one-slide visibility + overview grid) and presenterStyle (the
+		// ?present chrome) go in one <style>. presenterStyle is inert until the
+		// controller adds the deck-presenter class on a ?present load AND hides the
+		// speaker-note asides below in BOTH views, so the audience page is unaffected.
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"</style>"),
 	)
+
+	// Hidden per-slide speaker-note asides: one <aside class="slide-notes"
+	// data-notes="N"> for every slide that HAS a note (extractSlideNotes reads the
+	// <Notes>…</Notes> / trailing <!-- … --> forms out of the slide's mdpp subtree).
+	// presenterStyle hides these in both views; the presenter chrome reads the
+	// current slide's note out of them. A slide with no note emits nothing (the
+	// presenter shows a graceful placeholder).
+	noteNodes := d.noteAsides()
 
 	return gosx.El("main",
 		gosx.Attrs(gosx.Attr("class", "deck"), gosx.Attr("data-theme", theme)),
 		gosx.Fragment(slideNodes...),
-		// The slide-nav controller runs at the END of the body, so the data-slide
-		// sections above already exist in the DOM when it wires up. It shows ONE
-		// slide at a time and handles keyboard + URL-hash nav; it is self-contained
-		// (no island-runtime dependency) and does not disturb the island bootstrap
-		// the App adds to the head — hidden slides still hydrate their islands.
-		gosx.RawHTML("<script>"+navScript()+"</script>"),
+		gosx.Fragment(noteNodes...),
+		// The slide-nav controller + presenter chrome controller run at the END of
+		// the body, so the data-slide sections (and note asides) above already exist
+		// when they wire up. presenterScript is emitted FIRST so it has defined
+		// window.SlidesPresenter by the time navScript's IIFE runs its end-of-load
+		// `if (present) SlidesPresenter.init(...)` call (each is a self-invoking IIFE,
+		// so navScript would otherwise see an undefined SlidesPresenter). navScript
+		// shows ONE slide at a time, handles keyboard + URL-hash nav, and (on a
+		// ?present load) calls the presenter controller; both are self-contained (no
+		// island-runtime dependency) and do not disturb the island bootstrap the App
+		// adds to the head — hidden slides still hydrate.
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"</script>"),
 	)
 }
 

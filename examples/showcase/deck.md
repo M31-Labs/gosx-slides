@@ -19,9 +19,11 @@ This is the **real lane** — the prose you are reading is static server HTML.
 
 Deck title via an expression: {deck.title}. Uppercased: {strings.ToUpper("live gosx")}.
 
-Use the arrow keys (← / →) or Space to move between slides. Press `f` for fullscreen, or `o` for an overview of every slide.
+Use the arrow keys (← / →) or Space to move between slides. Press `f` for fullscreen, `o` for an overview of every slide, or `p` to open the presenter view (current + next previews, speaker notes, an elapsed timer, and a slide counter — synced peer-to-peer with this window).
 
 > Themes and layouts are selected entirely from deck frontmatter.
+
+<!-- Open the presenter view with `p` (or load this page with ?present). The two windows stay in lockstep over a BroadcastChannel — no server. -->`
 
 ---
 
@@ -33,6 +35,10 @@ hydrated in your browser — not a screenshot:
 <Counter Initial={3}/>
 
 Click the buttons — the count is real reactive state.
+
+<Notes>
+Demo beat: click the counter live so the audience sees real reactive state, not a screenshot. Then mention it is the same island bytecode `gosx dev` hot-swaps.
+</Notes>
 
 ---
 

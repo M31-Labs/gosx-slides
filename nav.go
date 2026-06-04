@@ -11,9 +11,18 @@ package slides
 // It is the real-lane counterpart to runtime_script.go's fallback controller and
 // deliberately shares NONE of its code: the fallback controller drives canvases,
 // polls, presenter SSE state and fallback-component step-reveals; this one keeps
-// only the deck mechanics (show-one-slide, ←/→/Space, f-fullscreen, hash sync).
-// renderPage injects navStyle into the document head and navScript at the END of
-// the body (so the sections exist when it runs); see serve.go.
+// only the deck mechanics (show-one-slide, ←/→/Space, f-fullscreen, o-overview,
+// hash sync). renderPage injects navStyle into the document head and navScript at
+// the END of the body (so the sections exist when it runs); see serve.go.
+//
+// navScript is also the single owner of slide STATE for the presenter view layer
+// (presenter.go): pressing `p` opens a presenter window (the same page + ?present),
+// a ?present/#present load is detected here and handed to the presenter chrome
+// controller, and BOTH windows are kept in lockstep peer-to-peer over a
+// BroadcastChannel keyed to the deck path (no server/Hub). Any navigation in either
+// window posts the new index; the other applies it behind a self-echo guard so the
+// two can't ping-pong. The presenter chrome subscribes via onChange so its previews
+// and counter re-render on every change, including ones arriving from the peer.
 //
 // Class-name note: the fallback lane (style.go) uses `.slide.is-active` and its
 // own `.slide{display:none}` rule. The real lane never loads style.go, but to
@@ -148,8 +157,10 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
 //     defaults to slide 1. The chosen section gets navActiveClass; all others
 //     have it removed.
 //   - keydown (single-slide view): ArrowRight or Space -> next, ArrowLeft ->
-//     prev, `f` -> toggle fullscreen, `o` -> open the overview grid. Typing in an
-//     input/textarea/select is ignored. Arrow/Space default scrolling is prevented.
+//     prev, `f` -> toggle fullscreen, `o` -> open the overview grid, `p` -> open
+//     the presenter window (audience view only; a no-op in the presenter window).
+//     Typing in an input/textarea/select is ignored. Arrow/Space default scrolling
+//     is prevented.
 //   - OVERVIEW GRID (`o`): toggles navOverviewClass on `main.deck`, so navStyle's
 //     overview rules lay every slide out as a scaled thumbnail card. While open,
 //     cards become keyboard-operable (role=button + tabindex); ArrowLeft/Right (and
@@ -162,11 +173,13 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
 //     never throws.
 //
 // It exposes `window.SlidesNav = { show, next, prev, current, openOverview,
-// closeOverview, toggleOverview, isOverview }` for manual driving/debugging and is
-// wrapped in an IIFE so it leaks nothing else. It has NO dependency on the island
-// runtime: hidden (display:none) slides still hydrate their islands on load — CSS
-// visibility does not block JS — so toggling the active class (or the overview
-// grid) only changes what is shown; island state persists across navigation.
+// closeOverview, toggleOverview, isOverview, onChange, openPresenter, isPresenter }`
+// for manual driving/debugging (and for the presenter chrome to drive state +
+// subscribe to changes) and is wrapped in an IIFE so it leaks nothing else. It has
+// NO dependency on the island runtime: hidden (display:none) slides still hydrate
+// their islands on load — CSS visibility does not block JS — so toggling the active
+// class (or the overview grid, or moving a section into a presenter preview) only
+// changes what is shown; island state persists across navigation.
 func navScript() string {
 	return `(function () {
   var deck = document.querySelector('main.deck');
@@ -179,25 +192,81 @@ func navScript() string {
 
   var ACTIVE = '` + navActiveClass + `';
   var OVERVIEW = '` + navOverviewClass + `';
+  // present is true when this window was opened as the PRESENTER view: either
+  // ?present in the query string or #...present in the hash. The presenter chrome
+  // (presenter.go) is rendered over the same page only in that case; the normal
+  // (no-?present) window stays the audience view. Both still share slide state and
+  // the BroadcastChannel, so prev/next in either drives the other.
+  var present = /(^|[?&])present(=|&|$)/.test(location.search) || /present/.test(location.hash);
   var index = initialIndex();
   var overview = false;
 
+  // Subscribers notified after every committed slide change (local, hash, or a
+  // change applied from the peer window). The presenter chrome uses this to keep
+  // its previews/notes/counter in lockstep; an empty list is a no-op.
+  var changeSubs = [];
+  function onChange(fn) { if (typeof fn === 'function') changeSubs.push(fn); }
+  function notifyChange() {
+    for (var s = 0; s < changeSubs.length; s++) {
+      try { changeSubs[s](index); } catch (e) {}
+    }
+  }
+
+  // --- Peer-to-peer sync (BroadcastChannel) --------------------------------
+  // The presenter and audience windows are the SAME served page, opened twice.
+  // They stay in sync with NO server/Hub: a BroadcastChannel keyed to this deck's
+  // path carries the active index. Any navigation in either window posts {index};
+  // the other applies it WITHOUT re-posting (the applying flag guards the echo, so
+  // two windows can't ping-pong into a loop). Older browsers without
+  // BroadcastChannel degrade silently to independent per-window navigation.
+  var channel = null;
+  var applyingRemote = false;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('gosx-slides:' + location.pathname);
+      channel.onmessage = function (event) {
+        var data = event && event.data;
+        if (!data || typeof data.index !== 'number') return;
+        if (data.index === index) return; // already there; nothing to do
+        applyingRemote = true;
+        show(data.index, true);           // update URL hash, but don't re-broadcast
+        applyingRemote = false;
+      };
+    }
+  } catch (e) { channel = null; }
+  function broadcast() {
+    if (!channel || applyingRemote) return;
+    try { channel.postMessage({ index: index }); } catch (e) {}
+  }
+
   function initialIndex() {
-    var fromHash = parseInt((location.hash || '').replace('#', ''), 10);
+    var fromHash = parseInt((location.hash || '').replace('#', '').replace('present', ''), 10);
     if (!isNaN(fromHash) && fromHash > 0) return Math.min(fromHash - 1, slides.length - 1);
     return 0;
   }
 
   function show(next, push) {
+    var prevIndex = index;
     index = Math.max(0, Math.min(slides.length - 1, next));
     for (var i = 0; i < slides.length; i++) {
       slides[i].classList.toggle(ACTIVE, i === index);
     }
-    if (push) history.replaceState(null, '', '#' + (index + 1));
+    if (push) history.replaceState(null, '', '#' + (index + 1) + (present ? 'present' : ''));
+    broadcast();
+    if (index !== prevIndex || push) notifyChange();
   }
 
   function next() { show(index + 1, true); }
   function prev() { show(index - 1, true); }
+
+  // Open a presenter window for this deck: the SAME page with ?present, in a named
+  // window so a second press focuses the existing one instead of stacking copies.
+  function openPresenter() {
+    try {
+      window.open(location.pathname + '?present', 'gosx-presenter',
+        'width=1280,height=800,noopener=no');
+    } catch (e) {}
+  }
 
   function toggleFullscreen() {
     if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -296,6 +365,9 @@ func navScript() string {
     if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); next(); }
     else if (event.key === 'ArrowLeft') { event.preventDefault(); prev(); }
     else if (event.key === 'f' || event.key === 'F') { toggleFullscreen(); }
+    // p opens the presenter window from the AUDIENCE view. In the presenter
+    // window itself it is a no-op (no point opening a presenter from a presenter).
+    else if ((event.key === 'p' || event.key === 'P') && !present) { event.preventDefault(); openPresenter(); }
   });
 
   // columnCount estimates how many cards sit per row from the grid's computed
@@ -315,8 +387,27 @@ func navScript() string {
     current: function () { return index + 1; },
     openOverview: openOverview, closeOverview: closeOverview,
     toggleOverview: toggleOverview,
-    isOverview: function () { return overview; }
+    isOverview: function () { return overview; },
+    onChange: onChange,
+    openPresenter: openPresenter,
+    isPresenter: function () { return present; }
   };
   show(index, false);
+
+  // Presenter chrome: only when this window is the presenter view. It is handed a
+  // small api so it drives slide state through the SAME functions (so its prev/next
+  // broadcast to the audience) and re-renders on every change (including remote
+  // ones applied from the audience window over the BroadcastChannel).
+  if (present && window.SlidesPresenter && typeof window.SlidesPresenter.init === 'function') {
+    window.SlidesPresenter.init({
+      slides: slides,
+      count: slides.length,
+      getIndex: function () { return index; },
+      onChange: onChange,
+      show: function (i) { show(i, true); },
+      next: next,
+      prev: prev
+    });
+  }
 })();`
 }
