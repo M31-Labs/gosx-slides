@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
-	m31labs.dev/gosx v0.25.5
+	m31labs.dev/gosx v0.25.6
 	m31labs.dev/mdpp v0.4.7
 )
 
