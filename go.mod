@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
-	m31labs.dev/gosx v0.25.6
+	m31labs.dev/gosx v0.25.8
 	m31labs.dev/mdpp v0.4.7
 )
 
@@ -13,8 +13,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
 	github.com/odvcencio/gotreesitter v0.20.1 // indirect
-	github.com/odvcencio/manta v0.0.13 // indirect
-	github.com/odvcencio/mll v0.0.1 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.38.0 // indirect
