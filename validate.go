@@ -1,5 +1,7 @@
 package slides
 
+import "strconv"
+
 // ValidateOptions configures profile-aware deck validation.
 type ValidateOptions struct {
 	Profile string
@@ -27,13 +29,13 @@ func validateConference(report *ValidationReport) {
 	}
 	for _, slide := range report.Analysis.Slides {
 		if !slide.HasNotes {
-			report.Errors = append(report.Errors, "conference: slide "+itoa(slide.Index+1)+" needs presenter notes")
+			report.Errors = append(report.Errors, "conference: slide "+strconv.Itoa(slide.Index+1)+" needs presenter notes")
 		}
 		if slide.Words > 100 {
-			report.Warnings = append(report.Warnings, "conference: slide "+itoa(slide.Index+1)+" is dense for a talk track")
+			report.Warnings = append(report.Warnings, "conference: slide "+strconv.Itoa(slide.Index+1)+" is dense for a talk track")
 		}
 		if hasAny(slide.Components, []string{"Benchmark", "ProfileBuckets", "CorpusRun", "ParityMatrix"}) && !hasComponent(slide.Components, "Citation") {
-			report.Errors = append(report.Errors, "conference: slide "+itoa(slide.Index+1)+" has evidence without a Citation")
+			report.Errors = append(report.Errors, "conference: slide "+strconv.Itoa(slide.Index+1)+" has evidence without a Citation")
 		}
 	}
 }
@@ -41,7 +43,7 @@ func validateConference(report *ValidationReport) {
 func validateDemo(report *ValidationReport) {
 	for _, slide := range report.Analysis.Slides {
 		if hasAny(slide.Components, []string{"Scene3D", "Canvas", "Poll", "QueryDemo"}) && !slide.HasNotes {
-			report.Warnings = append(report.Warnings, "demo: slide "+itoa(slide.Index+1)+" has an interactive surface without fallback notes")
+			report.Warnings = append(report.Warnings, "demo: slide "+strconv.Itoa(slide.Index+1)+" has an interactive surface without fallback notes")
 		}
 	}
 }
@@ -53,7 +55,7 @@ func validateLecture(report *ValidationReport) {
 			withNotes++
 		}
 		if slide.Words > 165 {
-			report.Warnings = append(report.Warnings, "lecture: slide "+itoa(slide.Index+1)+" is very dense")
+			report.Warnings = append(report.Warnings, "lecture: slide "+strconv.Itoa(slide.Index+1)+" is very dense")
 		}
 	}
 	if total := report.Analysis.SlideCount; total > 0 && withNotes*100/total < 80 {

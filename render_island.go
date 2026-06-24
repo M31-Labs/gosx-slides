@@ -1,6 +1,7 @@
 package slides
 
 import (
+	"strconv"
 	"strings"
 
 	"m31labs.dev/gosx"
@@ -80,7 +81,7 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		if level < 1 || level > 6 {
 			level = 1
 		}
-		return []gosx.Node{gosx.El("h"+itoa(level), gosx.Text(n.Text()))}
+		return []gosx.Node{gosx.El("h"+strconv.Itoa(level), gosx.Text(n.Text()))}
 
 	case mdpp.NodeParagraph:
 		inline := lowerInline(r, n, components)

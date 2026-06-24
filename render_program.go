@@ -138,13 +138,25 @@ func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, co
 // prose (e.g. {strings.ToUpper("hi")}), and nothing else from a package is
 // reachable. Pure exprs ({2 + 3}, {"a" + "b"}) need no entry here. Extend this
 // map to widen the surface (see hand-off notes: deck/slide vars, signals).
+// titleCase upper-cases the first letter of each whitespace-separated word — a
+// Unicode-safe replacement for the deprecated strings.Title, bound as
+// {strings.Title(...)} in deck expressions.
+func titleCase(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		r := []rune(w)
+		words[i] = strings.ToUpper(string(r[0])) + string(r[1:])
+	}
+	return strings.Join(words, " ")
+}
+
 func exprFuncs() map[string]any {
 	return map[string]any{
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,
 			"ToLower":   strings.ToLower,
 			"TrimSpace": strings.TrimSpace,
-			"Title":     strings.Title,
+			"Title":     titleCase,
 			"Repeat":    strings.Repeat,
 			"Join":      strings.Join,
 		},

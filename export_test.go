@@ -1,9 +1,56 @@
 package slides
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// TestExportSPAStagesAssets covers the SPA staging/copy/write flow without the
+// slow GOOS=js wasm build: it fakes a staged build/ dir and asserts exportSPA
+// relativizes the page, renames gosx-runtime.wasm -> runtime.wasm, copies island
+// JSON, and writes the notes sidecar.
+func TestExportSPAStagesAssets(t *testing.T) {
+	deck := loadDeckFromSource(t, "# Title\n\nbody\n\n<!-- a speaker note -->\n", nil)
+
+	build := filepath.Join(deck.Dir, "build")
+	if err := os.MkdirAll(filepath.Join(build, "islands"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{
+		"gosx-runtime.wasm": "WASM",
+		"wasm_exec.js":      "//exec",
+		"islands/Demo.json": "{}",
+	} {
+		if err := os.WriteFile(filepath.Join(build, name), []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	out := t.TempDir()
+	doc := `<head><script defer src="/gosx/runtime.wasm"></script></head><body>x</body>`
+	if err := exportSPA(deck.Dir, deck, doc, out); err != nil {
+		t.Fatalf("exportSPA: %v", err)
+	}
+
+	idx, err := os.ReadFile(filepath.Join(out, "index.html"))
+	if err != nil {
+		t.Fatalf("index.html missing: %v", err)
+	}
+	if !strings.Contains(string(idx), `src="gosx/runtime.wasm"`) {
+		t.Errorf("index.html not relativized:\n%s", idx)
+	}
+	for _, rel := range []string{"gosx/runtime.wasm", "gosx/wasm_exec.js", "gosx/islands/Demo.json", "notes.html"} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Errorf("export missing %s: %v", rel, err)
+		}
+	}
+	// The build's gosx-runtime.wasm must be renamed to the URL name, not copied verbatim.
+	if _, err := os.Stat(filepath.Join(out, "gosx", "gosx-runtime.wasm")); err == nil {
+		t.Error("gosx-runtime.wasm should be renamed to runtime.wasm, not copied verbatim")
+	}
+}
 
 // TestRelativizeGosxPaths guards the static-host path rewrite: absolute /gosx/
 // refs (in attributes AND the manifest/document-contract JSON) must become

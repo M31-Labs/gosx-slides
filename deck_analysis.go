@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"m31labs.dev/mdpp"
@@ -69,7 +70,7 @@ func slideTitle(slide IslandSlide) string {
 			return found
 		}
 	}
-	return "Slide " + itoa(slide.Index+1)
+	return "Slide " + strconv.Itoa(slide.Index+1)
 }
 
 // slideLayoutInfo returns a slide's resolved layout name and whether the authored
@@ -148,7 +149,7 @@ func slideCheckpoints(slide IslandSlide) []CheckpointRef {
 		id, _ := props["id"].(string)
 		label, _ := props["label"].(string)
 		if strings.TrimSpace(id) == "" {
-			id = "slide-" + itoa(slide.Index+1)
+			id = "slide-" + strconv.Itoa(slide.Index+1)
 		}
 		if strings.TrimSpace(label) == "" {
 			label = id
@@ -206,16 +207,16 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 			HasNotes:         notes != "",
 		})
 		if !layoutKnown {
-			out.Warnings = append(out.Warnings, "slide "+itoa(slide.Index+1)+": unknown layout "+layoutName)
+			out.Warnings = append(out.Warnings, "slide "+strconv.Itoa(slide.Index+1)+": unknown layout "+layoutName)
 		}
 		if words > 115 {
-			out.Warnings = append(out.Warnings, "slide "+itoa(slide.Index+1)+": dense slide with "+itoa(words)+" words")
+			out.Warnings = append(out.Warnings, "slide "+strconv.Itoa(slide.Index+1)+": dense slide with "+strconv.Itoa(words)+" words")
 		}
 		if clicks > 8 {
-			out.Warnings = append(out.Warnings, "slide "+itoa(slide.Index+1)+": high click count "+itoa(clicks))
+			out.Warnings = append(out.Warnings, "slide "+strconv.Itoa(slide.Index+1)+": high click count "+strconv.Itoa(clicks))
 		}
 		if notes == "" {
-			out.Warnings = append(out.Warnings, "slide "+itoa(slide.Index+1)+": no presenter notes")
+			out.Warnings = append(out.Warnings, "slide "+strconv.Itoa(slide.Index+1)+": no presenter notes")
 		}
 	}
 	sort.Strings(out.Warnings)
@@ -328,7 +329,7 @@ func Doctor(dir string) (DoctorReport, error) {
 		report.Items = append(report.Items, DoctorItem{Name: "deck", Status: "fail", Detail: err.Error()})
 		return report, nil
 	}
-	report.Items = append(report.Items, DoctorItem{Name: "deck", Status: "ok", Detail: d.title() + " / " + itoa(len(d.Slides)) + " slides"})
+	report.Items = append(report.Items, DoctorItem{Name: "deck", Status: "ok", Detail: d.title() + " / " + strconv.Itoa(len(d.Slides)) + " slides"})
 
 	// Go toolchain — the real lane builds runtime.wasm with `go build GOOS=js`.
 	if goBin, err := exec.LookPath("go"); err == nil {
@@ -371,7 +372,7 @@ func Doctor(dir string) (DoctorReport, error) {
 	if notes < len(d.Slides) {
 		notesStatus = "warn"
 	}
-	report.Items = append(report.Items, DoctorItem{Name: "notes", Status: notesStatus, Detail: itoa(notes) + "/" + itoa(len(d.Slides)) + " slides have notes"})
+	report.Items = append(report.Items, DoctorItem{Name: "notes", Status: notesStatus, Detail: strconv.Itoa(notes) + "/" + strconv.Itoa(len(d.Slides)) + " slides have notes"})
 
 	// Theme resolves to a real theme.
 	theme := deckTheme(d)
@@ -398,7 +399,7 @@ func rehearsalScript(title string, analysis DeckAnalysis, notesFor func(i int) s
 		buf.WriteString("    layout: ")
 		buf.WriteString(slide.Layout)
 		buf.WriteString("  clicks: ")
-		buf.WriteString(itoa(slide.Clicks))
+		buf.WriteString(strconv.Itoa(slide.Clicks))
 		buf.WriteString("  estimate: ")
 		buf.WriteString(formatSeconds(slide.EstimatedSeconds))
 		buf.WriteString("\n")

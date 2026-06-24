@@ -98,28 +98,10 @@ func humanizeRef(ref string) string {
 	return strings.Join(words, " ")
 }
 
-func countWords(src string) int {
-	return len(regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9_-]*`).FindAllString(src, -1))
-}
+// wordRe matches a prose word for the density/word-count heuristic. Hoisted to
+// package scope so it compiles once, not per slide.
+var wordRe = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9_-]*`)
 
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	digits := []byte{}
-	negative := n < 0
-	if negative {
-		n = -n
-	}
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	if negative {
-		digits = append(digits, '-')
-	}
-	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
-		digits[i], digits[j] = digits[j], digits[i]
-	}
-	return string(digits)
+func countWords(src string) int {
+	return len(wordRe.FindAllString(src, -1))
 }

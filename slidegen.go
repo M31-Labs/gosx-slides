@@ -35,7 +35,7 @@ import (
 // i (e.g. 0 -> "Slide_0"). RenderProgramComponent renders the component by this
 // name, so the generator and the renderer must agree on it.
 func slideFuncName(i int) string {
-	return "Slide_" + itoa(i)
+	return "Slide_" + strconv.Itoa(i)
 }
 
 // generateDeckSource builds the single GoSX source string for the whole deck:
@@ -256,7 +256,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		if level < 1 || level > 6 {
 			level = 1
 		}
-		tag := "h" + itoa(level)
+		tag := "h" + strconv.Itoa(level)
 		return wrapChildrenGSX(tag, n)
 
 	case mdpp.NodeParagraph:

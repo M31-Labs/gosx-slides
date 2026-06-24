@@ -1,11 +1,46 @@
 package slides
 
 import (
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+// TestPresenterSSEStreamReplayAndStop exercises the SSE streaming loop: a fresh
+// connection gets the current state replayed immediately, and the handler exits
+// cleanly when the request context is cancelled (no goroutine leak).
+func TestPresenterSSEStreamReplayAndStop(t *testing.T) {
+	b := newPresenterBroker()
+	b.publish(presenterState{Index: 5, Step: 2}) // current position a late joiner should snap to
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest("GET", "/presenter/events", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() { b.handleEvents(rec, req); close(done) }()
+
+	time.Sleep(50 * time.Millisecond) // let the replay frame write + the loop block on select
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handleEvents did not return after context cancel (leak)")
+	}
+
+	body := rec.Body.String() // safe: handler has returned, no concurrent writer
+	if !strings.Contains(body, "event: state") {
+		t.Errorf("no replay frame on connect:\n%s", body)
+	}
+	if !strings.Contains(body, `"index":5`) || !strings.Contains(body, `"step":2`) {
+		t.Errorf("replay frame did not carry the current state:\n%s", body)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+}
 
 // TestPresenterBrokerRelays: a published position reaches a subscriber, current()
 // reflects the latest, and publishing after unsubscribe is safe (closed channel
