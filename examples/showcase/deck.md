@@ -11,6 +11,8 @@ layout: title
 
 Beautiful, live presentations — compiled, not templated.
 
+<!-- Title slide. Press the right arrow to begin; press p for the presenter view. -->
+
 ---
 
 # The real lane
@@ -23,7 +25,7 @@ Use the arrow keys (← / →) or Space to move between slides. Press `f` for fu
 
 > Themes and layouts are selected entirely from deck frontmatter.
 
-<!-- Open the presenter view with `p` (or load this page with ?present). The two windows stay in lockstep over a BroadcastChannel — no server. -->`
+<!-- Open the presenter view with `p` (or load this page with ?present). The two windows stay in lockstep over a BroadcastChannel — no server. -->
 
 ---
 
@@ -62,3 +64,26 @@ func fib(n int) int {
 
 The same compiler that type-checks the island evaluates these expressions. A
 fence can spotlight specific lines with `{2-3|6}` meta — the rest dim.
+
+<Notes>
+Press the right arrow on this slide: the spotlight steps through the fence meta, the same step engine as the reveal on the next slide.
+</Notes>
+
+---
+
+```yaml
+reveal: true
+```
+
+# Incremental reveal
+
+Add `reveal: true` to a slide's frontmatter and its bullets arrive one press at a
+time — the first is on screen as you land, each `→` brings the next:
+
+- First, the problem lands on its own.
+- Then the consequence, once it has had a moment to sit.
+- Finally the fix, with the room already leaning in.
+
+`←` walks them back; overview (`o`) and print show every point at once.
+
+<!-- Demo: advance one bullet at a time so the room stays with you instead of reading ahead. Reduced-motion users get the reveal without the fade. -->

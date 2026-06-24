@@ -187,6 +187,11 @@ func mergeIslandDefs(defs map[string]islandDef) (imports []string, bodies []stri
 // slide's `layout:` frontmatter (default | center | title — see layoutClass) so
 // themes (themes.go) can style per-slide layouts. The class always carries
 // exactly one well-formed layout token (unknown/absent -> layout-default).
+//
+// If the slide's per-slide frontmatter contains `reveal: true` (or `reveal: list`),
+// each top-level list item (`<li>`) is tagged with a `data-fragment="K"` attribute
+// (0-based, in document order). navScript then reveals them one per step as the
+// presenter advances through the slide (see nav.go stepCountFor + show logic).
 func lowerSlideToGSX(slide IslandSlide) string {
 	var b strings.Builder
 	b.WriteString(`<section class="slide `)
@@ -203,12 +208,30 @@ func lowerSlideToGSX(slide IslandSlide) string {
 	}
 	b.WriteString(">")
 	if slide.Node != nil {
+		// slideReveal determines whether this slide has fragment reveal enabled.
+		// We thread a counter through the lowering so every top-level <li> in
+		// the slide gets a unique 0-based data-fragment index.
+		reveal := slideHasReveal(slide)
+		fragIdx := 0
 		for _, child := range slide.Node.Children {
-			b.WriteString(lowerNodeToGSX(child))
+			b.WriteString(lowerNodeToGSXReveal(child, reveal, &fragIdx))
 		}
 	}
 	b.WriteString("</section>")
 	return b.String()
+}
+
+// slideHasReveal reports whether the slide has `reveal: true` or `reveal: list`
+// in its per-slide frontmatter. Parsed the same way `layout:` is parsed (see
+// slideLayoutClass / parseFrontmatter). Unknown values are treated as false so
+// authors can use `reveal: false` to explicitly opt out.
+func slideHasReveal(slide IslandSlide) bool {
+	if slide.Node == nil {
+		return false
+	}
+	v := parseFrontmatter(slide.Node.Attr("frontmatter"))["reveal"]
+	v = strings.TrimSpace(strings.ToLower(v))
+	return v == "true" || v == "list" || v == "1" || v == "yes"
 }
 
 // slideOverrideStyle builds the inline style for a slide's `background:` / `accent:`
@@ -400,6 +423,60 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 			return "{" + strconv.Quote(t) + "}"
 		}
 		return ""
+	}
+}
+
+// lowerNodeToGSXReveal is like lowerNodeToGSX but handles fragment-reveal markup.
+// When reveal is true and n is a NodeList (top-level), its NodeListItem /
+// NodeTaskListItem children each get a `data-fragment="K"` attribute (0-based,
+// across the slide). The fragIdx pointer is shared across all nodes in the slide
+// so the indices are globally monotone. Items nested inside a reveal item do NOT
+// get additional data-fragment attributes; we pass reveal=false when descending
+// into a list item's own children so only the top-level bullets are tagged.
+func lowerNodeToGSXReveal(n *mdpp.Node, reveal bool, fragIdx *int) string {
+	if n == nil {
+		return ""
+	}
+	if !reveal {
+		return lowerNodeToGSX(n)
+	}
+	// Only NodeList at the top-level of a reveal slide needs special treatment:
+	// tag each of its direct NodeListItem / NodeTaskListItem children with
+	// data-fragment="K". All other node types delegate to lowerNodeToGSX unchanged
+	// (paragraphs, headings, code blocks, etc. are not affected by reveal).
+	switch n.Type {
+	case mdpp.NodeList:
+		tag := "ul"
+		if n.Attr("ordered") == "true" {
+			tag = "ol"
+		}
+		var b strings.Builder
+		b.WriteString("<" + tag + ">")
+		for _, child := range n.Children {
+			// Pass reveal=true so each immediate list item is tagged.
+			b.WriteString(lowerNodeToGSXReveal(child, true, fragIdx))
+		}
+		b.WriteString("</" + tag + ">")
+		return b.String()
+
+	case mdpp.NodeListItem, mdpp.NodeTaskListItem:
+		// Top-level list item in a reveal slide: emit with data-fragment="K".
+		// Children of the item are lowered with reveal=false so nested sub-lists
+		// are never tagged (only the top-level bullets carry data-fragment).
+		k := *fragIdx
+		*fragIdx++
+		var b strings.Builder
+		b.WriteString(`<li data-fragment="`)
+		b.WriteString(strconv.Itoa(k))
+		b.WriteString(`">`)
+		for _, child := range n.Children {
+			b.WriteString(lowerNodeToGSX(child)) // reveal=false for nested content
+		}
+		b.WriteString("</li>")
+		return b.String()
+
+	default:
+		return lowerNodeToGSX(n)
 	}
 }
 

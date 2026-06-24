@@ -187,7 +187,7 @@ main.deck.` + navOverviewClass + ` > .slide:focus-visible {
     transform: translateY(-4px);
   }
 }
-` + stepSpotlightCSS()
+` + stepSpotlightCSS() + fragmentRevealCSS()
 }
 
 // navStepMax is the largest click-step index the generated spotlight CSS
@@ -239,6 +239,63 @@ main.deck > .slide[` + navActiveStepAttr + `] pre.code-block[data-steps] .ts-lin
 }
 `)
 	}
+	return b.String()
+}
+
+// navFragmentMax is the largest fragment index the generated reveal CSS enumerates.
+// Like navStepMax for code steps, this bounds the per-K CSS rules.  A reveal slide
+// with more than this many items still functions (navScript has no cap) — the CSS
+// just falls back to the "show all fragments" look for indices beyond this ceiling.
+// 24 is a generous limit; a slide with >24 bullets is a content smell anyway.
+const navFragmentMax = 24
+
+// fragmentRevealCSS returns the theme-agnostic prose fragment-reveal stylesheet.
+// It is appended to stepSpotlightCSS and lives inside navStyle, sharing the same
+// motion / overview / print guards.
+//
+// UX semantics:
+//   - [data-fragment] items default to opacity 0 (hidden).
+//   - When the containing section has NO data-active-fragment attribute (i.e. the
+//     slide was just entered at step 0), fragment index 0 is shown at full opacity.
+//     This keeps the slide non-empty on arrival — the first bullet is always visible.
+//   - When data-active-fragment="K" is set, fragments 0..K are visible.
+//   - Overview / print: all fragments are forced fully visible so the thumbnail
+//     grid and print handout never hide content.
+//
+// Step-count integration (navScript stepCountFor):
+//   - A reveal slide with N fragments has a step budget of N-1. Fragment 0 is
+//     visible on entry; each subsequent step reveals one more. After N-1 steps all
+//     N are visible. A slide with both M code steps and N fragments uses
+//     max(M, N-1) as its budget.
+func fragmentRevealCSS() string {
+	var b strings.Builder
+	b.WriteString(`
+/* ── Prose fragment reveal ────────────────────────────────────────────────────
+   [data-fragment] list items are hidden by default and revealed one per step.
+   First fragment (index 0) is always visible on slide entry (step 0 / no
+   data-active-fragment) so the slide never looks empty on arrival.
+   Overview / print forces all fragments visible.
+   Transition gated behind prefers-reduced-motion like the slide-enter animation. */
+main.deck > .slide [data-fragment] { opacity: 0; }
+main.deck > .slide:not([data-active-fragment]) [data-fragment="0"] { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  main.deck > .slide [data-fragment] { transition: opacity 220ms ease; }
+}
+`)
+	// Per-K: section[data-active-fragment="K"] makes fragments 0..K visible.
+	// CSS cannot express "data-fragment <= K", so enumerate all visible indices per
+	// active-fragment value up to navFragmentMax (same technique as stepSpotlightCSS).
+	for k := 0; k <= navFragmentMax; k++ {
+		ks := strconv.Itoa(k)
+		for j := 0; j <= k; j++ {
+			b.WriteString(`main.deck > .slide[data-active-fragment="` + ks + `"] [data-fragment="` + strconv.Itoa(j) + `"] { opacity: 1; }
+`)
+		}
+	}
+	// Overview grid and print: all fragments visible regardless of step.
+	b.WriteString(`main.deck.` + navOverviewClass + ` > .slide [data-fragment] { opacity: 1 !important; }
+@media print { main.deck > .slide [data-fragment] { opacity: 1 !important; } }
+`)
 	return b.String()
 }
 
@@ -374,12 +431,12 @@ func navScript() string {
   window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 120); });
   window.addEventListener('load', fitSlide); // re-fit once webfonts settle
 
-  // stepCountFor returns how many click steps slide i has: the MAX data-steps over
-  // its code blocks (0 when the slide has no stepped code block). A slide can hold
-  // several stepped fences; advancing a step advances ALL of them in lockstep
-  // (they share the deck's data-active-step), so the slide's step budget is the
-  // largest single block's, and shorter blocks simply have no line for the later
-  // steps. Cached lazily per slide so the read happens once.
+  // stepCountFor returns how many click steps slide i has. For a code-only slide
+  // it is the MAX data-steps over its code blocks (0 when none). For a reveal slide
+  // (containing [data-fragment] items) the budget is fragmentCount-1 (fragment 0 is
+  // always visible on entry, so only N-1 presses are needed to reveal all N items).
+  // When both code steps and fragments are present, the budget is max(codeSteps, N-1)
+  // so neither walkthrough is skipped. Cached lazily per slide.
   var stepCounts = [];
   function stepCountFor(i) {
     if (i < 0 || i >= slides.length) return 0;
@@ -390,10 +447,19 @@ func navScript() string {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
       if (n > max) max = n;
     }
+    // Fragment reveals: N fragments need N-1 steps (fragment 0 is shown on entry).
+    var frags = slides[i].querySelectorAll('[data-fragment]');
+    var fragBudget = frags.length > 0 ? frags.length - 1 : 0;
+    if (fragBudget > max) max = fragBudget;
     stepCounts[i] = max;
     return max;
   }
   function maxStep() { return stepCountFor(index); }
+  // fragCountFor returns the total number of [data-fragment] items in slide i.
+  function fragCountFor(i) {
+    if (i < 0 || i >= slides.length) return 0;
+    return slides[i].querySelectorAll('[data-fragment]').length;
+  }
 
   // Subscribers notified after every committed slide change (local, hash, or a
   // change applied from the peer window). The presenter chrome uses this to keep
@@ -489,6 +555,15 @@ func navScript() string {
       // too — the CSS treats absent/0 as "show all emphasized, dim nothing extra".
       if (on && step > 0) slides[i].setAttribute('` + navActiveStepAttr + `', String(step));
       else slides[i].removeAttribute('` + navActiveStepAttr + `');
+      // Fragment reveal: data-active-fragment="K" on the active slide reveals
+      // fragments 0..K. step 0 clears the attr (CSS defaults show fragment 0 via
+      // :not([data-active-fragment]) [data-fragment="0"]). Only set when there are
+      // fragments; non-reveal slides never carry this attr.
+      if (on && fragCountFor(i) > 0 && step > 0) {
+        slides[i].setAttribute('data-active-fragment', String(step));
+      } else {
+        slides[i].removeAttribute('data-active-fragment');
+      }
     }
     if (!overview) fitSlide(); // scale the now-active slide to fit; skip in the grid
     updateChrome();

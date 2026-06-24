@@ -353,6 +353,53 @@ main.deck.` + presenterModeClass + ` .pv-controls {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* Rehearsal-recorder indicator. The live REC badge appears next to the timer when
+   recording is active: a pulsing red dot + mono "REC mm:ss" readout. The badge is
+   hidden by default (display:none) and shown by JS (display:flex) only while
+   recording so it never takes space when idle. The rec-btn turns accent-red when
+   active so the presenter sees the armed state without looking at the badge. */
+main.deck.` + presenterModeClass + ` .pv-rec-badge {
+  display: none;
+  align-items: center;
+  gap: 0.38em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: clamp(0.85rem, 1.2vw, 1rem);
+  font-variant-numeric: tabular-nums;
+  color: #e53e3e;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+main.deck.` + presenterModeClass + ` .pv-rec-badge[data-recording="1"] { display: flex; }
+main.deck.` + presenterModeClass + ` .pv-rec-dot {
+  width: 0.62em;
+  height: 0.62em;
+  border-radius: 50%;
+  background: #e53e3e;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  main.deck.` + presenterModeClass + ` .pv-rec-dot {
+    animation: pv-rec-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pv-rec-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.25; }
+  }
+}
+main.deck.` + presenterModeClass + ` .pv-rec-btn[data-recording="1"] {
+  border-color: #e53e3e;
+  color: #e53e3e;
+}
+main.deck.` + presenterModeClass + ` .pv-rec-toast {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 0.82rem;
+  color: var(--fg-muted, currentColor);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  white-space: nowrap;
+}
+main.deck.` + presenterModeClass + ` .pv-rec-toast[data-visible="1"] { opacity: 1; }
 main.deck.` + presenterModeClass + ` .pv-btn {
   font-family: var(--font-display, var(--font-body, system-ui, sans-serif));
   font-size: 0.9rem;
@@ -525,14 +572,33 @@ func presenterScript() string {
     var pauseBtn = button('Pause timer', 'Pause');
     var prevBtn = button('Previous slide', 'Prev');
     var nextBtn = button('Next slide', 'Next');
+    // Rehearsal-recorder controls: a toggle and a save button, off by default.
+    var recBtn = button('Toggle rehearsal recording', '● Rec');
+    recBtn.className += ' pv-rec-btn';
+    var saveBtn = button('Save rehearsal', 'Save');
+    saveBtn.style.display = 'none';
     controls.appendChild(resetBtn);
     controls.appendChild(pauseBtn);
     controls.appendChild(prevBtn);
     controls.appendChild(nextBtn);
+    controls.appendChild(recBtn);
+    controls.appendChild(saveBtn);
+
+    // Recorder status badge: pulsing red dot + "REC mm:ss" elapsed-on-slide readout.
+    var recBadge = el('div', 'pv-rec-badge');
+    var recDot = el('span', 'pv-rec-dot');
+    var recLabel = el('span', '');
+    recBadge.appendChild(recDot);
+    recBadge.appendChild(recLabel);
+
+    // Brief "saved rehearsal.json" confirmation toast shown after download.
+    var recToast = el('span', 'pv-rec-toast');
 
     var footer = el('div', 'pv-footer');
     footer.appendChild(timer);
+    footer.appendChild(recBadge);
     footer.appendChild(counter);
+    footer.appendChild(recToast);
     footer.appendChild(spacer);
     footer.appendChild(controls);
 
@@ -672,6 +738,121 @@ func presenterScript() string {
     // --- Controls drive navScript's real state (which broadcasts) ----------
     prevBtn.addEventListener('click', function () { api.prev(); });
     nextBtn.addEventListener('click', function () { api.next(); });
+
+    // --- Rehearsal recorder ------------------------------------------------
+    // Records how long the presenter spends on each slide. All state is local to
+    // this init() call (reset on every presenter-window open). No server endpoint
+    // is used: on stop, a rehearsal.json is built in memory and offered as a
+    // client-side download via a transient <a download> link.
+    //
+    // Per-slide title extraction: each slide section ([data-slide="N"]) may hold
+    // any heading element (h1-h6). We query the first heading inside the section
+    // to get a human-readable title. This is the SAME DOM node that presenterScript
+    // moves into the preview stages (it is the live section, not a clone), so the
+    // heading text is always accessible regardless of which stage it is currently
+    // parked in — we query api.slides[i] directly (the section node reference).
+    function slideTitle(index) {
+      var sec = (api.slides && api.slides[index]) || null;
+      if (!sec) return '';
+      var h = sec.querySelector('h1,h2,h3,h4,h5,h6');
+      return h ? (h.textContent || '').trim() : '';
+    }
+
+    // Recorder state: not recording by default.
+    var recActive = false;
+    var recSlides = [];           // [{index, title, seconds}] committed entries
+    var recSlideStart = 0;        // Date.now() when current slide became active
+    var recCurrentIndex = -1;     // slide index active at the moment rec started/changed
+
+    // Update the badge's "REC mm:ss" elapsed-on-this-slide readout once per tick.
+    function tickRecBadge() {
+      if (!recActive) return;
+      var ms = Date.now() - recSlideStart;
+      var s = Math.floor(ms / 1000);
+      var m = Math.floor(s / 60);
+      recLabel.textContent = 'REC ' + pad(m) + ':' + pad(s % 60);
+    }
+    // Attach the rec tick to the same setInterval that drives the main timer, by
+    // replacing the tickTimer call with a combined tick wrapper after the interval
+    // is set. We extend it via a wrapper so we don't need a second interval.
+    var origTickTimer = tickTimer;
+    tickTimer = function () { origTickTimer(); tickRecBadge(); };
+    // Flush the current slide's elapsed time into recSlides when the slide changes
+    // (or when recording stops). index is the slide being LEFT.
+    function flushRecSlide(index) {
+      if (!recActive || index < 0 || index >= api.count) return;
+      var secs = Math.round((Date.now() - recSlideStart) / 1000);
+      recSlides.push({ index: index, title: slideTitle(index), seconds: secs });
+    }
+
+    function setRecording(active) {
+      recActive = active;
+      recBtn.setAttribute('data-recording', active ? '1' : '0');
+      recBadge.setAttribute('data-recording', active ? '1' : '0');
+      saveBtn.style.display = active ? '' : 'none';
+      if (active) {
+        // Start fresh: clear any previous session data, record the current slide.
+        recSlides = [];
+        recCurrentIndex = api.getIndex();
+        recSlideStart = Date.now();
+        tickRecBadge();
+      }
+    }
+
+    function downloadRehearsal() {
+      // Build the rehearsal object. Flush the last (current) slide first.
+      flushRecSlide(recCurrentIndex);
+      var totalSeconds = 0;
+      for (var i = 0; i < recSlides.length; i++) totalSeconds += recSlides[i].seconds;
+      // Deck title: prefer the first h1 in the page, fall back to document.title.
+      var titleEl = document.querySelector('h1');
+      var deckTitle = (titleEl ? titleEl.textContent : '') || document.title || '';
+      var payload = {
+        deck: deckTitle.trim(),
+        recordedAtMs: Date.now(),
+        totalSeconds: totalSeconds,
+        slides: recSlides
+      };
+      var json = JSON.stringify(payload, null, 2);
+      var blob = new Blob([json], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'rehearsal.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      // Show a brief confirmation toast, then fade it out after 3 s.
+      recToast.textContent = 'saved rehearsal.json';
+      recToast.setAttribute('data-visible', '1');
+      setTimeout(function () { recToast.removeAttribute('data-visible'); }, 3000);
+    }
+
+    recBtn.addEventListener('click', function () {
+      if (!recActive) {
+        setRecording(true);
+      } else {
+        downloadRehearsal();
+        setRecording(false);
+      }
+    });
+    saveBtn.addEventListener('click', function () {
+      downloadRehearsal();
+      setRecording(false);
+    });
+
+    // Hook into the slide-change signal: when the slide changes while recording,
+    // flush the previous slide's time and reset the slide-start clock.
+    var origRender = render;
+    render = function (index) {
+      if (recActive && recCurrentIndex !== index) {
+        flushRecSlide(recCurrentIndex);
+        recSlideStart = Date.now();
+        recCurrentIndex = index;
+      }
+      origRender(index);
+    };
 
     // Re-render on EVERY slide change, including ones arriving from the audience
     // window over the BroadcastChannel (navScript applies those, then notifies us).
