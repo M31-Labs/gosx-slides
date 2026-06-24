@@ -76,10 +76,13 @@ func navStyle() string {
 	// no-preference` so motion-sensitive viewers get an instant cut, and is theme-
 	// agnostic (it lives here, beside the visibility rule both lanes depend on).
 	// The easing matches the themes' settle curve (ease-out-quart).
-	return `/* Base reset: each .slide is min-height:100vh, so the browser's default
-   8px body margin would push it 16px past the viewport and force a permanent
-   scrollbar (even in fullscreen). Zero it here, once, for every theme. */
-html, body { margin: 0; padding: 0; }
+	return `/* Base reset + viewport lock: each .slide is min-height:100vh. The browser's
+   default 8px body margin pushed it 16px past the viewport (a permanent scrollbar,
+   even fullscreen), and the enter transition's translateY briefly pushes the slide
+   below the fold (a scrollbar that FLASHES on every slide change). A deck owns the
+   viewport — lock html/body to it so neither can scroll. The overview grid and the
+   presenter notes panel get their own internal scroll where they need it. */
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes slidesDeckEnter {
@@ -114,7 +117,10 @@ main.deck.` + navOverviewClass + ` {
   padding: clamp(1.25rem, 4vw, 3rem) !important;
   max-width: 1600px;
   margin: 0 auto;
-  min-height: 100vh;
+  /* The deck body is overflow:hidden, so a big deck's grid scrolls HERE, not the
+     page — height-bound to the viewport with its own scroll. */
+  height: 100vh;
+  overflow-y: auto;
   box-sizing: border-box;
 }
 /* Every slide becomes a visible card — beat the :not(.deck-active) display:none

@@ -66,14 +66,20 @@ func TestServeInjectsSlideVisibilityStyle(t *testing.T) {
 // disturbing the visibility rule both lanes depend on. The transition is a pure
 // opacity/transform animation on the active slide, gated behind
 // prefers-reduced-motion: no-preference, so it never touches `display`.
-// TestNavStyleResetsBodyMargin guards the fix for a permanent scrollbar: each
-// .slide is min-height:100vh, so the browser's default 8px body margin pushed it
-// 16px past the viewport and forced scrolling on every slide (even fullscreen).
-// navStyle must zero the html/body margin for every theme.
-func TestNavStyleResetsBodyMargin(t *testing.T) {
+// TestNavStyleLocksViewport guards the fix for deck scrolling: each .slide is
+// min-height:100vh, so (a) the browser's default 8px body margin pushed it 16px
+// past the viewport (a permanent scrollbar) and (b) the enter transition's
+// translateY briefly pushed it below the fold (a scrollbar that flashed on every
+// slide change). A deck owns the viewport: navStyle must zero the html/body margin
+// AND lock overflow, while leaving the overview grid its own internal scroll.
+func TestNavStyleLocksViewport(t *testing.T) {
 	css := navStyle()
-	if !strings.Contains(css, "html, body { margin: 0") {
-		t.Fatalf("navStyle must reset the html/body margin (else 100vh slides overflow by 16px):\n%s", css)
+	if !strings.Contains(css, "html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }") {
+		t.Fatalf("navStyle must reset margins AND lock the viewport (overflow:hidden):\n%s", css)
+	}
+	// The overview grid keeps its own scroll so a big deck's thumbnails are reachable.
+	if !strings.Contains(css, "overflow-y: auto;") {
+		t.Errorf("overview grid must scroll internally (overflow-y:auto) under the locked viewport:\n%s", css)
 	}
 }
 
