@@ -120,6 +120,8 @@ The deck's leading `---` block is YAML headmatter. Every key is available as
 ---
 title: My Talk
 theme: neon
+transition: fade
+line-numbers: true
 ---
 ```
 
@@ -128,6 +130,13 @@ theme: neon
 - `title:` sets the document `<title>` (also available as `{deck.title}`). If
   absent, the title falls back to the deck's first heading, then the directory
   name.
+- `transition:` sets the slide-enter animation. `fade` (default) — a 220 ms
+  opacity fade in. `none` — instant cut. All motion is wrapped in
+  `prefers-reduced-motion: no-preference`, so users who have opted out of
+  motion always get an instant cut regardless of this setting.
+- `line-numbers: true` turns on a line-number gutter on every code block
+  (rendered as a CSS `::before` using `data-line` attributes; excluded from
+  the copy-button capture). Accepts `true`, `yes`, `on`, or `1`.
 - Any other key is bound as `{deck.<key>}`.
 
 ### Slides
@@ -174,9 +183,11 @@ absorbed (`warnAbsorbedSeparators` in `bridge.go`).
 
 ```yaml
 layout: center
+background: "#1a1a2e"
+accent: "#e94560"
 ```
 
-# A centered slide
+# A centered slide with overrides
 ````
 
 The fence must be the slide's first content node and its language must be
@@ -185,6 +196,18 @@ drives the slide's CSS layout class.
 
 `{slide.index}` is always available — the slide's **0-based** position (slide
 one is `0`).
+
+**Per-slide visual overrides** — two frontmatter keys set inline styles on that
+slide's `<section>`, overriding the theme for that one slide only:
+
+- `background:` — any CSS background value (color, gradient, `url(…)`, etc.)
+  applied directly as the slide's `background` property.
+- `accent:` — a CSS color that overrides `--accent` for that slide only. Any
+  element that reads `var(--accent)` (headings, rule decorations, code
+  spotlights, the counter) picks up the override automatically.
+
+These are independent: you can set either or both. The deck headmatter theme
+applies to all other slides unchanged.
 
 ### Inline expressions `{expr}`
 
@@ -209,6 +232,18 @@ strings.Title     strings.Repeat    strings.Join
 
 An **unknown identifier renders empty** (fail-soft) — never an error. So a
 typo like `{deck.titel}` produces nothing rather than breaking the deck.
+
+### Images and tables
+
+**Images** — `![alt](src)` renders as a standard `<img>`. Images are
+height-capped to `58vh` (`object-fit: contain`) so they stay inside the
+locked viewport. Local assets belong in the deck's `public/` directory and are
+referenced as `![alt](/public/filename.png)`.
+
+**Tables** — GFM pipe tables render. The first row is treated as the header
+(`<th>` cells, accent-colored, surface-background). Alternating body rows
+receive a subtle tint. Both are themed via CSS custom properties and adapt to
+the active theme automatically.
 
 ### Components / islands
 
@@ -266,6 +301,27 @@ Notes are surfaced in the presenter view. Two forms work:
 - `<Notes>…</Notes>` — an explicit notes block anywhere in the slide.
 - A trailing `<!-- … -->` HTML comment — if the comment is the last node on the
   slide, it is treated as speaker notes.
+
+The presenter view renders basic inline markdown in notes: `**bold**`,
+`*italic*`, `` `code` ``, and `- ` bullet lists. Raw HTML is escaped before
+rendering, so there is no injection risk. The audience page never sees the note
+content.
+
+### Code blocks
+
+Fenced code blocks render with syntax highlighting. Two additional features:
+
+- **Stepped highlights** — annotate a fence with `{line-range|line-range|…}` to
+  walk through sections on `→`. Example: ` ```go {1-2|4-6} ``` ` — first press
+  spotlights lines 1–2, second press spotlights 4–6, third press moves to the
+  next slide. The step position is ephemeral (not in the URL hash); a reload
+  lands on the slide with no step active.
+- **Copy button** — every code block shows a "copy" button on hover. The button
+  captures the code text (excluding any line-number gutter) and writes it to the
+  clipboard via the Clipboard API.
+- **Line-number gutter** — enabled deck-wide with `line-numbers: true` in the
+  deck headmatter. The gutter is CSS `::before` content and is never included in
+  copy-button captures.
 
 ### A complete minimal deck
 
@@ -349,6 +405,15 @@ A slide's `layout:` frontmatter (the ` ```yaml ``` ` fence) becomes a
 | `default` | Standard slide (the fallback when `layout:` is absent or unknown). |
 | `center` | Vertically/horizontally centered content. |
 | `title` | Title-slide treatment (oversized display). |
+| `quote` | Centered oversized pull-quote. Wrap the text in a `>` blockquote; the layout removes the blockquote border and enlarges it to `clamp(1.6rem, 3.6vw, 2.9rem)`. |
+| `section` | Section divider. Heading is large (`clamp(2.6rem, 7vw, 5rem)`) and gains an accent-colored rule beneath it. Centered. |
+| `two-cols` | Body content flows into two balanced CSS columns. Top-level headings (`h1`/`h2`/`h3`) span both columns; all other blocks flow into the columns. |
+| `full` | Full-bleed: no padding. Use with a single `![alt](…)` image (the image fills the slide, `object-fit: cover`) for cover slides or photo backgrounds. |
+
+The `quote`, `section`, `two-cols`, and `full` layouts are styled once by
+`baseLayoutStyle` (token-driven, theme-agnostic) and inherit the active
+theme's custom properties. `center` and `title` are styled per theme in
+`themes_css.go`.
 
 ---
 
@@ -358,9 +423,10 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 
 | Key | Action |
 |---|---|
-| `→` or `Space` | Next slide |
-| `←` | Previous slide |
+| `→` or `Space` | Next slide (or advance to next code-step within the slide) |
+| `←` | Previous slide (or step back within the slide) |
 | `f` / `F` | Toggle fullscreen |
+| `o` / `O` | Toggle overview grid (every slide as a scaled thumbnail) |
 | `p` | Open presenter view |
 
 - **Deep-linking:** the URL hash is **1-based** — `#1` is the first slide, `#3`
@@ -369,6 +435,22 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 - Keys are ignored while typing in an `input`/`textarea`/`select`.
 - Hidden slides still hydrate their islands on load; navigating only toggles
   visibility, so island state persists across slide changes.
+
+### Audience chrome
+
+A thin themed **progress bar** (fixed, bottom edge) and a **slide counter**
+(`3 / 11`, bottom-right corner) are injected automatically on every deck. Both
+are hidden in the overview grid and in print. The progress bar animates
+(respects `prefers-reduced-motion`).
+
+### Fit-to-viewport auto-scaling
+
+The deck is viewport-locked — no scrolling. If a slide's content naturally
+exceeds the viewport height, the controller automatically scales the slide down
+(`transform: scale(…)`) to fit. The slide enter animation is opacity-only, so
+the scale transform is never fought. In `serve --watch` (dev mode), an
+overflowing slide also shows a red badge ("⚠ overflows — split this slide") as
+a cue to the author. The badge is absent in normal `serve` and static exports.
 
 ---
 
@@ -406,6 +488,12 @@ deck directory:
   re-parses and re-compiles per request in dev mode, so a mid-edit bad parse
   falls back to the last good deck rather than 500-ing).
 
+**Build-error overlay** — when a deck or island fails to compile in `--watch`
+mode, a dismissible red banner appears at the bottom of the page naming the
+failed `.gsx` and printing the compiler error. Clicking the banner dismisses
+it; saving a fix triggers a reload that removes it. The overlay never appears
+in a normal `serve` or in a static export — it is strictly a dev artifact.
+
 `Counter.gsx` in the examples documents concrete edits to try (text swap,
 handler swap, attribute swap).
 
@@ -441,6 +529,17 @@ handler swap, attribute swap).
 - `{slide.index}` is **0-based**, but the URL hash (`#N`) is **1-based**.
 - An unknown `{identifier}` renders empty (fail-soft); an unresolvable
   `<Component/>` renders an inert placeholder. Neither breaks the deck.
+- **Code block copy button.** Every code block gets a hover "copy" button that
+  captures the inner text before the button is appended, so the button label is
+  never copied. The line-number `::before` pseudo-content is CSS-only and is
+  excluded from `innerText`, so line numbers are also never copied.
+- **`line-numbers:` is deck-wide.** There is no per-slide override; set it in
+  deck headmatter or leave it off. The gutter is CSS-driven (`data-line`
+  attributes on each line) and does not affect the copy-button capture.
+- **`two-cols` and floats.** The `two-cols` layout uses CSS `column-count: 2`.
+  Top-level headings span both columns; all other blocks flow into the columns.
+  Islands and images render inside the column flow — split a very wide image
+  across a `full` layout slide instead.
 
 ---
 

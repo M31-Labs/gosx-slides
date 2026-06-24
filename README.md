@@ -69,13 +69,27 @@ What you get:
   `{slide.index}` are evaluated server-side. Unknown identifiers render empty.
 - **Themes & layouts.** `theme:` in headmatter picks a theme; `layout:` in a
   slide's ` ```yaml ``` ` fence picks a layout. Run `./slides themes` for the
-  four themes (`aurora`, `paper`, `neon`, `swiss`).
-- **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen, `p` presenter
-  view; `#N` deep-links to slide N.
+  four themes (`aurora`, `paper`, `neon`, `swiss`). Layouts: `default`, `center`,
+  `title`, `quote`, `section`, `two-cols`, `full`.
+- **Images & tables.** `![alt](src)` renders (height-capped to 58 vh; local
+  assets in `public/`). GFM pipe tables render with a themed header row.
+- **Per-slide overrides.** `background:` and `accent:` in a slide's
+  ` ```yaml ``` ` fence set an inline background and `--accent` token override
+  for that one slide.
+- **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen, `o` overview
+  grid, `p` presenter view; `#N` deep-links to slide N.
+- **Audience chrome.** A themed progress bar and a slide counter (`3 / 11`)
+  appear on every deck. Overflowing slides are auto-scaled to fit the viewport
+  instead of clipping.
 - **Presenter view.** Built into `serve`: open with `?present` in the URL or
-  the `p` key — shows current + next slide, speaker notes, timer. Phone remote
-  at `/remote`. Audience screens on other machines follow over SSE.
-- **Hot-swap dev loop** via `--watch`.
+  the `p` key — shows current + next slide, speaker notes (with basic markdown
+  rendered), timer. Phone remote at `/remote`. Audience screens follow over SSE.
+- **Code blocks.** Stepped highlights (` ```go {1-2|4-6} ``` `), a hover
+  "copy" button, and optional line numbers (`line-numbers: true` in headmatter).
+- **Transitions.** `transition: fade` (default) or `transition: none`; all
+  motion respects `prefers-reduced-motion`.
+- **Hot-swap dev loop** via `--watch`. Build errors surface as an in-page
+  dismissible banner (dev only).
 
 A few things bite if you don't know them: props bind by exact name, per-slide
 frontmatter is a ` ```yaml ``` ` fence (not a `---` block), slide separators

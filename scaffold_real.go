@@ -136,59 +136,120 @@ func themesList() string {
 	return out
 }
 
-// realLaneDeck is the scaffolded deck.md for theme. Three slides, each proving
-// one pillar of the real lane (see file header for the authoring invariants).
+// realLaneDeck is the scaffolded deck.md for theme: a showcase that exercises the
+// framework's features — live islands, server-evaluated {expr}, stepped code with
+// line numbers, the section/two-cols/quote layouts, a table, and speaker notes —
+// so the first-run deck shows what gosx-slides can do, not just that it runs. Each
+// slide ends with a trailing block (a <!-- speaker note -->), which both seeds the
+// presenter view and forces clean slide splitting. Built from a line slice so the
+// ```yaml / ```go fences (backticks) read literally without fighting Go raw strings.
 func realLaneDeck(theme string) string {
-	// Built with fmt so the ```yaml / ```go fences read literally in source
-	// without fighting Go raw-string backticks.
-	const tmpl = `---
-title: My Deck
-theme: %s
----
-
-` + "```yaml" + `
-layout: title
-` + "```" + `
-
-# {strings.ToUpper("my deck")}
-
-Welcome to **{deck.title}** — a live GoSX presentation, compiled, not templated.
-
-Use the arrow keys (← / →) or Space to move between slides. Press ` + "`f`" + ` for fullscreen.
-
----
-
-# A live island
-
-The counter below is a real GoSX component, compiled to island bytecode and
-hydrated in your browser — not a screenshot:
-
-<Counter Initial={3}/>
-
-Click the buttons: the count is genuine reactive state. Run ` + "`slides serve --watch`" + `
-and edit Counter.gsx to hot-swap it in place.
-
----
-
-# Code, evaluated
-
-Fenced code blocks are syntax-highlighted server-side:
-
-` + "```go" + `
-package main
-
-func main() {
-    println("hello, slides")
-}
-` + "```" + `
-
-And inline ` + "`{expr}`" + ` is evaluated by the GoSX compiler:
-
-- two plus three is {2 + 3}
-- six times seven is {6 * 7}
-- this is slide number {slide.index}
-`
-	return fmt.Sprintf(tmpl, theme)
+	lines := []string{
+		"---",
+		"title: My Deck",
+		"theme: " + theme,
+		"line-numbers: true",
+		"---",
+		"",
+		"```yaml",
+		"layout: title",
+		"```",
+		"",
+		`# {strings.ToUpper("my deck")}`,
+		"",
+		"Welcome to **{deck.title}** — a live GoSX presentation, compiled, not templated.",
+		"",
+		"Arrow keys (← / →) or Space to move · `o` overview · `p` presenter · `f` fullscreen.",
+		"",
+		"<!-- Open the presenter view with `p`: current + next slide, these notes, and a timer. -->",
+		"",
+		"---",
+		"",
+		"```yaml",
+		"layout: section",
+		"```",
+		"",
+		"# Part one — live islands",
+		"",
+		"<!-- A section divider. Drop a `layout: section` slide between parts of the talk. -->",
+		"",
+		"---",
+		"",
+		"# A live island",
+		"",
+		"The counter below is a real GoSX component, compiled to island bytecode and",
+		"hydrated in your browser — not a screenshot:",
+		"",
+		"<Counter Initial={3}/>",
+		"",
+		"Click the buttons — the count is genuine reactive state. Run `slides serve --watch`",
+		"and edit Counter.gsx to hot-swap it in place, state preserved.",
+		"",
+		"<!-- Demo beat: bump the counter, then edit Counter.gsx live to show the hot-swap. -->",
+		"",
+		"---",
+		"",
+		"# Code, stepped and evaluated",
+		"",
+		"Fenced code is highlighted server-side; the `{3|4}` meta reveals lines on click,",
+		"and `line-numbers: true` headmatter shows the gutter:",
+		"",
+		"```go {3|4}",
+		"package main",
+		"",
+		"func main() {",
+		"\tprintln(\"hello, slides\")",
+		"}",
+		"```",
+		"",
+		"Inline `{expr}` is evaluated by the GoSX compiler — two plus three is {2 + 3},",
+		"and this is slide {slide.index}.",
+		"",
+		"<!-- Press → to step through the highlighted lines one at a time. -->",
+		"",
+		"---",
+		"",
+		"```yaml",
+		"layout: two-cols",
+		"```",
+		"",
+		"# Two columns",
+		"",
+		"- mdpp prose substrate",
+		"- live GoSX islands",
+		"- server-evaluated `{expr}`",
+		"- stepped, numbered code",
+		"- images and tables",
+		"- four built-in themes",
+		"- quote / section / two-cols layouts",
+		"- a cross-device presenter",
+		"",
+		"<!-- two-cols flows the body into two balanced columns; the heading spans both. -->",
+		"",
+		"---",
+		"",
+		"# At a glance",
+		"",
+		"| Feature    | How                      |",
+		"| ---------- | ------------------------ |",
+		"| Component  | `<Counter Initial={3}/>` |",
+		"| Expression | `{6 * 7}` renders 42     |",
+		"| Theme      | `theme:` headmatter      |",
+		"| Layout     | `layout:` per slide      |",
+		"",
+		"<!-- GFM tables render, themed. -->",
+		"",
+		"---",
+		"",
+		"```yaml",
+		"layout: quote",
+		"```",
+		"",
+		"> Make the easy things easy, and the hard things possible.",
+		"",
+		"<!-- A closing pull-quote — layout: quote centers and enlarges it. -->",
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // realLaneReadme is the generated README pointing at the serve command.
