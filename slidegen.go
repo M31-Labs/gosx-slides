@@ -325,6 +325,16 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 	case mdpp.NodeListItem, mdpp.NodeTaskListItem:
 		return wrapChildrenGSX("li", n)
 
+	case mdpp.NodeImage:
+		// `![alt](src)` — mdpp carries alt/src as attrs (no children). Emit an
+		// <img> with both as string-literal attribute expressions so a src/alt
+		// containing `<`, `{`, `"` can never corrupt the generated source. Themes
+		// constrain it to the slide with object-fit (see themes_css.go).
+		return "<img src={" + strconv.Quote(n.Attr("src")) + "} alt={" + strconv.Quote(n.Attr("alt")) + "}/>"
+
+	case mdpp.NodeTable:
+		return lowerTableGSX(n)
+
 	case mdpp.NodeSoftBreak:
 		return "{\" \"}"
 
@@ -348,6 +358,34 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 // wrapChildrenGSX lowers n's children and wraps them in <tag>…</tag>.
 func wrapChildrenGSX(tag string, n *mdpp.Node) string {
 	return "<" + tag + ">" + lowerChildrenGSX(n) + "</" + tag + ">"
+}
+
+// lowerTableGSX lowers a GFM table (NodeTable -> NodeTableRow -> NodeTableCell).
+// mdpp builds the header row first and does not otherwise mark it, so the first
+// row's cells become <th> and the rest <td>. Cells lower their inline children
+// (so **bold**, `code`, links inside a cell render). Themes style the table.
+func lowerTableGSX(n *mdpp.Node) string {
+	var b strings.Builder
+	b.WriteString("<table>")
+	for ri, row := range n.Children {
+		if row == nil || row.Type != mdpp.NodeTableRow {
+			continue
+		}
+		cellTag := "td"
+		if ri == 0 {
+			cellTag = "th"
+		}
+		b.WriteString("<tr>")
+		for _, cell := range row.Children {
+			if cell == nil || cell.Type != mdpp.NodeTableCell {
+				continue
+			}
+			b.WriteString("<" + cellTag + ">" + lowerChildrenGSX(cell) + "</" + cellTag + ">")
+		}
+		b.WriteString("</tr>")
+	}
+	b.WriteString("</table>")
+	return b.String()
 }
 
 // lowerChildrenGSX lowers all of n's children to GoSX source, concatenated.

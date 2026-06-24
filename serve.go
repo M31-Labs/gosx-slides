@@ -259,7 +259,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"</style>"),
 	)
 

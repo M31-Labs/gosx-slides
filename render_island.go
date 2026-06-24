@@ -116,6 +116,15 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		// as a degrade so the page still serves.
 		return []gosx.Node{gosx.Text(n.Literal)}
 
+	case mdpp.NodeImage:
+		return []gosx.Node{gosx.El("img", gosx.Attrs(
+			gosx.Attr("src", n.Attr("src")),
+			gosx.Attr("alt", n.Attr("alt")),
+		))}
+
+	case mdpp.NodeTable:
+		return []gosx.Node{lowerTableNode(r, n, components)}
+
 	default:
 		// Lower any descendant prose/components of unmodeled container nodes so
 		// nothing in the subtree is silently dropped.
@@ -125,6 +134,31 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		}
 		return out
 	}
+}
+
+// lowerTableNode builds a <table> from a NodeTable (first row -> <th>, rest -> <td>),
+// lowering each cell's inline children. The degrade-path counterpart to
+// slidegen's lowerTableGSX.
+func lowerTableNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent) gosx.Node {
+	var rows []gosx.Node
+	for ri, row := range n.Children {
+		if row == nil || row.Type != mdpp.NodeTableRow {
+			continue
+		}
+		cellTag := "td"
+		if ri == 0 {
+			cellTag = "th"
+		}
+		var cells []gosx.Node
+		for _, cell := range row.Children {
+			if cell == nil || cell.Type != mdpp.NodeTableCell {
+				continue
+			}
+			cells = append(cells, gosx.El(cellTag, gosx.Fragment(lowerInline(r, cell, components)...)))
+		}
+		rows = append(rows, gosx.El("tr", gosx.Fragment(cells...)))
+	}
+	return gosx.El("table", gosx.Fragment(rows...))
 }
 
 // lowerInline lowers the inline children of a prose container (paragraph) to

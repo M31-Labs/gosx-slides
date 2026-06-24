@@ -68,6 +68,31 @@ func renderSlidesHTML(t *testing.T, deck *IslandDeck) string {
 	return b.String()
 }
 
+// TestMarkdownImageRenders proves a markdown image is no longer silently dropped
+// (slidegen had no NodeImage case) — it lowers to an <img> with src and alt.
+func TestMarkdownImageRenders(t *testing.T) {
+	deck := loadDeckFromSource(t, "# Pic\n\n![a cat](cat.png)\n", nil)
+	html := renderSlidesHTML(t, deck)
+	if !strings.Contains(html, "<img") || !strings.Contains(html, "cat.png") {
+		t.Fatalf("markdown image was dropped (no <img>/src):\n%s", html)
+	}
+	if !strings.Contains(html, "a cat") {
+		t.Errorf("image alt text missing:\n%s", html)
+	}
+}
+
+// TestMarkdownTableRenders proves a GFM table renders (slidegen had no NodeTable
+// case) — a <table> with header <th> and body <td> cells.
+func TestMarkdownTableRenders(t *testing.T) {
+	deck := loadDeckFromSource(t, "# Data\n\n| Lang | Speed |\n| --- | --- |\n| Go | fast |\n| Java | ok |\n", nil)
+	html := renderSlidesHTML(t, deck)
+	for _, want := range []string{"<table>", "<th>", "<td>", "Lang", "Go", "fast"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("table missing %q:\n%s", want, html)
+		}
+	}
+}
+
 // --- The headline Slice-4 outcome: {expr} actually EVALUATES ---
 
 // TestExprArithmeticEvaluates proves a slide's inline {2 + 3} renders the

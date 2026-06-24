@@ -53,7 +53,12 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	if rec.Code != http.StatusOK {
 		return fmt.Errorf("render deck: server returned status %d", rec.Code)
 	}
-	doc := rec.Body.String()
+	// The gosx server stamps a per-request requestID (gosx-<nanos>-<counter>) into
+	// the document-contract JSON, which would make every `slides build` produce a
+	// different index.html. Normalize it to a fixed sentinel so static builds are
+	// byte-identical run-to-run (CI cache keys, diff-only deploys). The slidegen
+	// layer is already deterministic; this is the only non-reproducible field.
+	doc := requestIDRe.ReplaceAllString(rec.Body.String(), `"requestID":"gosx-static"`)
 
 	out := opts.OutDir
 	if out == "" {
@@ -74,6 +79,10 @@ func ExportStatic(dir string, opts ExportOptions) error {
 // markup (attrs, the manifest/document-contract JSON) — never in rendered prose —
 // so rewriting these is safe.
 var gosxAbsRefRe = regexp.MustCompile(`(["'])/gosx/`)
+
+// requestIDRe matches the per-request requestID gosx stamps into the document
+// contract; normalized at export so static builds are reproducible.
+var requestIDRe = regexp.MustCompile(`"requestID":"gosx-[0-9-]+"`)
 
 // relativizeGosxPaths rewrites absolute /gosx/... asset refs to relative gosx/...
 // so the exported page hydrates from any static host or file://, not just origin

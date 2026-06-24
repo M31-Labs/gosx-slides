@@ -117,6 +117,23 @@ func themeCSS(name string) string {
 	return themeRegistry[themeName(name)]
 }
 
+// baseContentStyle styles the content elements every theme renders the same way —
+// images, figures, and tables — once, theme-agnostically. It reads the active
+// theme's design tokens (--line/--surface/--accent/--radius/--sp-*), which cascade
+// from main.deck[data-theme], so a single rule adapts to every theme (with literal
+// fallbacks so it still works if a token is absent). Kept out of the four theme
+// blobs so a new content element is styled in ONE place, not four. Images are
+// height-capped and object-fit:contain so they stay inside the locked viewport.
+func baseContentStyle() string {
+	return `main.deck img { max-width: 100%; max-height: 58vh; height: auto; object-fit: contain; display: block; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 10px); }
+main.deck figure { margin: var(--sp-3, 1rem) 0; }
+main.deck figcaption { margin-top: 0.5em; font-size: 0.85em; text-align: center; color: var(--fg-muted, currentColor); }
+main.deck table { border-collapse: collapse; width: 100%; margin: var(--sp-3, 1rem) 0; font-size: 0.95em; }
+main.deck th, main.deck td { border: 1px solid var(--line, rgba(128,128,128,0.3)); padding: 0.5em 0.85em; text-align: left; vertical-align: top; }
+main.deck th { background: var(--surface, rgba(128,128,128,0.12)); color: var(--accent, currentColor); font-weight: 700; }
+main.deck tr:nth-child(even) td { background: color-mix(in srgb, var(--surface, gray) 35%, transparent); }`
+}
+
 // knownLayouts is the set of per-slide layouts every theme styles. A slide's
 // `layout:` frontmatter is matched against this set (case-insensitively); an
 // empty or unknown value resolves to "default".
