@@ -45,11 +45,11 @@ type compiledComponent struct {
 // renderIslandSlide lowers one slide to a gosx.Node. components maps a component
 // name to its compiled program; a component with no entry (or a nil map) renders
 // as an inert placeholder so an unresolved reference never panics the page.
-func renderIslandSlide(r islandMounter, slide IslandSlide, components map[string]*compiledComponent) gosx.Node {
+func renderIslandSlide(r islandMounter, slide IslandSlide, components map[string]*compiledComponent, diagramTheme string) gosx.Node {
 	var children []gosx.Node
 	if slide.Node != nil {
 		for _, child := range slide.Node.Children {
-			children = append(children, lowerNode(r, child, components)...)
+			children = append(children, lowerNode(r, child, components, diagramTheme)...)
 		}
 	}
 	return gosx.El("section",
@@ -63,8 +63,9 @@ func renderIslandSlide(r islandMounter, slide IslandSlide, components map[string
 
 // lowerNode lowers a single mdpp node to zero or more gosx nodes. Block-level
 // literals that are really a component tag are rendered as islands; ordinary
-// prose lowers to static HTML elements.
-func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent) []gosx.Node {
+// prose lowers to static HTML elements. diagramTheme is the deck's resolved
+// sirena theme, used as the default when a sirena fence does not name its own.
+func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent, diagramTheme string) []gosx.Node {
 	if n == nil {
 		return nil
 	}
@@ -113,8 +114,13 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 	case mdpp.NodeDiagram:
 		// Render the sirena fence server-side to inline SVG via renderSirenaDiagram.
 		// This is the hand-built fallback lane (compile failed); the source-gen lane
-		// uses __slidesDiagram.Render via the render_program.go binding.
-		return []gosx.Node{renderSirenaDiagram(n.Literal, n.Attr("theme"), n.Attr("view"), "")}
+		// uses __slidesDiagram.Render via the render_program.go binding. A fence may
+		// name its own theme; otherwise fall back to the deck's resolved theme.
+		theme := n.Attr("theme")
+		if theme == "" {
+			theme = diagramTheme
+		}
+		return []gosx.Node{renderSirenaDiagram(n.Literal, theme, n.Attr("view"), "")}
 
 	case mdpp.NodeExpression:
 		// DEGRADE PATH ONLY: this hand-built lowering renders the expression's
@@ -137,7 +143,7 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		// nothing in the subtree is silently dropped.
 		var out []gosx.Node
 		for _, child := range n.Children {
-			out = append(out, lowerNode(r, child, components)...)
+			out = append(out, lowerNode(r, child, components, diagramTheme)...)
 		}
 		return out
 	}

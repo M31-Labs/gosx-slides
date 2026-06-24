@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	m31labs.dev/gosx v0.25.8
 	m31labs.dev/mdpp v0.4.7
-	m31labs.dev/sirena v0.0.2-internal
+	m31labs.dev/sirena v0.0.2-internal.0.20260624175147-81500579801f
 )
 
 require (

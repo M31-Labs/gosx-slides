@@ -68,15 +68,30 @@ func deckHasDiagram(d *IslandDeck) bool {
 	return false
 }
 
-// baseDiagramStyle returns the CSS that presents sirena diagrams. Sirena's only
-// theme today (earth-default) paints a light canvas (--sirena-bg: #f5f1e8) with
-// dark glyph labels, so on a dark deck the diagram reads best as a deliberate
-// light "card": a fit-content panel whose padding matches the SVG's own bg
-// (#f5f1e8 — seamless), centred, lifted off the deck with a soft shadow, and
-// height-capped so it never overflows the locked viewport. The selectors are
-// scoped under main.deck so they never leak outside the deck.
+// sirenaThemeForDeck maps a deck's visual theme to the sirena diagram theme that
+// matches it. Dark decks (aurora, neon) get sirena's "midnight" so a diagram
+// reads as part of the page rather than a bright card; light decks (paper, swiss)
+// use sirena's own default (returned as "" so it always tracks DefaultThemeName).
+// A fence that names its own theme overrides this (see slidesDiagram.Render).
+func sirenaThemeForDeck(d *IslandDeck) string {
+	switch themeName(deckTheme(d)) {
+	case "aurora", "neon":
+		return "midnight"
+	default:
+		return ""
+	}
+}
+
+// baseDiagramStyle returns the CSS that presents sirena diagrams. The SVG paints
+// its OWN canvas (svg { background: var(--sirena-bg) }) — light for earth-default,
+// dark for midnight — so the frame is theme-agnostic: a fit-content panel, clipped
+// to a rounded corner (overflow:hidden, so the SVG's own bg becomes the card),
+// lifted with a soft shadow and a hairline border, height-capped so it never
+// overflows the locked viewport. No background of its own, so a dark diagram on a
+// dark deck blends and a light diagram on a light deck reads as a clean card.
+// The selectors are scoped under main.deck so they never leak outside the deck.
 func baseDiagramStyle() string {
-	return `main.deck .mdpp-diagram { width: fit-content; max-width: 100%; margin: var(--sp-3, 1rem) auto; padding: var(--sp-4, 1.25rem); background: #f5f1e8; border-radius: var(--radius, 12px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
-main.deck .mdpp-diagram svg { display: block; max-width: 100%; max-height: 54vh; height: auto; }
+	return `main.deck .mdpp-diagram { width: fit-content; max-width: 100%; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 12px); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid var(--line, rgba(128, 128, 128, 0.25)); }
+main.deck .mdpp-diagram svg { display: block; max-width: 100%; max-height: 56vh; height: auto; }
 main.deck pre.diagram-error { color: #ff6b6b; font: 600 0.9rem var(--font-mono, ui-monospace, monospace); }`
 }

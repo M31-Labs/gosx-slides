@@ -95,18 +95,21 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 // hand-built lane (renderIslandSlide) so a transient bad slide never blanks the
 // page — {expr} degrades to raw text there, but prose and islands still render.
 func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, compiled map[string]*compiledComponent) []gosx.Node {
+	// The sirena diagram theme is a function of the deck's visual theme (dark
+	// decks get a dark diagram theme), resolved once and shared by both lanes.
+	diagramTheme := sirenaThemeForDeck(deck)
 	if cd == nil || cd.prog == nil {
 		// Fallback lane: compile failed; render each slide the hand-built way so
 		// the page still serves (prose + islands; {expr} as raw text).
 		var nodes []gosx.Node
 		for _, slide := range deck.Slides {
-			nodes = append(nodes, renderIslandSlide(r, slide, compiled))
+			nodes = append(nodes, renderIslandSlide(r, slide, compiled, diagramTheme))
 		}
 		return nodes
 	}
 
 	deckVals := deckFrontmatterValues(deck)
-	funcs := exprFuncs()
+	funcs := exprFuncs(diagramTheme)
 
 	var nodes []gosx.Node
 	for _, slide := range deck.Slides {
@@ -125,7 +128,7 @@ func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, co
 		if err != nil {
 			// A single slide failing to render must not blank the deck: fall back
 			// to the hand-built lane for just this slide.
-			nodes = append(nodes, renderIslandSlide(r, slide, compiled))
+			nodes = append(nodes, renderIslandSlide(r, slide, compiled, diagramTheme))
 			continue
 		}
 		nodes = append(nodes, gosx.RawHTML(html))
@@ -150,7 +153,7 @@ func titleCase(s string) string {
 	return strings.Join(words, " ")
 }
 
-func exprFuncs() map[string]any {
+func exprFuncs(diagramTheme string) map[string]any {
 	return map[string]any{
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,
@@ -177,7 +180,7 @@ func exprFuncs() map[string]any {
 		// a degrade <pre>), so the SVG rides the eval path as a Node — never
 		// HTML-escaped. Pure server-side: no JavaScript, no CDN.
 		diagramNamespace: map[string]any{
-			diagramRenderFunc: slidesDiagram{}.Render,
+			diagramRenderFunc: slidesDiagram{deckTheme: diagramTheme}.Render,
 		},
 	}
 }
@@ -203,14 +206,19 @@ const (
 
 // slidesDiagram is the runtime helper type whose Render method is bound as
 // __slidesDiagram in the expression scope. It wraps renderSirenaDiagram so the
-// gosx expression evaluator can call it from generated slide code.
-type slidesDiagram struct{}
+// gosx expression evaluator can call it from generated slide code. deckTheme is
+// the deck's resolved sirena theme, used when a fence does not name its own.
+type slidesDiagram struct{ deckTheme string }
 
 // Render calls renderSirenaDiagram and returns the resulting gosx.Node. It is
 // the implementation behind `{__slidesDiagram.Render(source, theme, view)}` in
 // the generated deck source — the gosx expression evaluator calls this at render
 // time, so the inline SVG is produced server-side with no JavaScript required.
-func (slidesDiagram) Render(source, theme, view string) gosx.Node {
+// A fence may name its own theme; an empty theme falls back to the deck's.
+func (d slidesDiagram) Render(source, theme, view string) gosx.Node {
+	if theme == "" {
+		theme = d.deckTheme
+	}
 	return renderSirenaDiagram(source, theme, view, "")
 }
 

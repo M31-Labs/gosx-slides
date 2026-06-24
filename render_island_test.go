@@ -151,7 +151,7 @@ func TestRenderSlideProseAndIsland(t *testing.T) {
 
 	node := renderIslandSlide(r, deck.Slides[0], map[string]*compiledComponent{
 		"Counter": {prog: prog},
-	})
+	}, "")
 	html := gosx.RenderHTML(node)
 
 	if !strings.Contains(html, "Hello") {
@@ -178,7 +178,7 @@ func renderSlideHTML(t *testing.T, src string) string {
 	}
 	mdpp.SplitSlides(doc)
 	r := island.NewRenderer("test")
-	node := renderIslandSlide(r, IslandSlide{Index: 0, Node: doc.Slides()[0]}, nil)
+	node := renderIslandSlide(r, IslandSlide{Index: 0, Node: doc.Slides()[0]}, nil, "")
 	return gosx.RenderHTML(node)
 }
 
@@ -250,7 +250,7 @@ func TestRenderSlideHeadingLevels(t *testing.T) {
 	}
 	mdpp.SplitSlides(doc)
 	r := island.NewRenderer("test")
-	node := renderIslandSlide(r, IslandSlide{Index: 0, Node: doc.Slides()[0]}, nil)
+	node := renderIslandSlide(r, IslandSlide{Index: 0, Node: doc.Slides()[0]}, nil, "")
 	html := gosx.RenderHTML(node)
 	if !strings.Contains(html, "<h2>Subhead</h2>") {
 		t.Fatalf("want <h2>Subhead</h2> in:\n%s", html)
