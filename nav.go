@@ -106,7 +106,16 @@ main.deck.` + navOverviewClass + ` .deck-progress, main.deck.` + navOverviewClas
 /* Dev-only overflow cue: navScript shows this when the active slide's content
    exceeds the viewport (it is auto-scaled to fit, but the badge says "split me"). */
 main.deck .deck-overflow-badge { position: fixed; left: 1rem; bottom: 0.8rem; z-index: 41; display: none; font: 700 0.78rem/1 var(--font-mono, ui-monospace, monospace); color: #ff6b6b; background: rgba(255,107,107,0.12); border: 1px solid #ff6b6b; border-radius: 999px; padding: 0.35rem 0.7rem; }
-@media print { main.deck .deck-progress, main.deck .deck-counter, main.deck .deck-overflow-badge { display: none !important; } }
+/* Print / PDF: lay every slide out one-per-page (overriding the viewport lock and
+   the one-slide visibility), drop the on-screen chrome, and undo any fit-scale so
+   pages print at full size. Use the browser's "Save as PDF" for a handout. */
+@media print {
+  html, body { height: auto !important; overflow: visible !important; }
+  main.deck { display: block !important; }
+  main.deck > .slide { display: block !important; min-height: 100vh; transform: none !important; box-shadow: none !important; break-after: page; page-break-after: always; animation: none !important; }
+  main.deck > .slide.layout-center, main.deck > .slide.layout-title, main.deck > .slide.layout-section, main.deck > .slide.layout-quote { display: flex !important; }
+  main.deck .deck-progress, main.deck .deck-counter, main.deck .deck-overflow-badge, main.deck .code-copy, main.deck .slide-notes { display: none !important; }
+}
 
 /* ── Overview grid (the 'o' key) ────────────────────────────────────────────
    navScript toggles main.deck.` + navOverviewClass + ` on. While set, the
