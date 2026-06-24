@@ -268,6 +268,15 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// production page or static export.
 		ctx.AddHead(gosx.RawHTML("<style>" + devOverlayStyle() + "</style>"))
 	}
+	if deckHasDiagram(d) {
+		// Inject diagram layout CSS only when the deck contains a diagram node —
+		// non-diagram decks skip this style block entirely. Diagrams are rendered
+		// server-side to inline SVG (fence.Render via renderSirenaDiagram), so there
+		// is no script tag and no CDN dependency at all.
+		ctx.AddHead(
+			gosx.RawHTML("<style>" + baseDiagramStyle() + "</style>"),
+		)
+	}
 
 	// Hidden per-slide speaker-note asides: one <aside class="slide-notes"
 	// data-notes="N"> for every slide that HAS a note (extractSlideNotes reads the

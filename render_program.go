@@ -171,6 +171,14 @@ func exprFuncs() map[string]any {
 		codeNamespace: map[string]any{
 			codeBlockFunc: codeBlockNode,
 		},
+		// diagramNS backs the generated `{__slidesDiagram.Render(src, theme, view)}`
+		// call that slidegen lowers a sirena fence to. renderSirenaDiagram calls
+		// fence.Render server-side and returns a gosx.Node (inline SVG <figure> or
+		// a degrade <pre>), so the SVG rides the eval path as a Node — never
+		// HTML-escaped. Pure server-side: no JavaScript, no CDN.
+		diagramNamespace: map[string]any{
+			diagramRenderFunc: slidesDiagram{}.Render,
+		},
 	}
 }
 
@@ -183,6 +191,28 @@ const (
 	codeNamespace = "__slidesCode"
 	codeBlockFunc = "Block"
 )
+
+// diagramNamespace / diagramRenderFunc name the bound expression function
+// slidegen emits for a sirena fence (e.g. `{__slidesDiagram.Render(src, "", "")}`).
+// They are consts so the generator (slidegen.go) and this binding never drift;
+// the `__`-prefix prevents collisions with deck author identifiers.
+const (
+	diagramNamespace  = "__slidesDiagram"
+	diagramRenderFunc = "Render"
+)
+
+// slidesDiagram is the runtime helper type whose Render method is bound as
+// __slidesDiagram in the expression scope. It wraps renderSirenaDiagram so the
+// gosx expression evaluator can call it from generated slide code.
+type slidesDiagram struct{}
+
+// Render calls renderSirenaDiagram and returns the resulting gosx.Node. It is
+// the implementation behind `{__slidesDiagram.Render(source, theme, view)}` in
+// the generated deck source — the gosx expression evaluator calls this at render
+// time, so the inline SVG is produced server-side with no JavaScript required.
+func (slidesDiagram) Render(source, theme, view string) gosx.Node {
+	return renderSirenaDiagram(source, theme, view, "")
+}
 
 // codeBlockNode renders a fenced code block to a syntax-highlighted
 // `<pre class="code-block" data-lang="…"><code>…</code></pre>` Node. It is the
@@ -222,6 +252,7 @@ func codeBlockNode(lang, source, highlights string) gosx.Node {
 	// (go/gosx/javascript/json/bash/text), so it needs no escaping in the data-lang
 	// attribute. highlight.HTML / highlight.HTMLLines escape the code text itself.
 	normalized := highlight.NormalizeLanguage(lang)
+	isDiff := strings.EqualFold(lang, "diff")
 
 	steps := parseHighlightSteps(highlights)
 
@@ -237,20 +268,69 @@ func codeBlockNode(lang, source, highlights string) gosx.Node {
 		b.WriteString(strconv.Itoa(len(steps)))
 	}
 	b.WriteString(`"><code>`)
-	if len(steps) == 0 {
-		// No emphasis: the original single-string path (one highlighted block, no
-		// per-line wrappers) — byte-identical to the pre-emphasis behavior.
+	if !isDiff && len(steps) == 0 {
+		// No emphasis, not a diff: the original single-string path (one highlighted
+		// block, no per-line wrappers) — byte-identical to the pre-emphasis behavior.
 		b.WriteString(highlight.HTML(normalized, source))
 	} else {
-		// Per-line wrappers so individual lines can be emphasized/dimmed/stepped. The
-		// highlighter already escaped the code; we only ADD a class + data-step to
-		// lines in the spec, so the markup stays XSS-safe.
-		for _, line := range highlight.HTMLLines(normalized, source) {
-			b.WriteString(emphasizeLineSteps(line, steps))
+		// Per-line wrappers: needed for emphasis stepping OR diff coloring. The
+		// highlighter already escaped the code; we only ADD classes/data attrs to
+		// individual lines, so the markup stays XSS-safe.
+		for i, line := range highlight.HTMLLines(normalized, source) {
+			// Apply emphasis stepping first (it widens class="ts-line" ->
+			// class="ts-line emphasis"); diff class injection runs after so it
+			// can locate the now-widened class prefix safely.
+			if len(steps) > 0 {
+				line = emphasizeLineSteps(line, steps)
+			}
+			if isDiff {
+				line = addDiffClass(line, i, source)
+			}
+			b.WriteString(line)
 		}
 	}
 	b.WriteString(`</code></pre>`)
 	return gosx.RawHTML(b.String())
+}
+
+// addDiffClass injects a diff-coloring class into the `class="ts-line"` attribute
+// of one highlight.HTMLLines fragment based on the first non-space character of
+// the corresponding raw source line. lineIdx is the 0-based index into
+// highlight.HTMLLines (which does not itself expose the raw text).
+//
+//   - `+added` (but not `+++`) -> ts-diff-add (green background)
+//   - `-removed` (but not `---`) -> ts-diff-del (red background)
+//   - `@@…` hunk header         -> ts-diff-meta (accent color)
+//   - everything else            -> unchanged
+//
+// The class is appended AFTER the existing `ts-line` class so it is purely
+// additive; emphasis and step attributes added later by emphasizeLineSteps are
+// unaffected. The raw source is needed to inspect the actual first character
+// because the highlighted span markup has already been HTML-entity-encoded.
+func addDiffClass(line string, lineIdx int, rawSource string) string {
+	rawLines := strings.Split(rawSource, "\n")
+	if lineIdx >= len(rawLines) {
+		return line
+	}
+	raw := strings.TrimLeft(rawLines[lineIdx], " \t")
+	var cls string
+	switch {
+	case strings.HasPrefix(raw, "+++") || strings.HasPrefix(raw, "---"):
+		// file header lines — leave uncolored (they look like meta but are prose)
+	case strings.HasPrefix(raw, "+"):
+		cls = "ts-diff-add"
+	case strings.HasPrefix(raw, "-"):
+		cls = "ts-diff-del"
+	case strings.HasPrefix(raw, "@@"):
+		cls = "ts-diff-meta"
+	}
+	if cls == "" {
+		return line
+	}
+	// Match the open class prefix so the replacement works whether emphasizeLineSteps
+	// has already widened class="ts-line" to class="ts-line emphasis ..." or not.
+	// We replace `class="ts-line` with `class="ts-line <cls>` in one pass.
+	return strings.Replace(line, `class="ts-line`, `class="ts-line `+cls, 1)
 }
 
 // emphasizeLineSteps adds the `emphasis` class AND a `data-step="K"` attribute to

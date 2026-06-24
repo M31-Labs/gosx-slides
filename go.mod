@@ -6,6 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	m31labs.dev/gosx v0.25.8
 	m31labs.dev/mdpp v0.4.7
+	m31labs.dev/sirena v0.0.2-internal
 )
 
 require (
@@ -14,6 +15,7 @@ require (
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
 	github.com/odvcencio/gotreesitter v0.20.1 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/net v0.52.0 // indirect

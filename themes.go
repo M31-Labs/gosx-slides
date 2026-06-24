@@ -136,7 +136,10 @@ main.deck pre.code-block { position: relative; }
 main.deck pre.code-block .code-copy { position: absolute; top: 0.55rem; right: 0.55rem; opacity: 0; transition: opacity 150ms; cursor: pointer; font: 600 0.7rem var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #999); background: var(--surface, rgba(128,128,128,0.2)); border: 1px solid var(--line, rgba(128,128,128,0.3)); border-radius: 6px; padding: 0.25rem 0.6rem; }
 main.deck pre.code-block:hover .code-copy, main.deck pre.code-block .code-copy:focus-visible { opacity: 0.9; }
 main.deck pre.code-block .code-copy:hover { color: var(--accent, currentColor); }
-main.deck[data-line-numbers="1"] pre.code-block .ts-line::before { content: attr(data-line); display: inline-block; width: 2.4ch; margin-right: 1.25ch; text-align: right; opacity: 0.35; -webkit-user-select: none; user-select: none; }`
+main.deck[data-line-numbers="1"] pre.code-block .ts-line::before { content: attr(data-line); display: inline-block; width: 2.4ch; margin-right: 1.25ch; text-align: right; opacity: 0.35; -webkit-user-select: none; user-select: none; }
+main.deck pre.code-block .ts-diff-add { background: rgba(80,200,120,0.14); }
+main.deck pre.code-block .ts-diff-del { background: rgba(255,107,107,0.14); }
+main.deck pre.code-block .ts-diff-meta { color: var(--accent, currentColor); opacity: 0.8; }`
 }
 
 // knownLayouts is the set of per-slide layouts every theme styles. A slide's

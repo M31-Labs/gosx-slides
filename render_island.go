@@ -110,6 +110,12 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		}
 		return nil
 
+	case mdpp.NodeDiagram:
+		// Render the sirena fence server-side to inline SVG via renderSirenaDiagram.
+		// This is the hand-built fallback lane (compile failed); the source-gen lane
+		// uses __slidesDiagram.Render via the render_program.go binding.
+		return []gosx.Node{renderSirenaDiagram(n.Literal, n.Attr("theme"), n.Attr("view"), "")}
+
 	case mdpp.NodeExpression:
 		// DEGRADE PATH ONLY: this hand-built lowering renders the expression's
 		// source as raw text. The production source-gen lane (render_program.go)

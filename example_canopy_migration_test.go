@@ -18,8 +18,8 @@ func TestCanopyMigrationDeckCompiles(t *testing.T) {
 		t.Fatalf("LoadIslandDeck: %v", err)
 	}
 
-	if got := len(deck.Slides); got != 11 {
-		t.Fatalf("deck split into %d slides, want 11 (mdpp thematic-break splitting regressed)", got)
+	if got := len(deck.Slides); got != 12 {
+		t.Fatalf("deck split into %d slides, want 12 (mdpp thematic-break splitting regressed)", got)
 	}
 
 	cd, err := compileDeckProgram(deck)
@@ -85,8 +85,8 @@ func TestIslandAnalysisIsHonest(t *testing.T) {
 			t.Errorf("real deck wrongly flagged: %q", w)
 		}
 	}
-	if a.SlideCount != 11 {
-		t.Errorf("slideCount = %d, want 11", a.SlideCount)
+	if a.SlideCount != 12 {
+		t.Errorf("slideCount = %d, want 12", a.SlideCount)
 	}
 	// Real yaml-fence layouts are visible (not all "default").
 	if a.Layouts["title"] != 1 || a.Layouts["center"] != 2 {

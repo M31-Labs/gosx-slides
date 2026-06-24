@@ -371,6 +371,18 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 	case mdpp.NodeTable:
 		return lowerTableGSX(n)
 
+	case mdpp.NodeDiagram:
+		// A sirena diagram fence: emit a call to the bound __slidesDiagram.Render
+		// helper (render_program.go), which calls fence.Render server-side and returns
+		// an inline-SVG <figure> node. All three args are Go string literals so `<`,
+		// `{`, `"` etc. in the fence source can never corrupt the generated GoSX
+		// source. n.Attr("theme") and n.Attr("view") are "" for a plain sirena fence
+		// (the attrs live in the language info-string, not as parsed attrs on the node;
+		// the helper passes "" to fence.Options which selects the default theme).
+		return "{" + diagramNamespace + "." + diagramRenderFunc + "(" +
+			strconv.Quote(n.Literal) + ", " + strconv.Quote(n.Attr("theme")) + ", " +
+			strconv.Quote(n.Attr("view")) + ")}"
+
 	case mdpp.NodeSoftBreak:
 		return "{\" \"}"
 

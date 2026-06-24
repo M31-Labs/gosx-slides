@@ -125,6 +125,36 @@ are roots, so it won't tell you to delete your endpoints.
 
 ---
 
+# The target shape
+
+The strangler's end state, drawn from the seams: a thin gateway in front of the
+shrinking Java core and the new Go service, with the cut line drawn as a
+**deployment boundary** — the contract canopy enforces on the very next slide.
+
+```sirena
+gateway edge
+service legacy_java
+
+boundary deployment "go-runtime" {
+  service go_orders
+  database orders_db
+  cache sessions
+}
+
+edge -> legacy_java: routes
+edge -> go_orders: routes
+go_orders -> legacy_java: reads
+go_orders -> orders_db: writes
+go_orders -> sessions: reads
+```
+
+Rendered by **sirena** — pure-Go, server-side SVG, no JavaScript — and versioned
+as plain text right inside the deck.
+
+<!-- The picture the seams add up to. Point at the dashed boundary box: that is the architecture canopy enforces on the next slide (the BoundaryGate island). The diagram is sirena source in the markdown, so it diffs and reviews like code. ~45s. -->
+
+---
+
 # 4 · Govern the target
 
 The Go rewrite only stays clean if something keeps it clean. Declare the intended
