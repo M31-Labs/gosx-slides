@@ -2,6 +2,7 @@ package slides
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -138,12 +139,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
-		renderDeck, renderCompiled := d, compiled
+		renderDeck, renderCompiled, renderFailures := d, compiled, failures
 		if opts.Dev {
 			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
 				if freshCompiled, freshFailures := fresh.compileComponents(); freshCompiled != nil {
 					logCompileFailures(fresh.Dir, freshFailures)
-					renderDeck, renderCompiled = fresh, freshCompiled
+					renderDeck, renderCompiled, renderFailures = fresh, freshCompiled, freshFailures
 				}
 			} else {
 				log.Printf("slides: dev reload of deck %q failed; serving last good deck: %v", d.Dir, err)
@@ -157,7 +158,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev)
+		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures)
 	})
 
 	if opts.StageRuntime {
@@ -223,7 +224,7 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
 	cd, err := compileDeckProgram(d)
 	if err != nil {
@@ -262,6 +263,11 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
+	if dev {
+		// Dev-only chrome CSS, injected solely in --watch so it never reaches a
+		// production page or static export.
+		ctx.AddHead(gosx.RawHTML("<style>" + devOverlayStyle() + "</style>"))
+	}
 
 	// Hidden per-slide speaker-note asides: one <aside class="slide-notes"
 	// data-notes="N"> for every slide that HAS a note (extractSlideNotes reads the
@@ -286,6 +292,10 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		),
 		gosx.Fragment(slideNodes...),
 		gosx.Fragment(noteNodes...),
+		// Dev-only build-error overlay: a deck/island compile failure is otherwise
+		// only a terminal log + a silently-degraded slide. In --watch, surface it
+		// loudly in the page so the author sees it without leaving the browser.
+		devErrorOverlay(dev, err, failures),
 		// The slide-nav controller + presenter chrome controller run at the END of
 		// the body, so the data-slide sections (and note asides) above already exist
 		// when they wire up. presenterScript is emitted FIRST so it has defined
@@ -298,6 +308,55 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// adds to the head — hidden slides still hydrate.
 		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"</script>"),
 	)
+}
+
+// devErrorOverlay builds a dismissible in-page build-error banner for the --watch
+// loop. It returns an empty node unless dev is set AND there is a deck-compile
+// error or a component-compile failure — so a healthy deck (and every production
+// serve) renders nothing. Compiler text is HTML-escaped (opaque, untrusted).
+func devErrorOverlay(dev bool, deckErr error, failures map[string]error) gosx.Node {
+	if !dev || (deckErr == nil && len(failures) == 0) {
+		return gosx.RawHTML("")
+	}
+	var b strings.Builder
+	b.WriteString(`<div class="deck-dev-error" onclick="this.remove()" title="click to dismiss">`)
+	b.WriteString(`<div class="deck-dev-error-head">⚠ gosx-slides build error <span>(dev only · click to dismiss · fix the source and save to reload)</span></div>`)
+	if deckErr != nil {
+		b.WriteString("<pre>deck did not compile — inline {expr} is degraded to raw text:\n")
+		b.WriteString(html.EscapeString(deckErr.Error()))
+		b.WriteString("</pre>")
+	}
+	for _, name := range sortedFailureNames(failures) {
+		b.WriteString("<pre>")
+		b.WriteString(html.EscapeString(name))
+		b.WriteString(".gsx did not compile (rendered as an inert placeholder):\n")
+		b.WriteString(html.EscapeString(failures[name].Error()))
+		b.WriteString("</pre>")
+	}
+	b.WriteString(`</div>`)
+	return gosx.RawHTML(b.String())
+}
+
+// devOverlayStyle is the CSS for the dev build-error banner and the loud
+// unresolved-component placeholder. It is injected ONLY in dev mode (so the
+// `[data-gosx-unresolved]` selector never appears in a production page), keeping
+// authoring-error chrome out of shipped/exported output entirely.
+func devOverlayStyle() string {
+	return `main.deck .deck-dev-error { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100; max-height: 60vh; overflow: auto; cursor: pointer; padding: 1rem 1.25rem; background: rgba(38,8,8,0.97); color: #ffd7d7; border-top: 3px solid #ff6b6b; font: 0.85rem/1.5 var(--font-mono, ui-monospace, monospace); }
+main.deck .deck-dev-error-head { margin-bottom: 0.5rem; font-weight: 700; color: #ff8a8a; }
+main.deck .deck-dev-error-head span { font-weight: 400; opacity: 0.7; }
+main.deck .deck-dev-error pre { margin: 0.4rem 0; padding: 0.5rem 0.7rem; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.28); border-radius: 6px; }
+main.deck .gosx-unresolved { position: relative; outline: 2px dashed #ff6b6b; outline-offset: 3px; min-width: 12rem; min-height: 2rem; }
+main.deck .gosx-unresolved::after { content: "\26A0 unresolved component (dev)"; position: absolute; top: 0; left: 0; padding: 0.15rem 0.45rem; font: 700 0.7rem var(--font-mono, ui-monospace, monospace); color: #ff6b6b; background: rgba(255,107,107,0.16); }`
+}
+
+func sortedFailureNames(failures map[string]error) []string {
+	names := make([]string, 0, len(failures))
+	for n := range failures {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // deckTheme reads the deck's raw `theme:` headmatter value as a string, returning

@@ -241,7 +241,14 @@ func renderComponentRef(r islandMounter, ref ComponentRef, components map[string
 	cc := components[ref.Name]
 	if cc == nil || cc.prog == nil {
 		return gosx.El("span",
-			gosx.Attrs(gosx.Attr("data-gosx-unresolved", ref.Name)),
+			gosx.Attrs(
+				gosx.Attr("data-gosx-unresolved", ref.Name),
+				// A class as well as the attribute: the dev-mode loud-placeholder CSS
+				// targets this class so its selector never contains the literal
+				// "data-gosx-unresolved" string (which tests grep for to detect a
+				// real placeholder).
+				gosx.Attr("class", "gosx-unresolved"),
+			),
 			gosx.Text("["+ref.Name+"]"),
 		)
 	}
