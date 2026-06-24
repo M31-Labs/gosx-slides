@@ -66,6 +66,17 @@ func TestServeInjectsSlideVisibilityStyle(t *testing.T) {
 // disturbing the visibility rule both lanes depend on. The transition is a pure
 // opacity/transform animation on the active slide, gated behind
 // prefers-reduced-motion: no-preference, so it never touches `display`.
+// TestNavStyleResetsBodyMargin guards the fix for a permanent scrollbar: each
+// .slide is min-height:100vh, so the browser's default 8px body margin pushed it
+// 16px past the viewport and forced scrolling on every slide (even fullscreen).
+// navStyle must zero the html/body margin for every theme.
+func TestNavStyleResetsBodyMargin(t *testing.T) {
+	css := navStyle()
+	if !strings.Contains(css, "html, body { margin: 0") {
+		t.Fatalf("navStyle must reset the html/body margin (else 100vh slides overflow by 16px):\n%s", css)
+	}
+}
+
 func TestNavStyleCarriesEnterTransition(t *testing.T) {
 	css := navStyle()
 

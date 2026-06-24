@@ -76,7 +76,11 @@ func navStyle() string {
 	// no-preference` so motion-sensitive viewers get an instant cut, and is theme-
 	// agnostic (it lives here, beside the visibility rule both lanes depend on).
 	// The easing matches the themes' settle curve (ease-out-quart).
-	return `main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }
+	return `/* Base reset: each .slide is min-height:100vh, so the browser's default
+   8px body margin would push it 16px past the viewport and force a permanent
+   scrollbar (even in fullscreen). Zero it here, once, for every theme. */
+html, body { margin: 0; padding: 0; }
+main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes slidesDeckEnter {
     from { opacity: 0; transform: translateY(14px); }
