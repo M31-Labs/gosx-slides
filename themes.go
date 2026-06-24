@@ -138,9 +138,13 @@ main.deck tr:nth-child(even) td { background: color-mix(in srgb, var(--surface, 
 // `layout:` frontmatter is matched against this set (case-insensitively); an
 // empty or unknown value resolves to "default".
 var knownLayouts = map[string]bool{
-	"default": true,
-	"center":  true,
-	"title":   true,
+	"default":  true,
+	"center":   true,
+	"title":    true,
+	"quote":    true, // centered oversized pull-quote
+	"section":  true, // section divider: big heading + accent rule
+	"two-cols": true, // body flows into two balanced columns (headings span)
+	"full":     true, // full-bleed: no padding (e.g. a cover image)
 }
 
 // layoutClass maps a slide's raw `layout:` frontmatter value to the CSS class
@@ -154,4 +158,21 @@ func layoutClass(raw string) string {
 		name = "default"
 	}
 	return "layout-" + name
+}
+
+// baseLayoutStyle styles the layouts that compose the same way across every theme
+// (quote / section / two-cols / full), once, token-driven. center and title are
+// styled per-theme in themes_css.go; these read the active theme's tokens so a
+// single rule fits all four. serve.go injects this AFTER the theme CSS so it wins
+// equal-specificity ties (e.g. full-bleed clearing the themed slide padding).
+func baseLayoutStyle() string {
+	return `main.deck > .slide.layout-quote { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+main.deck > .slide.layout-quote blockquote { border: 0; padding: 0; margin: 0; max-width: 22ch; font-weight: 600; font-size: clamp(1.6rem, 3.6vw, 2.9rem); line-height: 1.3; }
+main.deck > .slide.layout-section { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+main.deck > .slide.layout-section h1, main.deck > .slide.layout-section h2 { font-size: clamp(2.6rem, 7vw, 5rem); }
+main.deck > .slide.layout-section h1::after, main.deck > .slide.layout-section h2::after { content: ""; display: block; width: 4rem; height: 4px; margin: 1.2rem auto 0; border-radius: 2px; background: var(--accent, currentColor); }
+main.deck > .slide.layout-two-cols { column-count: 2; column-gap: clamp(2rem, 4vw, 4rem); }
+main.deck > .slide.layout-two-cols h1, main.deck > .slide.layout-two-cols h2, main.deck > .slide.layout-two-cols h3 { column-span: all; }
+main.deck > .slide.layout-full { padding: 0 !important; }
+main.deck > .slide.layout-full img { width: 100%; height: 100vh; max-height: 100vh; margin: 0; border-radius: 0; object-fit: cover; }`
 }

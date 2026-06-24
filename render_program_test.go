@@ -93,6 +93,27 @@ func TestMarkdownTableRenders(t *testing.T) {
 	}
 }
 
+// TestLayoutAndPerSlideOverrides proves the new layouts resolve to their class and
+// that per-slide background:/accent: frontmatter emit an inline style override.
+func TestLayoutAndPerSlideOverrides(t *testing.T) {
+	src := "```yaml\nlayout: section\nbackground: \"#101820\"\naccent: \"#f6b352\"\n```\n\n# Section divider\n"
+	deck := loadDeckFromSource(t, src, nil)
+	html := renderSlidesHTML(t, deck)
+	if !strings.Contains(html, "layout-section") {
+		t.Errorf("layout: section did not resolve to layout-section class:\n%s", html)
+	}
+	if !strings.Contains(html, "--accent:#f6b352") || !strings.Contains(html, "background:#101820") {
+		t.Errorf("per-slide background/accent override not emitted:\n%s", html)
+	}
+	// A known new layout is accepted, an unknown one degrades to default.
+	if !knownLayouts["two-cols"] || !knownLayouts["quote"] || !knownLayouts["full"] {
+		t.Error("new layouts missing from knownLayouts")
+	}
+	if layoutClass("bogus") != "layout-default" {
+		t.Error("unknown layout should degrade to layout-default")
+	}
+}
+
 // --- The headline Slice-4 outcome: {expr} actually EVALUATES ---
 
 // TestExprArithmeticEvaluates proves a slide's inline {2 + 3} renders the

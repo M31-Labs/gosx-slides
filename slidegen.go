@@ -189,7 +189,19 @@ func mergeIslandDefs(defs map[string]islandDef) (imports []string, bodies []stri
 // exactly one well-formed layout token (unknown/absent -> layout-default).
 func lowerSlideToGSX(slide IslandSlide) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<section class="slide %s" data-slide="%d">`, slideLayoutClass(slide), slide.Index)
+	b.WriteString(`<section class="slide `)
+	b.WriteString(slideLayoutClass(slide))
+	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	// Per-slide overrides: `background:` and `accent:` frontmatter set an inline
+	// style (a background and/or an --accent token override that cascades to the
+	// slide's content). Emitted as a quoted string-literal attribute expression so
+	// an author value can never corrupt the generated source.
+	if style := slideOverrideStyle(slide); style != "" {
+		b.WriteString(" style={")
+		b.WriteString(strconv.Quote(style))
+		b.WriteString("}")
+	}
+	b.WriteString(">")
 	if slide.Node != nil {
 		for _, child := range slide.Node.Children {
 			b.WriteString(lowerNodeToGSX(child))
@@ -197,6 +209,30 @@ func lowerSlideToGSX(slide IslandSlide) string {
 	}
 	b.WriteString("</section>")
 	return b.String()
+}
+
+// slideOverrideStyle builds the inline style for a slide's `background:` / `accent:`
+// frontmatter (empty when neither is set). The values are CSS fragments placed in
+// a style attribute (no selector context, so they cannot escape into arbitrary
+// rules); strconv.Quote at the call site keeps them from breaking the source.
+func slideOverrideStyle(slide IslandSlide) string {
+	fm := slideFrontmatterValues(slide)
+	var style strings.Builder
+	if bg, ok := fm["background"].(string); ok {
+		if bg = strings.TrimSpace(bg); bg != "" {
+			style.WriteString("background:")
+			style.WriteString(bg)
+			style.WriteString(";")
+		}
+	}
+	if accent, ok := fm["accent"].(string); ok {
+		if accent = strings.TrimSpace(accent); accent != "" {
+			style.WriteString("--accent:")
+			style.WriteString(accent)
+			style.WriteString(";")
+		}
+	}
+	return style.String()
 }
 
 // slideLayoutClass returns the `layout-<name>` class for a slide, read from its

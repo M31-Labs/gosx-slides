@@ -260,7 +260,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
 		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"</style>"),
-		gosx.RawHTML("<style>"+themeCSS(theme)+"</style>"),
+		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 
 	// Hidden per-slide speaker-note asides: one <aside class="slide-notes"
