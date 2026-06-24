@@ -3,6 +3,7 @@ package slides
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,14 +17,11 @@ import (
 	"m31labs.dev/mdpp"
 )
 
-// serve.go is the real lane's deck server (Phase 1, Slice 2). It composes the
-// Slice-1 lowering core (CompileComponent) with the Slice-2 node lowering
-// (renderIslandSlide) into a runnable gosx server.App: a deck whose slides host
-// LIVE GoSX islands, with the island programs served as JSON and (optionally)
-// the client WASM runtime staged so the page hydrates in a real browser.
-//
-// It is the real-lane counterpart to the fallback presenter (server.go) and does
-// not touch it: the fallback `Serve`/`ServerOptions` stay exactly as they were.
+// serve.go is the deck server. It composes the lowering core (CompileComponent)
+// with the node lowering into a runnable gosx server.App: a deck whose slides
+// host LIVE GoSX islands, with the island programs served as JSON, the client
+// WASM runtime staged so the page hydrates in a real browser, and the
+// cross-device presenter endpoints (present_broker.go) mounted alongside.
 
 // gosxModuleImportPath is the gosx module. gosx-slides depends on it as a public
 // release (no replace), so `go list -m` resolves it to the module cache for asset
@@ -90,7 +88,8 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// of the cache and renders as the inert data-gosx-unresolved placeholder, so a
 	// typo'd or not-yet-created component degrades gracefully instead of 500-ing
 	// the whole deck.
-	compiled, _ := d.compileComponents()
+	compiled, failures := d.compileComponents()
+	logCompileFailures(d.Dir, failures)
 
 	app := server.New()
 	app.SetPublicDir(d.Dir)
@@ -105,6 +104,15 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			_, _ = w.Write(jsonBytes)
 		}))
 	}
+
+	// Cross-device presenter: one broker per deck server relays {slide, step} from
+	// the presenter window / phone remote to every audience over SSE. These mounts
+	// are inert until a client connects, so they cost nothing for a plain audience
+	// load (and are harmless on the export render path, which never hits them).
+	broker := newPresenterBroker()
+	app.Mount("/presenter/events", http.HandlerFunc(broker.handleEvents))
+	app.Mount("/presenter/state", http.HandlerFunc(broker.handleState))
+	app.Mount("/remote", http.HandlerFunc(handleRemote))
 
 	title := strings.TrimSpace(opts.Title)
 	if title == "" {
@@ -133,9 +141,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		renderDeck, renderCompiled := d, compiled
 		if opts.Dev {
 			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
-				if freshCompiled, _ := fresh.compileComponents(); freshCompiled != nil {
+				if freshCompiled, freshFailures := fresh.compileComponents(); freshCompiled != nil {
+					logCompileFailures(fresh.Dir, freshFailures)
 					renderDeck, renderCompiled = fresh, freshCompiled
 				}
+			} else {
+				log.Printf("slides: dev reload of deck %q failed; serving last good deck: %v", d.Dir, err)
 			}
 		}
 		// Point each registered island at its served JSON program so the manifest
@@ -214,7 +225,15 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // still serves (prose + islands; {expr} as raw text).
 func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
-	cd, _ := compileDeckProgram(d)
+	cd, err := compileDeckProgram(d)
+	if err != nil {
+		// The deck failed to compile as one program: every slide will degrade to
+		// the hand-built lane with inline {expr} rendered as raw text (the
+		// documented safety net). That is a silent, deck-wide loss of live
+		// expressions on an HTTP 200, so make it loud here — this is the single
+		// most dangerous quiet failure in the real lane. A healthy deck never logs.
+		log.Printf("slides: deck %q failed to compile; serving prose with inline {expr} as raw text: %v", d.Dir, err)
+	}
 	slideNodes := renderProgramSlides(r, d, cd, compiled)
 
 	// Resolve the deck's theme from its `theme:` headmatter (themeName falls back
@@ -331,9 +350,17 @@ func (d *IslandDeck) deckName() string {
 	return base
 }
 
-// title returns the deck's document title: its first heading's text, else the
-// deck directory name.
+// title returns the deck's document title: its headmatter `title:` if set (the
+// canonical title, also bound as {deck.title}), else its first heading's text,
+// else the deck directory name. Preferring headmatter keeps the served <title>
+// and the analysis tools agreeing with the author's declared title even when the
+// first heading is an unevaluated `# {deck.title}` expression.
 func (d *IslandDeck) title() string {
+	if t, ok := deckFrontmatterValues(d)["title"].(string); ok {
+		if t = strings.TrimSpace(t); t != "" {
+			return t
+		}
+	}
 	for _, slide := range d.Slides {
 		if slide.Node == nil {
 			continue
@@ -395,12 +422,22 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 	// forces a fresh build even when a cached artifact exists (see I2: a gosx
 	// runtime change is otherwise never picked up).
 	wasmPath := filepath.Join(buildDir, "gosx-runtime.wasm")
-	if rebuild || !isRegularFile(wasmPath) {
-		// On a forced rebuild, remove any existing artifact first: `go build -o`
-		// refuses to overwrite an output that is not a Go object file (e.g. a stale
-		// or corrupt file), and removing it also guarantees the rebuild can't be a
-		// silent reuse of the old bytes.
-		if rebuild {
+	// The wasm is existence-cached, but a truncated or empty cached artifact (an
+	// interrupted prior build) would otherwise be served silently and the islands
+	// would never hydrate — a baffling failure mid-demo. Treat a sub-floor cached
+	// file as a cache miss and rebuild. The real runtime is tens of MB; this floor
+	// only catches corruption, never a legitimately small build.
+	const minRuntimeWasmBytes = 1 << 20 // 1 MiB
+	corruptCache := isRegularFile(wasmPath) && fileSizeBelow(wasmPath, minRuntimeWasmBytes)
+	if rebuild || !isRegularFile(wasmPath) || corruptCache {
+		// Remove any existing artifact first when forcing a rebuild or when the
+		// cached file is corrupt: `go build -o` refuses to overwrite an output that
+		// is not a Go object file (e.g. a stale or corrupt file), and removing it
+		// also guarantees the rebuild can't be a silent reuse of the old bytes.
+		if rebuild || corruptCache {
+			if corruptCache {
+				log.Printf("slides: cached runtime wasm at %s is truncated; rebuilding", wasmPath)
+			}
 			if err := os.Remove(wasmPath); err != nil && !os.IsNotExist(err) {
 				return "", fmt.Errorf("remove stale runtime wasm: %w", err)
 			}
@@ -504,7 +541,8 @@ func StageIslandPrograms(deckDir string) error {
 	// compileComponents compiles each distinct referenced component once and
 	// soft-degrades failures — exactly the cache NewServer mounts, so the staged
 	// JSON is byte-identical to what the production lane serves in-process.
-	compiled, _ := deck.compileComponents()
+	compiled, failures := deck.compileComponents()
+	logCompileFailures(deck.Dir, failures)
 	for _, name := range sortedKeys(compiled) {
 		path := filepath.Join(islandDir, name+".json")
 		if err := os.WriteFile(path, compiled[name].json, 0o644); err != nil {
@@ -560,6 +598,28 @@ func goroot() string {
 func isRegularFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// fileSizeBelow reports whether path is smaller than min bytes. A stat error
+// counts as "below" so the caller rebuilds rather than trusting an artifact it
+// cannot measure.
+func fileSizeBelow(path string, min int64) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return true
+	}
+	return info.Size() < min
+}
+
+// logCompileFailures logs each component that failed to compile. compileComponents
+// soft-degrades a broken/missing <Name>.gsx to an inert placeholder and returns the
+// error via its second result; every call site otherwise discarded it, so a broken
+// island was silent. Logging here makes it loud in the terminal (especially the
+// `serve --watch` loop) without failing the server. A healthy deck logs nothing.
+func logCompileFailures(dir string, failures map[string]error) {
+	for name, err := range failures {
+		log.Printf("slides: component %s.gsx in %q failed to compile; rendering inert placeholder: %v", name, dir, err)
+	}
 }
 
 // execEnvWithoutGoFlags returns the process environment with any GOFLAGS entry

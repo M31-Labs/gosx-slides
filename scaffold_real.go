@@ -8,13 +8,11 @@ import (
 	"strings"
 )
 
-// scaffold_real.go scaffolds a runnable REAL-LANE deck (Phase 1 nicey): a deck a
-// user/agent can `slides serve` immediately and see the whole real lane — live
+// scaffold_real.go scaffolds a runnable deck (the `slides init` command): a deck a
+// user/agent can `slides serve` immediately and see the whole pipeline — live
 // GoSX islands, server-evaluated {expr}, a syntax-highlighted code block, and a
-// theme — with zero further setup. It is the real-lane counterpart to
-// scaffold.go's ScaffoldWithOptions (the FALLBACK presenter): that one writes a
-// deck of fallback components (<Step>, <Metrics>, …) for `slides dev`; this one
-// writes a deck whose pieces are exactly what serve.go renders.
+// theme — with zero further setup. It writes a deck whose pieces are exactly what
+// serve.go renders.
 //
 // What it creates under <name>/:
 //   - deck.md   — `theme:` headmatter + three slides: a `layout: title` opener
@@ -116,11 +114,9 @@ func ScaffoldRealLane(name string, opts ScaffoldRealOptions) error {
 	return nil
 }
 
-// isRealLaneTheme reports whether theme is one of the registered REAL-LANE themes
+// isRealLaneTheme reports whether theme is one of the registered themes
 // (aurora/paper/neon/swiss). It reuses the themeRegistry (themes.go) so the
 // scaffold's accepted set can never drift from what serve.go can actually render.
-// It is distinct from theme.go's isKnownTheme, which validates the FALLBACK lane's
-// themes (m31/noir/…) — the two lanes have separate theme sets.
 func isRealLaneTheme(theme string) bool {
 	_, ok := themeRegistry[theme]
 	return ok

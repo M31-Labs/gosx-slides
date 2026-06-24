@@ -8,14 +8,16 @@ import (
 	"m31labs.dev/mdpp"
 )
 
-// render_island.go is the real lane's node lowering (Phase 1, Slice 2): it turns
-// a parsed deck slide into a live gosx.Node tree. Prose nodes (headings,
-// paragraphs, text, expressions) lower to STATIC server HTML — the spec's "prose
-// lane", zero client cost — while component references render through the island
-// renderer so they hydrate into real interactive GoSX islands in the browser.
+// render_island.go is the hand-built node lowering and COMPILE-FAILURE SAFETY
+// NET: it turns a parsed deck slide into a live gosx.Node tree without the
+// source-gen + compile path. Prose nodes (headings, paragraphs, text) lower to
+// STATIC server HTML (zero client cost) while component references render through
+// the island renderer so they hydrate into real interactive GoSX islands.
 //
-// It deliberately leaves the fallback lane (render.go's renderSlide) untouched;
-// this is a parallel renderer over the mdpp AST, not a replacement.
+// The production path is the source-gen lane (render_program.go), which compiles
+// the whole deck once so inline {expr} EVALUATES. When that compile fails, slides
+// fall back to this hand-built lowering (prose + islands still render; {expr}
+// degrades to raw text) so a transient bad deck never blanks the page.
 
 // islandMounter is the minimal island-rendering surface the lowering lanes
 // need: register a compiled island program and return its server-rendered,
@@ -108,11 +110,10 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		return nil
 
 	case mdpp.NodeExpression:
-		// FALLBACK LANE ONLY: this hand-built lowering renders the expression's
-		// source as raw text. The live deck server (serve.go) renders through the
-		// Slice-4 source-gen lane (render_program.go) where {expr} actually
-		// EVALUATES; this path is reached only when that lane's compile fails, as a
-		// degrade so the page still serves.
+		// DEGRADE PATH ONLY: this hand-built lowering renders the expression's
+		// source as raw text. The production source-gen lane (render_program.go)
+		// EVALUATES {expr}; this path is reached only when that lane's compile fails,
+		// as a degrade so the page still serves.
 		return []gosx.Node{gosx.Text(n.Literal)}
 
 	default:
@@ -141,7 +142,7 @@ func lowerInline(r islandMounter, parent *mdpp.Node, components map[string]*comp
 		case mdpp.NodeText:
 			out = append(out, lowerTextLiteral(r, child.Literal, components)...)
 		case mdpp.NodeExpression:
-			// Fallback-lane raw text; the source-gen lane evaluates {expr} (see the
+			// Degrade-path raw text; the source-gen lane evaluates {expr} (see the
 			// NodeExpression case in lowerNode).
 			out = append(out, gosx.Text(child.Literal))
 		case mdpp.NodeHTMLInline, mdpp.NodeHTMLBlock:

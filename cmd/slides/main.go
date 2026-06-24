@@ -25,23 +25,9 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
-	case "new":
-		theme, rest, err := takeStringFlag(args[1:], "theme", "m31")
-		if err != nil {
-			return err
-		}
-		template, rest, err := takeStringFlag(rest, "template", "default")
-		if err != nil {
-			return err
-		}
-		if len(rest) != 1 {
-			return fmt.Errorf("usage: slides new <name> [--theme m31] [--template default|gotreesitter]")
-		}
-		return slides.ScaffoldWithOptions(rest[0], slides.ScaffoldOptions{Theme: theme, Template: template})
 	case "init":
-		// Real-lane scaffold: a deck you can `slides serve` immediately (live
-		// islands + evaluated {expr} + highlighted code + theme). Distinct from
-		// `new`, which scaffolds the fallback presenter deck.
+		// Scaffold a deck you can `slides serve` immediately (live
+		// islands + evaluated {expr} + highlighted code + theme).
 		theme, rest, err := takeStringFlag(args[1:], "theme", "aurora")
 		if err != nil {
 			return err
@@ -53,12 +39,11 @@ func run(args []string) error {
 		if err := slides.ScaffoldRealLane(name, slides.ScaffoldRealOptions{Theme: theme}); err != nil {
 			return err
 		}
-		fmt.Printf("created real-lane deck %q (theme %s)\n", name, theme)
+		fmt.Printf("created deck %q (theme %s)\n", name, theme)
 		fmt.Printf("run it:  slides serve %s\n", name)
 		return nil
 	case "check":
-		path := deckPath(args[1:])
-		summary, err := slides.Check(path)
+		summary, err := slides.Check(deckDir(args[1:]))
 		if err != nil {
 			return err
 		}
@@ -75,21 +60,9 @@ func run(args []string) error {
 			fmt.Printf("layout %s: %d\n", layout, summary.Layouts[layout])
 		}
 		return nil
-	case "fmt":
-		path := deckPath(args[1:])
-		src, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		formatted := slides.FormatSource(string(src))
-		if _, err := slides.Parse(formatted, slides.ParseOptions{SourcePath: path}); err != nil {
-			return err
-		}
-		return os.WriteFile(path, []byte(formatted), 0o644)
 	case "inspect":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
-		path := deckPath(rest)
-		deck, err := slides.ParseFile(path)
+		deck, err := slides.LoadIslandDeck(deckDir(rest))
 		if err != nil {
 			return err
 		}
@@ -110,17 +83,17 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		path := deckPath(rest)
-		deck, err := slides.ParseFile(path)
+		dir := deckDir(rest)
+		deck, err := slides.LoadIslandDeck(dir)
 		if err != nil {
 			return err
 		}
 		report := slides.Validate(deck, slides.ValidateOptions{Profile: profile})
 		if len(report.Errors) == 0 && len(report.Warnings) == 0 {
-			fmt.Printf("%s is valid (%s)\n", path, report.Profile)
+			fmt.Printf("%s is valid (%s)\n", dir, report.Profile)
 			return nil
 		}
-		fmt.Printf("%s validation profile %s:\n", path, report.Profile)
+		fmt.Printf("%s validation profile %s:\n", dir, report.Profile)
 		for _, errText := range report.Errors {
 			fmt.Printf("error: %s\n", errText)
 		}
@@ -135,48 +108,31 @@ func run(args []string) error {
 		}
 		return nil
 	case "rehearse":
-		path := deckPath(args[1:])
-		deck, err := slides.ParseFile(path)
+		deck, err := slides.LoadIslandDeck(deckDir(args[1:]))
 		if err != nil {
 			return err
 		}
 		fmt.Print(slides.RehearsalScript(deck))
 		return nil
-	case "split":
-		out, rest, err := takeStringFlag(args[1:], "out", "")
-		if err != nil {
-			return err
-		}
-		if len(rest) != 1 || out == "" {
-			return fmt.Errorf("usage: slides split <deck.md> --out <deck-dir>")
-		}
-		return slides.SplitDeck(rest[0], out)
-	case "merge":
-		out, rest, err := takeStringFlag(args[1:], "out", "")
-		if err != nil {
-			return err
-		}
-		if len(rest) != 1 || out == "" {
-			return fmt.Errorf("usage: slides merge <deck-dir> --out <deck.md>")
-		}
-		return slides.MergeDeck(rest[0], out)
 	case "components":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
-		if len(rest) != 0 {
-			return fmt.Errorf("usage: slides components [--json]")
+		deck, err := slides.LoadIslandDeck(deckDir(rest))
+		if err != nil {
+			return err
 		}
+		components := slides.DeckComponents(deck)
 		if jsonOut {
-			payload, err := json.MarshalIndent(slides.BuiltInComponents(), "", "  ")
+			payload, err := json.MarshalIndent(components, "", "  ")
 			if err != nil {
 				return err
 			}
 			fmt.Println(string(payload))
 			return nil
 		}
-		printComponents(slides.BuiltInComponents())
+		printDeckComponents(components)
 		return nil
 	case "themes":
-		// List the real-lane themes selectable via deck headmatter `theme: <name>`.
+		// List the themes selectable via deck headmatter `theme: <name>`.
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		if len(rest) != 0 {
 			return fmt.Errorf("usage: slides themes [--json]")
@@ -195,7 +151,7 @@ func run(args []string) error {
 		return nil
 	case "doctor":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
-		report, err := slides.Doctor(deckPath(rest))
+		report, err := slides.Doctor(deckDir(rest))
 		if err != nil {
 			return err
 		}
@@ -213,9 +169,9 @@ func run(args []string) error {
 		}
 		return nil
 	case "serve":
-		// Real lane: serve a deck whose slides host live GoSX islands, staging
-		// the client WASM runtime so they hydrate in the browser. Distinct from
-		// the fallback `dev`/`present`, which run the HTML presenter.
+		// Serve a deck whose slides host live GoSX islands, staging the client WASM
+		// runtime so they hydrate in the browser, with the presenter SSE endpoints
+		// mounted alongside.
 		port, rest, err := takeIntFlag(args[1:], "port", 8080)
 		if err != nil {
 			return err
@@ -223,36 +179,23 @@ func run(args []string) error {
 		// --rebuild forces a fresh GOOS=js runtime.wasm build; the wasm is
 		// existence-cached, so this is how a gosx runtime change is picked up.
 		rebuild, rest := takeBoolFlag(rest, "rebuild")
-		// --watch turns the real lane into the hot-swap dev loop: editing a
-		// component .gsx hot-swaps the live island in place (no reload, state
-		// preserved); editing deck.md full-reloads with the new content. It fronts
-		// the in-process deck server with the gosx dev proxy.
+		// --watch is the hot-swap dev loop: editing a component .gsx hot-swaps the
+		// live island in place (no reload, state preserved); editing deck.md
+		// full-reloads. It fronts the in-process deck server with the gosx dev proxy.
 		watch, rest := takeBoolFlag(rest, "watch")
 		dir := deckDir(rest)
 		if watch {
-			fmt.Printf("gosx-slides real lane (hot-swap) serving %s at http://%s\n", dir, addr(port))
+			fmt.Printf("gosx-slides (hot-swap) serving %s at http://%s\n", dir, addr(port))
 			return slides.DevDeck(dir, slides.DevOptions{Addr: addr(port), RebuildRuntime: rebuild})
 		}
-		fmt.Printf("gosx-slides real lane serving %s at http://%s\n", dir, addr(port))
+		fmt.Printf("gosx-slides serving %s at http://%s\n", dir, addr(port))
 		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), StageRuntime: true, RebuildRuntime: rebuild})
-	case "dev":
-		port, rest, err := takeIntFlag(args[1:], "port", 8080)
-		if err != nil {
-			return err
-		}
-		return slides.Serve(deckPath(rest), slides.ServerOptions{Mode: "dev", Addr: addr(port)})
-	case "present":
-		port, rest, err := takeIntFlag(args[1:], "port", 8080)
-		if err != nil {
-			return err
-		}
-		return slides.Serve(deckPath(rest), slides.ServerOptions{Mode: "present", Addr: addr(port)})
 	case "build":
 		out, rest, err := takeStringFlag(args[1:], "out", "dist")
 		if err != nil {
 			return err
 		}
-		return slides.Export(deckPath(rest), slides.ExportOptions{Format: "spa", OutDir: out})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", OutDir: out})
 	case "export":
 		format, rest, err := takeStringFlag(args[1:], "format", "spa")
 		if err != nil {
@@ -262,7 +205,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.Export(deckPath(rest), slides.ExportOptions{Format: format, OutDir: out})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out})
 	case "version":
 		fmt.Println("gosx-slides v0.1.0")
 		return nil
@@ -274,16 +217,9 @@ func run(args []string) error {
 	}
 }
 
-func deckPath(args []string) string {
-	if len(args) == 0 {
-		return "deck.md"
-	}
-	return filepath.Clean(args[0])
-}
-
-// deckDir resolves a deck DIRECTORY argument for the real lane (which reads
-// <dir>/deck.md). It accepts either a directory or a path to a deck.md and
-// returns the containing directory; with no argument it defaults to ".".
+// deckDir resolves a deck DIRECTORY argument (the server reads <dir>/deck.md). It
+// accepts either a directory or a path to a deck.md and returns the containing
+// directory; with no argument it defaults to ".".
 func deckDir(args []string) string {
 	if len(args) == 0 {
 		return "."
@@ -383,38 +319,39 @@ func addr(port int) string {
 
 func usage() {
 	fmt.Println(strings.TrimSpace(`
-slides is the gosx-slides command.
+slides is the gosx-slides command. One lane: a deck is a directory with deck.md +
+<Name>.gsx islands, compiled to live GoSX and served (or exported static).
 
 Commands:
-  new <name> [--theme m31] [--template default|gotreesitter]   (fallback-lane deck for the HTML presenter: dev/present)
-  init <name> [--theme aurora|paper|neon|swiss]                 (real-lane deck you can serve immediately: live islands + evaluated {expr} + highlighted code)
-  check [deck.md]
-  fmt [deck.md]
-  inspect [deck.md] [--json]
-  validate [deck.md] [--strict] [--profile standard|conference|demo|lecture]
-  rehearse [deck.md]
-  split <deck.md> --out <deck-dir>
-  merge <deck-dir> --out <deck.md>
-  components [--json]
-  themes [--json]                                       (real-lane themes selectable via deck headmatter "theme: <name>")
-  doctor [deck.md] [--json]
-  serve [deck-dir] [--port 8080] [--rebuild] [--watch]   (real lane: live GoSX islands, hydrated; --watch = hot-swap dev loop: .gsx hot-swaps in place, deck.md reloads; --rebuild forces a fresh runtime.wasm)
-  dev [deck.md] [--port 8080]                            (fallback HTML presenter; for the real-lane hot-swap loop use serve --watch)
-  present [deck.md] [--port 8080]
-  build [deck.md] [--out dist]
-  export [deck.md] --format spa|single|pdf|png [--out dist]
+  init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
+  serve [deck-dir] [--port 8080] [--rebuild] [--watch]   serve the deck (live islands). --watch = hot-swap dev loop
+                                                         (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
+                                                         Presenter: open with ?present or the 'p' key; phone remote at /remote
+                                                         (audience screens follow over SSE, across machines).
+  build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
+  export [deck-dir] --format spa|single [--out dist]     spa = hostable folder; single = one self-contained snapshot html
+  check [deck-dir]                                       title / slide / click / notes / layout counts
+  inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
+  validate [deck-dir] [--strict] [--profile standard|conference|demo|lecture]
+  rehearse [deck-dir]                                    speaker run sheet with per-slide notes
+  components [deck-dir] [--json]                          the deck's own .gsx islands + compile status
+  doctor [deck-dir] [--json]                             deck health + serve prerequisites
+  themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
   version
 `))
 }
 
-func printComponents(components []slides.ComponentInfo) {
-	currentPack := ""
+func printDeckComponents(components []slides.DeckComponentInfo) {
+	if len(components) == 0 {
+		fmt.Println("no island components referenced by this deck")
+		return
+	}
 	for _, component := range components {
-		if component.Pack != currentPack {
-			currentPack = component.Pack
-			fmt.Printf("%s:\n", currentPack)
+		status := "ok"
+		if !component.Compiles {
+			status = "FAILS: " + component.Error
 		}
-		fmt.Printf("  %-15s %s\n", component.Name, component.Description)
+		fmt.Printf("  %-18s %-10s %s\n", component.Name, status, component.Path)
 	}
 }
 

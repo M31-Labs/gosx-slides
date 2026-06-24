@@ -2,6 +2,10 @@ dist/
 *.test
 coverage.out
 
-# Real-lane staged client runtime (gosx-runtime.wasm, wasm_exec.js, bootstrap/patch JS)
+# Staged client runtime (gosx-runtime.wasm, wasm_exec.js, bootstrap/patch JS)
 build/
 examples/*/build/
+
+# Working notes / reports / roadmaps — these live in hyphae, not the repo.
+ROADMAP.md
+docs/

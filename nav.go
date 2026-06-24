@@ -341,9 +341,35 @@ func navScript() string {
       };
     }
   } catch (e) { channel = null; }
+
+  // --- Cross-device sync (Server-Sent Events) ------------------------------
+  // BroadcastChannel only reaches windows on the SAME machine. An EventSource to
+  // the deck server's /presenter/events carries {index, step} ACROSS machines: the
+  // presenter laptop drives audience screens and the phone /remote, all in
+  // lockstep. It applies remote state through the same applyingRemote-guarded
+  // show() the channel uses (so no echo loop), and on a static export (no server)
+  // it simply fails quietly and the local BroadcastChannel still works.
+  try {
+    if (typeof EventSource !== 'undefined') {
+      var sse = new EventSource('presenter/events');
+      sse.addEventListener('state', function (event) {
+        var data; try { data = JSON.parse(event.data); } catch (e) { return; }
+        if (!data || typeof data.index !== 'number') return;
+        var remoteStep = typeof data.step === 'number' ? data.step : 0;
+        if (data.index === index && remoteStep === step) return; // already there
+        applyingRemote = true;
+        show(data.index, remoteStep, true);
+        applyingRemote = false;
+      });
+    }
+  } catch (e) {}
+
   function broadcast() {
-    if (!channel || applyingRemote) return;
-    try { channel.postMessage({ index: index, step: step }); } catch (e) {}
+    if (applyingRemote) return;
+    if (channel) { try { channel.postMessage({ index: index, step: step }); } catch (e) {} }
+    // Publish to the server so other machines (and the phone remote) follow. Relative
+    // URL resolves against the deck page, so it works behind the --watch dev proxy.
+    try { fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: index, step: step }), keepalive: true }); } catch (e) {}
   }
 
   function initialIndex() {

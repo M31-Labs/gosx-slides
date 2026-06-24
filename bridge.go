@@ -1,26 +1,21 @@
 package slides
 
-// bridge.go is the entry point of gosx-slides' REAL rendering lane (Phase 1).
+// bridge.go is the entry point of gosx-slides' render pipeline: it loads a deck
+// directory and composes two already-shipped seams to turn a deck's inline
+// <Component/> into a genuine GoSX island program (bytecode):
 //
-// Where the fallback lane (deck.go / parse.go / render.go) turns Markdown into
-// HTML strings with zero dependencies, the real lane composes two already-shipped
-// seams to turn a deck's inline <Component/> into a genuine GoSX island program
-// (bytecode):
-//
-//   - mdpp parses the deck's Markdown and (opt-in) splits it into slides, with
-//     uppercase inline tags reinterpreted as mdpp.NodeComponent leaves.
+//   - mdpp parses the deck's Markdown and splits it into slides, with uppercase
+//     inline tags reinterpreted as mdpp.NodeComponent leaves.
 //   - gosx compiles the referenced .gsx component and lowers the island to an
 //     island/program.Program, the same wire form `gosx dev` hot-swaps.
 //
-// Slice 1 is the lowering CORE only: load a deck, find its component references,
-// and compile a referenced component to island bytecode. It deliberately does
-// NOT generate .gsx for prose/static nodes, lower props into the island, serve
-// HTTP, or hydrate in the browser — those are later slices. It also leaves the
-// fallback lane completely untouched (this file is the only consumer of the new
-// gosx/mdpp dependencies).
+// This file is the lowering CORE: load a deck, find its component references, and
+// compile a referenced component to island bytecode. Prose/static-node lowering,
+// HTTP serving, and hydration live in slidegen.go / render_program.go / serve.go.
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -116,7 +111,32 @@ func LoadIslandDeck(dir string) (*IslandDeck, error) {
 		})
 	}
 
+	warnAbsorbedSeparators(dir, doc)
+
 	return deck, nil
+}
+
+// warnAbsorbedSeparators logs when slide separators were swallowed instead of
+// splitting slides. For some multi-block slide sequences, mdpp's markdown parser
+// parses a standalone `---`/`***`/`___` as a literal paragraph rather than a
+// NodeThematicBreak, silently merging two slides into one longer slide. The deck
+// still serves, so this is easy to miss — surface it with a concrete fix. (A `---`
+// inside a code fence lives in a CodeBlock node, not a Paragraph, so it is not
+// counted: no false positives from sample code.)
+func warnAbsorbedSeparators(dir string, doc *mdpp.Document) {
+	absorbed := 0
+	for _, p := range doc.AST().Find(mdpp.NodeParagraph) {
+		switch strings.TrimSpace(p.Text()) {
+		case "---", "***", "___":
+			absorbed++
+		}
+	}
+	if absorbed > 0 {
+		log.Printf("slides: deck %q has %d slide separator(s) that did not split a slide "+
+			"(parsed as text, not a slide break) — slides were silently merged. End the slide "+
+			"above each with a trailing block (an HTML comment / <!-- speaker note --> works) to force the split.",
+			dir, absorbed)
+	}
 }
 
 // CompileComponent resolves <name>.gsx in the deck directory and compiles the
@@ -293,8 +313,8 @@ func splitPropTokens(raw string) []string {
 	}
 	var tokens []string
 	var cur strings.Builder
-	depth := 0          // brace nesting
-	var quote byte      // active quote char, 0 when not in a string
+	depth := 0     // brace nesting
+	var quote byte // active quote char, 0 when not in a string
 	flush := func() {
 		if cur.Len() > 0 {
 			tokens = append(tokens, cur.String())

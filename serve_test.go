@@ -60,6 +60,46 @@ func TestNewServerRendersIslandPage(t *testing.T) {
 	}
 }
 
+// TestNewServerDegradesOnBrokenIsland proves the real lane's safety net, the
+// behavior a live presentation depends on: a deck whose island .gsx fails to
+// compile still serves HTTP 200 with the slide prose intact. The broken
+// component poisons the generated deck program (compileDeckProgram errors), the
+// page falls back to the hand-built lane, and the component renders as an inert
+// placeholder — one bad edit must never blank the page. (The compile error is
+// now also logged; see logCompileFailures / renderPageBody.)
+func TestNewServerDegradesOnBrokenIsland(t *testing.T) {
+	deck := loadDeckFromSource(t,
+		"# Resilient\n\nThis prose must survive a broken island.\n\n<Broken/>\n",
+		map[string]string{"Broken": "package main\n\nthis is not valid go at all\n"},
+	)
+
+	// The broken island must make the whole-deck program fail to compile — that is
+	// the exact degrade trigger this test exercises (and what renderPageBody logs).
+	if _, err := compileDeckProgram(deck); err == nil {
+		t.Fatal("expected compileDeckProgram to fail on a syntactically broken island")
+	}
+
+	app, err := deck.NewServer(ServeOptions{})
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	handler := app.Build()
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200 (a broken island must not 500 the deck)", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "This prose must survive a broken island.") {
+		t.Errorf("GET / dropped the slide prose when an island failed to compile:\n%s", body)
+	}
+	// The broken component degrades to the inert placeholder rather than hydrating.
+	if !strings.Contains(body, "data-gosx-unresolved") {
+		t.Errorf("GET / expected an inert placeholder for the broken island")
+	}
+}
+
 // TestNewServerServesIslandJSON proves the compiled island program is served as
 // JSON at its mount path, and is the real Counter program (the dev-socket wire
 // form).
@@ -290,12 +330,16 @@ func TestStageRuntimeAssetsRebuild(t *testing.T) {
 		t.Fatalf("mkdir build: %v", err)
 	}
 	wasmPath := filepath.Join(buildDir, "gosx-runtime.wasm")
-	sentinel := []byte("STALE-SENTINEL-NOT-A-REAL-WASM")
+	// The sentinel must be a PLAUSIBLE cached artifact: StageRuntimeAssets treats a
+	// sub-1MiB cached file as corruption (a truncated/interrupted build) and rebuilds
+	// it, so a tiny sentinel would (correctly) not survive a cache hit. Pad it past
+	// the floor while keeping a recognizable marker to prove it was reused verbatim.
+	sentinel := append([]byte("STALE-SENTINEL-NOT-A-REAL-WASM"), make([]byte, 1<<20)...)
 	if err := os.WriteFile(wasmPath, sentinel, 0o644); err != nil {
 		t.Fatalf("write sentinel: %v", err)
 	}
 
-	// Cache hit: rebuild=false must NOT touch the existing (stale) artifact.
+	// Cache hit: rebuild=false must NOT touch the existing (stale-but-plausible) artifact.
 	if _, err := StageRuntimeAssets(deckDir, false); err != nil {
 		t.Fatalf("StageRuntimeAssets(rebuild=false): %v", err)
 	}
@@ -306,6 +350,22 @@ func TestStageRuntimeAssetsRebuild(t *testing.T) {
 	if string(got) != string(sentinel) {
 		t.Fatalf("rebuild=false replaced the cached wasm (len %d); existence-cache must reuse it", len(got))
 	}
+
+	// Corruption guard: a sub-floor cached artifact (e.g. an interrupted build that
+	// left a truncated file) must NOT be reused silently — rebuild=false rebuilds it
+	// (or errors if the GOOS=js build is unavailable), never serves the truncated bytes.
+	if err := os.WriteFile(wasmPath, []byte("truncated-wasm"), 0o644); err != nil {
+		t.Fatalf("write truncated sentinel: %v", err)
+	}
+	if _, err := StageRuntimeAssets(deckDir, false); err == nil {
+		repaired, readErr := os.ReadFile(wasmPath)
+		if readErr != nil {
+			t.Fatalf("read wasm after corruption guard: %v", readErr)
+		}
+		if len(repaired) < 1<<20 {
+			t.Fatalf("truncated cached wasm was served as-is (%d bytes); corruption guard must rebuild it", len(repaired))
+		}
+	} // else: GOOS=js build unavailable here — acceptable; the point is the truncated file was rejected, not reused.
 
 	// Forced rebuild: rebuild=true must replace the stale sentinel with a real
 	// build, even though the file already exists.

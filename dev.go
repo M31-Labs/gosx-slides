@@ -18,9 +18,8 @@ package slides
 // "reload"; the dev deck server (ServeOptions.Dev) re-loads the deck per request
 // so the reload shows the new content.
 //
-// It does not touch the fallback presenter (server.go) or the production `serve`
-// lane (serve.go's Serve): the dev deck server is the same App, only with
-// ServeOptions.Dev set and fronted by the proxy.
+// The dev deck server is the same App the production `serve` (serve.go) builds,
+// only with ServeOptions.Dev set and fronted by the proxy.
 
 import (
 	"context"

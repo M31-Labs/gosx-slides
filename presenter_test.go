@@ -17,14 +17,14 @@ func TestServeInjectsPresenterStyle(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
 	for _, want := range []string{
 		"main.deck." + presenterModeClass,          // chrome gated under the class
-		".slide-notes { display: none !important;",  // notes hidden in both views
-		".pv-current",                               // the large current preview stage
-		".pv-next",                                  // the next preview stage
-		".pv-notes",                                 // the notes panel
-		".pv-timer",                                 // the elapsed timer
-		".pv-counter",                               // the slide counter
-		"prefers-reduced-motion",                    // motion is reduced-motion-safe
-		"var(--accent",                              // theme-agnostic: reads theme tokens
+		".slide-notes { display: none !important;", // notes hidden in both views
+		".pv-current",            // the large current preview stage
+		".pv-next",               // the next preview stage
+		".pv-notes",              // the notes panel
+		".pv-timer",              // the elapsed timer
+		".pv-counter",            // the slide counter
+		"prefers-reduced-motion", // motion is reduced-motion-safe
+		"var(--accent",           // theme-agnostic: reads theme tokens
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("presenter style missing %q:\n%s", want, body)
@@ -41,16 +41,16 @@ func TestServeInjectsPresenterScript(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
 	script := extractFirstScript(t, body)
 	for _, want := range []string{
-		"BroadcastChannel",        // peer-to-peer transport
-		"gosx-slides:",            // channel keyed to the deck path
-		"postMessage",             // broadcasts the index on navigation
-		"applyingRemote",          // self-echo guard (no ping-pong loop)
-		"openPresenter",           // the p-key opens a presenter window
-		"?present",                // presenter window is the same page + ?present
-		presenterModeClass,        // adds the presenter class in present mode
-		"SlidesPresenter",         // hands off to the presenter chrome controller
-		"setInterval",             // the elapsed timer ticks
-		"onChange",                // re-renders on every change (incl. remote)
+		"BroadcastChannel", // peer-to-peer transport
+		"gosx-slides:",     // channel keyed to the deck path
+		"postMessage",      // broadcasts the index on navigation
+		"applyingRemote",   // self-echo guard (no ping-pong loop)
+		"openPresenter",    // the p-key opens a presenter window
+		"?present",         // presenter window is the same page + ?present
+		presenterModeClass, // adds the presenter class in present mode
+		"SlidesPresenter",  // hands off to the presenter chrome controller
+		"setInterval",      // the elapsed timer ticks
+		"onChange",         // re-renders on every change (incl. remote)
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("presenter script missing %q:\n%s", want, script)
@@ -221,14 +221,14 @@ func TestPresenterScriptCarriesStepCounter(t *testing.T) {
 func TestPresenterTimerPersistence(t *testing.T) {
 	script := presenterScript()
 	for _, want := range []string{
-		"localStorage",                          // persistence backend
+		"localStorage", // persistence backend
 		"gosx-slides:timer:' + location.pathname", // path-scoped key
-		"setItem",                               // saves state
-		"getItem",                               // restores state on reload
-		"removeItem",                            // Reset clears it
-		"startedAt",                             // absolute start persisted
-		"saveTimer",                             // save helper
-		"loadTimer",                             // restore helper
+		"setItem",    // saves state
+		"getItem",    // restores state on reload
+		"removeItem", // Reset clears it
+		"startedAt",  // absolute start persisted
+		"saveTimer",  // save helper
+		"loadTimer",  // restore helper
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("presenter timer persistence missing %q:\n%s", want, script)

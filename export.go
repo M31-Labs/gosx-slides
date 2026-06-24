@@ -1,244 +1,205 @@
 package slides
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
-	"net/url"
+	"net/http"
+	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
-// ExportOptions configures deck export.
+// export_island.go is the REAL-lane static exporter. It renders the deck through
+// the same gosx server.App that `serve` uses — in-process via an httptest
+// recorder, no listener — then writes a hostable static site. Islands stay live:
+// the staged runtime.wasm + island JSON are copied alongside and the absolute
+// /gosx/ asset paths are rewritten relative so hydration works from any static
+// host (or file://). This replaces the fallback render-based export.go.
+
+// ExportOptions configures a static export.
 type ExportOptions struct {
-	Format string
-	OutDir string
+	Format string // "spa" (default) or "single"
+	OutDir string // output directory (default "dist")
 }
 
-// Export writes a deck in one of the supported formats.
-func Export(deckPath string, opts ExportOptions) error {
-	if opts.Format == "" {
-		opts.Format = "spa"
+// ExportStatic renders the real-lane deck at dir to a static bundle.
+//
+//	spa    — a hostable folder: index.html + gosx/ assets (+ public/, notes.html).
+//	         Islands hydrate; the whole deck works offline from the folder.
+//	single — one self-contained deck.html: theme + slide navigation work, islands
+//	         show their server-rendered initial state (a static snapshot — the
+//	         island runtime is stripped, since a 30MB wasm cannot live in one file).
+func ExportStatic(dir string, opts ExportOptions) error {
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		return err
 	}
-	if opts.OutDir == "" {
-		opts.OutDir = "dist"
+	// StageRuntime builds/caches the wasm + bootstrap JS into <dir>/build and points
+	// the App's runtime root there; StageIslandPrograms writes each island's JSON to
+	// <dir>/build/islands so the export can copy real files (not just the in-process
+	// mounts).
+	app, err := deck.NewServer(ServeOptions{StageRuntime: true})
+	if err != nil {
+		return fmt.Errorf("build deck app: %w", err)
 	}
-	switch opts.Format {
-	case "spa":
-		return ExportSPA(deckPath, opts.OutDir)
+	if err := StageIslandPrograms(dir); err != nil {
+		return fmt.Errorf("stage island programs: %w", err)
+	}
+
+	rec := httptest.NewRecorder()
+	app.Build().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		return fmt.Errorf("render deck: server returned status %d", rec.Code)
+	}
+	doc := rec.Body.String()
+
+	out := opts.OutDir
+	if out == "" {
+		out = "dist"
+	}
+	switch strings.ToLower(strings.TrimSpace(opts.Format)) {
+	case "", "spa":
+		return exportSPA(dir, deck, doc, out)
 	case "single":
-		return ExportSingle(deckPath, opts.OutDir)
-	case "pdf":
-		return exportPDF(deckPath, opts.OutDir)
-	case "png":
-		return exportPNG(deckPath, opts.OutDir)
+		return exportSingleSnapshot(deck, doc, out)
 	default:
-		return fmt.Errorf("unsupported export format %q", opts.Format)
+		return fmt.Errorf("unknown export format %q (use spa or single)", opts.Format)
 	}
 }
 
-// ExportSingle writes one portable HTML file. Referenced local images remain external.
-func ExportSingle(deckPath, outDir string) error {
-	deck, err := ParseFile(deckPath)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(outDir, "deck.html"), []byte(RenderDeckHTML(deck, RenderOptions{Mode: "deck"})), 0o644)
+// gosxAbsRefRe matches a quoted absolute /gosx/ asset reference (attribute value
+// or JSON string). A leading quote can only precede /gosx/ in machine-generated
+// markup (attrs, the manifest/document-contract JSON) — never in rendered prose —
+// so rewriting these is safe.
+var gosxAbsRefRe = regexp.MustCompile(`(["'])/gosx/`)
+
+// relativizeGosxPaths rewrites absolute /gosx/... asset refs to relative gosx/...
+// so the exported page hydrates from any static host or file://, not just origin
+// root. Covers <script src>, <link href> preload hints, and the JSON bodies of
+// the gosx-manifest and gosx-document <script> blocks (runtime.path, programRef).
+func relativizeGosxPaths(doc string) string {
+	return gosxAbsRefRe.ReplaceAllString(doc, `${1}gosx/`)
 }
 
-// ExportSPA writes a self-contained static SPA plus public assets.
-func ExportSPA(deckPath, outDir string) error {
-	deck, err := ParseFile(deckPath)
-	if err != nil {
+func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
+	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(relativizeGosxPaths(doc)), 0o644); err != nil {
 		return err
 	}
-	html := RenderDeckHTML(deck, RenderOptions{Mode: "deck"})
-	if err := os.WriteFile(filepath.Join(outDir, "index.html"), []byte(html), 0o644); err != nil {
-		return err
+	// Copy the staged client runtime + island JSON into <out>/gosx, mapping the
+	// build filenames to the URL names the page references.
+	if err := copyBuildToGosx(filepath.Join(dir, "build"), filepath.Join(out, "gosx")); err != nil {
+		return fmt.Errorf("copy runtime assets: %w", err)
 	}
-	manifest, err := json.MarshalIndent(exportManifest(deck), "", "  ")
-	if err != nil {
-		return err
+	// Carry the deck's static assets (images, fonts) if any.
+	if src := filepath.Join(dir, "public"); isDir(src) {
+		if err := copyTree(src, filepath.Join(out, "public")); err != nil {
+			return fmt.Errorf("copy public: %w", err)
+		}
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "deck.json"), append(manifest, '\n'), 0o644); err != nil {
+	// A speaker-notes sidecar, derived from the real deck.
+	if err := os.WriteFile(filepath.Join(out, "notes.html"), []byte(notesHTML(deck)), 0o644); err != nil {
 		return err
-	}
-	if err := os.WriteFile(filepath.Join(outDir, "notes.html"), []byte(renderNotesHTML(deck)), 0o644); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(outDir, "handout.html"), []byte(renderHandoutHTML(deck)), 0o644); err != nil {
-		return err
-	}
-	public := filepath.Join(deckBaseDir(deckPath), "public")
-	if info, err := os.Stat(public); err == nil && info.IsDir() {
-		return copyDir(public, filepath.Join(outDir, "public"))
 	}
 	return nil
 }
 
-func exportManifest(deck *Deck) map[string]any {
-	slides := make([]map[string]any, 0, len(deck.Slides))
-	for _, slide := range deck.Slides {
-		slides = append(slides, map[string]any{
-			"index":      slide.Index,
-			"title":      slide.Title,
-			"layout":     slide.Layout,
-			"clicks":     slide.Clicks,
-			"transition": slide.Transition,
-			"hasNotes":   slide.Notes != "",
-			"sourcePath": slide.SourcePath,
-		})
-	}
-	return map[string]any{
-		"title":       deck.Title,
-		"theme":       deck.Theme,
-		"transition":  deck.Transition,
-		"sourcePath":  deck.SourcePath,
-		"sourceFiles": deck.SourceFiles,
-		"components":  BuiltInComponents(),
-		"slides":      slides,
-		"analysis":    Analyze(deck),
-	}
-}
-
-func renderNotesHTML(deck *Deck) string {
-	var buf strings.Builder
-	buf.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>")
-	buf.WriteString(html.EscapeString(deck.Title))
-	buf.WriteString(" notes</title><style>")
-	buf.WriteString(baseCSS())
-	buf.WriteString("body{overflow:auto}.notes-export{max-width:72rem;margin:0 auto;padding:var(--space-2xl)}.notes-export article{border-bottom:1px solid var(--color-line);padding:var(--space-lg) 0}</style></head><body><main class=\"notes-export\"><h1>")
-	buf.WriteString(html.EscapeString(deck.Title))
-	buf.WriteString(" speaker notes</h1>")
-	for _, slide := range deck.Slides {
-		buf.WriteString("<article><h2>")
-		buf.WriteString(fmt.Sprintf("%02d. ", slide.Index+1))
-		buf.WriteString(html.EscapeString(slide.Title))
-		buf.WriteString("</h2><p>")
-		if slide.Notes == "" {
-			buf.WriteString("<em>No notes.</em>")
-		} else {
-			buf.WriteString(strings.ReplaceAll(html.EscapeString(slide.Notes), "\n", "<br>"))
-		}
-		buf.WriteString("</p></article>")
-	}
-	buf.WriteString("</main></body></html>\n")
-	return buf.String()
-}
-
-func renderHandoutHTML(deck *Deck) string {
-	var buf strings.Builder
-	buf.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>")
-	buf.WriteString(html.EscapeString(deck.Title))
-	buf.WriteString(" handout</title><style>")
-	buf.WriteString(baseCSS())
-	buf.WriteString("body{overflow:auto}.handout{max-width:80rem;margin:0 auto;padding:var(--space-2xl)}.handout .slide{position:relative;display:grid;min-height:45rem;margin-bottom:var(--space-xl);border:1px solid var(--color-line);border-radius:var(--space-sm);overflow:hidden;page-break-inside:avoid}.handout .notes{display:block;margin:calc(-1 * var(--space-lg)) 0 var(--space-xl);padding:var(--space-lg);border:1px solid var(--color-line);border-radius:var(--space-sm);background:var(--color-surface)}.handout-title{margin-bottom:var(--space-xl)}</style></head><body class=\"theme-")
-	buf.WriteString(html.EscapeString(themeClass(deck.Theme)))
-	buf.WriteString("\"><main class=\"handout\"><h1 class=\"handout-title\">")
-	buf.WriteString(html.EscapeString(deck.Title))
-	buf.WriteString("</h1>")
-	for _, slide := range deck.Slides {
-		buf.WriteString(renderSlide(deck, slide))
-		buf.WriteString("<aside class=\"notes\"><strong>Notes</strong><p>")
-		if slide.Notes == "" {
-			buf.WriteString("<em>No notes.</em>")
-		} else {
-			buf.WriteString(strings.ReplaceAll(html.EscapeString(slide.Notes), "\n", "<br>"))
-		}
-		buf.WriteString("</p></aside>")
-	}
-	buf.WriteString("</main></body></html>\n")
-	return buf.String()
-}
-
-func exportPDF(deckPath, outDir string) error {
-	if err := ExportSPA(deckPath, outDir); err != nil {
+func exportSingleSnapshot(deck *IslandDeck, doc, out string) error {
+	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	chrome, err := findChrome()
-	if err != nil {
-		return err
-	}
-	index := fileURL(filepath.Join(outDir, "index.html"))
-	out := filepath.Join(outDir, "deck.pdf")
-	cmd := exec.Command(chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--print-to-pdf="+out, index)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("chrome pdf export failed: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return nil
+	return os.WriteFile(filepath.Join(out, "deck.html"), []byte(stripIslandRuntime(doc)), 0o644)
 }
 
-func exportPNG(deckPath, outDir string) error {
-	deck, err := ParseFile(deckPath)
-	if err != nil {
-		return err
-	}
-	if err := ExportSPA(deckPath, outDir); err != nil {
-		return err
-	}
-	chrome, err := findChrome()
-	if err != nil {
-		return err
-	}
-	index := fileURL(filepath.Join(outDir, "index.html"))
-	for _, slide := range deck.Slides {
-		out := filepath.Join(outDir, fmt.Sprintf("slide-%02d.png", slide.Index+1))
-		target := index + "?slide=" + fmt.Sprint(slide.Index+1)
-		cmd := exec.Command(chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--window-size=1600,900", "--screenshot="+out, target)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("chrome png export failed for slide %d: %w: %s", slide.Index+1, err, strings.TrimSpace(string(output)))
-		}
-	}
-	return nil
+var (
+	gosxScriptRe   = regexp.MustCompile(`(?s)<script[^>]*\ssrc=["']/gosx/[^>]*></script>`)
+	gosxLinkRe     = regexp.MustCompile(`<link[^>]*\shref=["']/gosx/[^>]*>`)
+	gosxManifestRe = regexp.MustCompile(`(?s)<script[^>]*id="gosx-manifest"[^>]*>.*?</script>`)
+	gosxDocumentRe = regexp.MustCompile(`(?s)<script[^>]*id="gosx-document"[^>]*>.*?</script>`)
+)
+
+// stripIslandRuntime removes every /gosx/ external reference and the island
+// runtime contract from the page, leaving a self-contained single HTML file. The
+// inline theme CSS and the self-contained nav/presenter scripts (no island
+// dependency) survive, so a `single` export still themes and navigates — only
+// island hydration is dropped (the wasm cannot be embedded).
+func stripIslandRuntime(doc string) string {
+	doc = gosxManifestRe.ReplaceAllString(doc, "")
+	doc = gosxDocumentRe.ReplaceAllString(doc, "")
+	doc = gosxScriptRe.ReplaceAllString(doc, "")
+	doc = gosxLinkRe.ReplaceAllString(doc, "")
+	return doc
 }
 
-func findChrome() (string, error) {
-	if custom := os.Getenv("SLIDES_CHROME"); custom != "" {
-		if _, err := os.Stat(custom); err == nil {
-			return custom, nil
-		}
-	}
-	for _, name := range []string{"chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome"} {
-		if path, err := exec.LookPath(name); err == nil {
-			return path, nil
-		}
-	}
-	return "", fmt.Errorf("pdf/png export requires Chrome or Chromium; set SLIDES_CHROME to the executable path")
-}
-
-func fileURL(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		abs = path
-	}
-	return (&url.URL{Scheme: "file", Path: abs}).String()
-}
-
-func copyDir(src, dst string) error {
-	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+// copyBuildToGosx copies the staged build/ dir to destGosx, mapping the runtime
+// wasm's build filename (gosx-runtime.wasm) to the URL name the page references
+// (runtime.wasm); every other file keeps its relative path (wasm_exec.js,
+// bootstrap*.js, patch.js, islands/<Name>.json).
+func copyBuildToGosx(buildDir, destGosx string) error {
+	return filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(buildDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "gosx-runtime.wasm" {
+			rel = "runtime.wasm"
+		}
+		return copyFile(filepath.Join(destGosx, rel), path)
+	})
+}
+
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
 		}
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
 		}
-		target := filepath.Join(dst, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, 0o644)
+		return copyFile(filepath.Join(dst, rel), path)
 	})
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// notesHTML renders a simple speaker-notes handout from the real deck: one
+// section per slide that has notes. Opaque author prose, HTML-escaped.
+func notesHTML(deck *IslandDeck) string {
+	var b strings.Builder
+	b.WriteString("<!doctype html><meta charset=utf-8><title>")
+	b.WriteString(html.EscapeString(deck.title()))
+	b.WriteString(" — notes</title>\n")
+	b.WriteString("<body style=\"font:16px/1.6 system-ui,sans-serif;max-width:48rem;margin:2rem auto;padding:0 1rem\">\n")
+	b.WriteString("<h1>")
+	b.WriteString(html.EscapeString(deck.title()))
+	b.WriteString(" — speaker notes</h1>\n")
+	for _, slide := range deck.Slides {
+		note := extractSlideNotes(slide)
+		if note == "" {
+			continue
+		}
+		b.WriteString("<section><h2>")
+		b.WriteString(html.EscapeString(fmt.Sprintf("%02d. %s", slide.Index+1, slideTitle(slide))))
+		b.WriteString("</h2><p>")
+		b.WriteString(strings.ReplaceAll(html.EscapeString(note), "\n", "<br>"))
+		b.WriteString("</p></section>\n")
+	}
+	return b.String()
 }

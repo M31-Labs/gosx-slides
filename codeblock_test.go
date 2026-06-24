@@ -258,10 +258,10 @@ func TestParseHighlightSteps(t *testing.T) {
 		{"2-3|6", []map[int]bool{{2: true, 3: true}, {6: true}}}, // ordered, NOT unioned
 		{"1-3", []map[int]bool{{1: true, 2: true, 3: true}}},     // single group = one step
 		{"1|2|3", []map[int]bool{{1: true}, {2: true}, {3: true}}},
-		{"|2|", []map[int]bool{{2: true}}},                            // empty groups dropped
+		{"|2|", []map[int]bool{{2: true}}},                             // empty groups dropped
 		{"1|all", []map[int]bool{{1: true}, {allLinesSentinel: true}}}, // all -> sentinel step
-		{"abc|2", []map[int]bool{{2: true}}},                          // garbage group dropped
-		{"0|3-1", nil},                                                // all-garbage -> nil
+		{"abc|2", []map[int]bool{{2: true}}},                           // garbage group dropped
+		{"0|3-1", nil},                                                 // all-garbage -> nil
 	}
 	for _, c := range cases {
 		got := parseHighlightSteps(c.in)
@@ -291,8 +291,8 @@ func sameStepList(a, b []map[int]bool) bool {
 func TestServeCarriesStepSpotlightCSS(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
 	for _, want := range []string{
-		"data-active-step",                 // the attr navScript sets on the active slide
-		"pre.code-block[data-steps]",       // scoped to stepped blocks
+		"data-active-step",                  // the attr navScript sets on the active slide
+		"pre.code-block[data-steps]",        // scoped to stepped blocks
 		`.ts-line.emphasis[data-step~="1"]`, // per-step re-light (word match)
 		"var(--accent",                      // theme-agnostic: inherits theme tokens
 	} {
@@ -310,12 +310,12 @@ func TestNavScriptCarriesStepModel(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
 	script := extractFirstScript(t, body)
 	for _, want := range []string{
-		"data-steps",        // sizes the per-slide step budget
-		"data-active-step",  // writes the active step on the slide
-		"stepCountFor",      // per-slide step count helper
-		"maxStep",           // step-then-slide budget check
-		"step: step",        // broadcasts the step with the index
-		"data.step",         // applies a remote step from the peer
+		"data-steps",       // sizes the per-slide step budget
+		"data-active-step", // writes the active step on the slide
+		"stepCountFor",     // per-slide step count helper
+		"maxStep",          // step-then-slide budget check
+		"step: step",       // broadcasts the step with the index
+		"data.step",        // applies a remote step from the peer
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("nav step model missing %q:\n%s", want, script)

@@ -1,28 +1,27 @@
 package slides
 
-// presenter.go is the real lane's PRESENTER VIEW layer (Phase 1). It adds a
-// second, presenter-only rendering of the SAME served page: open the deck with
-// `?present` (or `#present`, or press `p` in the audience window) and the page
-// renders presenter chrome instead of the plain deck — a large CURRENT slide
-// preview, a smaller NEXT preview, the current slide's speaker notes, an elapsed
-// timer, a slide counter, and prev/next controls.
+// presenter.go is the PRESENTER VIEW layer. It adds a second, presenter-only
+// rendering of the SAME served page: open the deck with `?present` (or `#present`,
+// or press `p` in the audience window) and the page renders presenter chrome
+// instead of the plain deck — a large CURRENT slide preview, a smaller NEXT
+// preview, the current slide's speaker notes, an elapsed timer, a slide counter,
+// and prev/next controls.
 //
 // It is layered ON TOP of nav.go's controller, not a fork of it: navScript stays
 // the single source of slide state (which slide is active, next/prev, hash sync),
-// and the presenter chrome is driven entirely from that state. The two windows
-// (audience + presenter) stay in lockstep via a BroadcastChannel keyed to the
-// deck path — any navigation in either window posts the new index and the other
-// applies it, with a self-echo guard so a remote apply never re-broadcasts. There
-// is NO server/Hub involvement: this is true to the single-served-page model
-// (the same page, rendered two ways, talking peer-to-peer in the browser).
+// and the presenter chrome is driven entirely from that state. Windows stay in
+// lockstep two ways, both feeding nav.go's show() through the same self-echo
+// guard: a BroadcastChannel for same-machine windows, and (across machines) the
+// server-backed SSE broker in present_broker.go — the presenter laptop drives
+// audience screens and the phone /remote in real time.
 //
 // Three pieces live here, all theme-agnostic (they read the active theme's
 // --bg/--surface/--accent/--fg/--line/--font-* tokens off main.deck[data-theme],
 // so the chrome looks native in every theme without knowing the palette):
 //
 //   - extractSlideNotes: pulls a slide's speaker notes out of its mdpp subtree
-//     (the same <Notes>…</Notes> / trailing <!-- … --> forms the fallback lane's
-//     extractNotes understands). serve.go renders these into hidden
+//     (a <Notes>…</Notes> block or a trailing <!-- … --> comment). serve.go
+//     renders these into hidden
 //     <aside class="slide-notes" data-notes="N"> nodes; the presenter panel shows
 //     the current slide's note, the audience CSS hides them all.
 //   - presenterStyle: the .deck-presenter chrome stylesheet (appended to navStyle
@@ -45,23 +44,21 @@ import (
 // style and the script agree.
 const presenterModeClass = "deck-presenter"
 
-// notesBlockRe / notesCommentRe mirror the fallback lane's extractNotes (parse.go)
-// so the real lane recognizes the SAME two speaker-note forms an author already
-// knows: a <Notes>…</Notes> block, or a trailing HTML comment <!-- … -->. They
-// are compiled once at package load. (?is)/(?s) let them span newlines.
+// notesBlockRe / notesCommentRe recognize the two speaker-note forms: a
+// <Notes>…</Notes> block, or a trailing HTML comment <!-- … -->. They are
+// compiled once at package load. (?is)/(?s) let them span newlines.
 var (
 	notesBlockRe   = regexp.MustCompile(`(?is)<Notes>(.*?)</Notes>`)
 	notesCommentRe = regexp.MustCompile(`(?s)<!--(.*?)-->`)
 )
 
-// extractSlideNotes returns the speaker notes for one real-lane slide, or "" when
-// it has none. It walks the slide's mdpp subtree and reads notes out of the raw
-// literals mdpp preserves verbatim: a <Notes>…</Notes> block and a trailing
-// <!-- … --> comment both arrive as a NodeHTMLBlock (or, inline, NodeHTMLInline /
-// NodeText) whose .Literal holds the source — so scanning those literals with the
-// same patterns the fallback lane's extractNotes uses recovers the notes without
-// re-parsing the deck. Multiple note fragments on one slide are joined with a
-// blank line, matching extractNotes.
+// extractSlideNotes returns the speaker notes for one slide, or "" when it has
+// none. It walks the slide's mdpp subtree and reads notes out of the raw literals
+// mdpp preserves verbatim: a <Notes>…</Notes> block and a trailing <!-- … -->
+// comment both arrive as a NodeHTMLBlock (or, inline, NodeHTMLInline / NodeText)
+// whose .Literal holds the source, so scanning those literals recovers the notes
+// without re-parsing the deck. Multiple note fragments on one slide are joined
+// with a blank line.
 //
 // This is deliberately READ-ONLY over the already-parsed tree: it does not mutate
 // the slide (the note literals stay in the subtree, but slidegen.go strips HTML
