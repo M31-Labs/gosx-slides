@@ -114,6 +114,21 @@ func TestLayoutAndPerSlideOverrides(t *testing.T) {
 	}
 }
 
+// TestDeckLineNumbersHeadmatter covers the code-block line-number opt-in.
+func TestDeckLineNumbersHeadmatter(t *testing.T) {
+	on := loadDeckFromSource(t, "---\ntitle: x\nline-numbers: true\n---\n\n# A\n", nil)
+	if !deckLineNumbers(on) {
+		t.Error("`line-numbers: true` headmatter should enable line numbers")
+	}
+	off := loadDeckFromSource(t, "# A\n\nplain\n", nil)
+	if deckLineNumbers(off) {
+		t.Error("absent line-numbers headmatter should be off")
+	}
+	if boolAttr(true) != "1" || boolAttr(false) != "0" {
+		t.Error("boolAttr should map true/false to 1/0")
+	}
+}
+
 // --- The headline Slice-4 outcome: {expr} actually EVALUATES ---
 
 // TestExprArithmeticEvaluates proves a slide's inline {2 + 3} renders the

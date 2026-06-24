@@ -277,18 +277,17 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
 
-	devAttr := "0"
-	if dev {
-		devAttr = "1"
-	}
 	return gosx.El("main",
 		gosx.Attrs(
 			gosx.Attr("class", "deck"),
 			gosx.Attr("data-theme", theme),
 			// data-dev gates the dev-only overflow badge; data-transition picks the
 			// slide enter animation (fade | none) — both read by navScript.
-			gosx.Attr("data-dev", devAttr),
+			gosx.Attr("data-dev", boolAttr(dev)),
 			gosx.Attr("data-transition", deckTransition(d)),
+			// data-line-numbers="1" (deck headmatter `line-numbers: true`) turns on
+			// the code-block line-number gutter (a CSS ::before; see baseContentStyle).
+			gosx.Attr("data-line-numbers", boolAttr(deckLineNumbers(d))),
 		),
 		gosx.Fragment(slideNodes...),
 		gosx.Fragment(noteNodes...),
@@ -306,7 +305,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+codeCopyScript()+"</script>"),
 	)
 }
 
@@ -381,6 +380,25 @@ func deckTransition(d *IslandDeck) string {
 		}
 	}
 	return "fade"
+}
+
+// deckLineNumbers reports whether the deck's `line-numbers:` headmatter opts into
+// the code-block line-number gutter (true / yes / on / 1).
+func deckLineNumbers(d *IslandDeck) bool {
+	v, _ := deckFrontmatterValues(d)["line-numbers"].(string)
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "yes", "on", "1":
+		return true
+	}
+	return false
+}
+
+// boolAttr renders a boolean as the "1"/"0" string used by the deck's data-* hooks.
+func boolAttr(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
 }
 
 // compileComponents compiles every distinct component referenced anywhere in the

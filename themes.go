@@ -131,7 +131,12 @@ main.deck figcaption { margin-top: 0.5em; font-size: 0.85em; text-align: center;
 main.deck table { border-collapse: collapse; width: 100%; margin: var(--sp-3, 1rem) 0; font-size: 0.95em; }
 main.deck th, main.deck td { border: 1px solid var(--line, rgba(128,128,128,0.3)); padding: 0.5em 0.85em; text-align: left; vertical-align: top; }
 main.deck th { background: var(--surface, rgba(128,128,128,0.12)); color: var(--accent, currentColor); font-weight: 700; }
-main.deck tr:nth-child(even) td { background: color-mix(in srgb, var(--surface, gray) 35%, transparent); }`
+main.deck tr:nth-child(even) td { background: color-mix(in srgb, var(--surface, gray) 35%, transparent); }
+main.deck pre.code-block { position: relative; }
+main.deck pre.code-block .code-copy { position: absolute; top: 0.55rem; right: 0.55rem; opacity: 0; transition: opacity 150ms; cursor: pointer; font: 600 0.7rem var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #999); background: var(--surface, rgba(128,128,128,0.2)); border: 1px solid var(--line, rgba(128,128,128,0.3)); border-radius: 6px; padding: 0.25rem 0.6rem; }
+main.deck pre.code-block:hover .code-copy, main.deck pre.code-block .code-copy:focus-visible { opacity: 0.9; }
+main.deck pre.code-block .code-copy:hover { color: var(--accent, currentColor); }
+main.deck[data-line-numbers="1"] pre.code-block .ts-line::before { content: attr(data-line); display: inline-block; width: 2.4ch; margin-right: 1.25ch; text-align: right; opacity: 0.35; -webkit-user-select: none; user-select: none; }`
 }
 
 // knownLayouts is the set of per-slide layouts every theme styles. A slide's

@@ -282,6 +282,28 @@ main.deck > .slide[` + navActiveStepAttr + `] pre.code-block[data-steps] .ts-lin
 // their islands on load — CSS visibility does not block JS — so toggling the active
 // class (or the overview grid, or moving a section into a presenter preview) only
 // changes what is shown; island state persists across navigation.
+// codeCopyScript adds a hover "copy" button to every rendered code block. The
+// code text is captured before the button is appended (so it never copies the
+// button label), and line numbers — a CSS ::before — are excluded from innerText.
+func codeCopyScript() string {
+	return `(function () {
+  var pres = document.querySelectorAll('main.deck pre.code-block');
+  for (var i = 0; i < pres.length; i++) {
+    (function (pre) {
+      var code = pre.innerText;
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'code-copy'; btn.textContent = 'copy';
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var done = function () { btn.textContent = 'copied'; setTimeout(function () { btn.textContent = 'copy'; }, 1200); };
+        try { navigator.clipboard ? navigator.clipboard.writeText(code).then(done, done) : done(); } catch (err) { done(); }
+      });
+      pre.appendChild(btn);
+    })(pres[i]);
+  }
+})();`
+}
+
 func navScript() string {
 	return `(function () {
   var deck = document.querySelector('main.deck');
