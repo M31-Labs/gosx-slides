@@ -84,15 +84,29 @@ func navStyle() string {
    presenter notes panel get their own internal scroll where they need it. */
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
 main.deck > .slide:not(.` + navActiveClass + `) { display: none !important; }
+main.deck > .slide.` + navActiveClass + ` { transform-origin: center top; }
+/* Slide ENTER transition is OPACITY-ONLY so the fit-to-viewport transform that
+   navScript applies to the active slide (auto-scale) is never fought by an
+   animated transform. Pick it via ` + "`transition:`" + ` headmatter (fade | none);
+   fade is the default. */
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes slidesDeckEnter {
-    from { opacity: 0; transform: translateY(14px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  main.deck > .slide.` + navActiveClass + ` {
-    animation: slidesDeckEnter 220ms cubic-bezier(0.25,1,0.5,1) both;
+  @keyframes slidesDeckEnter { from { opacity: 0; } to { opacity: 1; } }
+  main.deck:not([data-transition="none"]) > .slide.` + navActiveClass + ` {
+    animation: slidesDeckEnter 220ms ease both;
   }
 }
+
+/* Audience chrome: a thin themed progress bar + a slide counter. navScript builds
+   these and updates them in show(). Hidden in overview and print. */
+main.deck .deck-progress { position: fixed; left: 0; right: 0; bottom: 0; height: 3px; z-index: 40; pointer-events: none; }
+main.deck .deck-progress-fill { height: 100%; width: 0; background: var(--accent, #888); }
+@media (prefers-reduced-motion: no-preference) { main.deck .deck-progress-fill { transition: width 260ms cubic-bezier(0.25,1,0.5,1); } }
+main.deck .deck-counter { position: fixed; right: 1rem; bottom: 0.85rem; z-index: 40; font: 600 0.8rem/1 var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #888); opacity: 0.7; pointer-events: none; }
+main.deck.` + navOverviewClass + ` .deck-progress, main.deck.` + navOverviewClass + ` .deck-counter { display: none; }
+/* Dev-only overflow cue: navScript shows this when the active slide's content
+   exceeds the viewport (it is auto-scaled to fit, but the badge says "split me"). */
+main.deck .deck-overflow-badge { position: fixed; left: 1rem; bottom: 0.8rem; z-index: 41; display: none; font: 700 0.78rem/1 var(--font-mono, ui-monospace, monospace); color: #ff6b6b; background: rgba(255,107,107,0.12); border: 1px solid #ff6b6b; border-radius: 999px; padding: 0.35rem 0.7rem; }
+@media print { main.deck .deck-progress, main.deck .deck-counter, main.deck .deck-overflow-badge { display: none !important; } }
 
 /* ── Overview grid (the 'o' key) ────────────────────────────────────────────
    navScript toggles main.deck.` + navOverviewClass + ` on. While set, the
@@ -294,6 +308,40 @@ func navScript() string {
   // its code blocks (0 if none) — see stepCountFor.
   var step = 0;
   var overview = false;
+  var dev = deck.getAttribute('data-dev') === '1';
+
+  // --- Audience chrome + fit-to-viewport ----------------------------------
+  // A thin progress bar, a slide counter, and (dev only) an overflow badge are
+  // fixed to the viewport (they escape the deck's overflow:hidden). updateChrome
+  // and fitSlide run on every show() and on resize.
+  function mkChrome(cls) { var e = document.createElement('div'); e.className = cls; deck.appendChild(e); return e; }
+  var progress = mkChrome('deck-progress');
+  var progressFill = document.createElement('div'); progressFill.className = 'deck-progress-fill'; progress.appendChild(progressFill);
+  var counter = mkChrome('deck-counter');
+  var overflowBadge = mkChrome('deck-overflow-badge'); overflowBadge.textContent = '⚠ overflows — split this slide';
+
+  // fitSlide shrinks an OVERFLOWING active slide to fit the locked viewport instead
+  // of clipping it (content never disappears below the fold). It resets the slide's
+  // transform, measures, and scales down only when content exceeds the viewport.
+  // The enter animation is opacity-only, so this transform is never fought.
+  function fitSlide() {
+    var s = slides[index];
+    if (!s) return;
+    s.style.transform = 'none';
+    var avail = window.innerHeight;
+    var natural = s.scrollHeight; // forces reflow -> accurate
+    var overflows = natural > avail + 1;
+    if (overflows) s.style.transform = 'scale(' + (avail / natural).toFixed(4) + ')';
+    overflowBadge.style.display = (dev && overflows) ? 'block' : 'none';
+  }
+  function updateChrome() {
+    var pct = slides.length > 1 ? ((index + 1) / slides.length) * 100 : 100;
+    progressFill.style.width = pct.toFixed(2) + '%';
+    counter.textContent = (index + 1) + ' / ' + slides.length;
+  }
+  var fitTimer = null;
+  window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 120); });
+  window.addEventListener('load', fitSlide); // re-fit once webfonts settle
 
   // stepCountFor returns how many click steps slide i has: the MAX data-steps over
   // its code blocks (0 when the slide has no stepped code block). A slide can hold
@@ -411,6 +459,8 @@ func navScript() string {
       if (on && step > 0) slides[i].setAttribute('` + navActiveStepAttr + `', String(step));
       else slides[i].removeAttribute('` + navActiveStepAttr + `');
     }
+    if (!overview) fitSlide(); // scale the now-active slide to fit; skip in the grid
+    updateChrome();
     if (push) history.replaceState(null, '', '#' + (index + 1) + (present ? 'present' : ''));
     broadcast();
     if (index !== prevIndex || step !== prevStep || push) notifyChange();
@@ -460,6 +510,7 @@ func navScript() string {
     deck.classList.add(OVERVIEW);
     for (var i = 0; i < slides.length; i++) {
       var s = slides[i];
+      s.style.transform = ''; // drop the fit-scale; the grid uses its own zoom
       s.setAttribute('tabindex', '0');
       s.setAttribute('role', 'button');
       s.setAttribute('aria-label', 'Go to slide ' + (i + 1));
@@ -477,6 +528,7 @@ func navScript() string {
       slides[i].removeAttribute('role');
       slides[i].removeAttribute('aria-label');
     }
+    fitSlide(); // re-scale the active slide now that the grid is closed
   }
 
   function toggleOverview() { overview ? closeOverview() : openOverview(); }

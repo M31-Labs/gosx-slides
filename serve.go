@@ -157,7 +157,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		return renderDeck.renderPageBody(ctx, renderCompiled)
+		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev)
 	})
 
 	if opts.StageRuntime {
@@ -223,7 +223,7 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
 	cd, err := compileDeckProgram(d)
 	if err != nil {
@@ -271,8 +271,19 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
 
+	devAttr := "0"
+	if dev {
+		devAttr = "1"
+	}
 	return gosx.El("main",
-		gosx.Attrs(gosx.Attr("class", "deck"), gosx.Attr("data-theme", theme)),
+		gosx.Attrs(
+			gosx.Attr("class", "deck"),
+			gosx.Attr("data-theme", theme),
+			// data-dev gates the dev-only overflow badge; data-transition picks the
+			// slide enter animation (fade | none) — both read by navScript.
+			gosx.Attr("data-dev", devAttr),
+			gosx.Attr("data-transition", deckTransition(d)),
+		),
 		gosx.Fragment(slideNodes...),
 		gosx.Fragment(noteNodes...),
 		// The slide-nav controller + presenter chrome controller run at the END of
@@ -299,6 +310,18 @@ func deckTheme(d *IslandDeck) string {
 		return v
 	}
 	return ""
+}
+
+// deckTransition reads the deck's `transition:` headmatter, normalized to the
+// slide enter animation navStyle understands: "none" disables motion, anything
+// else (including absent) is the default "fade".
+func deckTransition(d *IslandDeck) string {
+	if v, ok := deckFrontmatterValues(d)["transition"].(string); ok {
+		if strings.EqualFold(strings.TrimSpace(v), "none") {
+			return "none"
+		}
+	}
+	return "fade"
 }
 
 // compileComponents compiles every distinct component referenced anywhere in the
