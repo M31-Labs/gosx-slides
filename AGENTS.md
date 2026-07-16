@@ -221,6 +221,8 @@ applies to all other slides unchanged.
   through them before advancing to the next slide). `reveal: false` opts out.
 - `header:` / `footer:` — override the deck-level layers on this slide
   (`footer: false` hides; any other value replaces).
+- `scene:` — override the deck-level scene layer on this slide (see "Scene
+  layers"; `scene: false` disables it here).
 
 ### Raw HTML (sanitized passthrough)
 
@@ -266,6 +268,35 @@ header: <span class='tag'>draft</span>
 Layer content goes through the raw-HTML sanitizer (a link or span is fine, a
 script is not). Per-slide frontmatter overrides: `footer: false` (or `none` /
 `off`) hides it on that slide; any other value replaces it there.
+
+### Scene layers (living backgrounds & illustrations)
+
+A deck — or one slide — names an island that renders FULL-BLEED BEHIND the
+content:
+
+```md
+---
+scene: parse-forest        # deck-wide: a built-in decorative preset
+---
+```
+
+````md
+```yaml
+scene: GLRForks            # this slide: an author island (GLRForks.gsx)
+```
+````
+
+- The value is a PRESET KEY (lowercase — `parse-forest` ships built in) or a
+  COMPONENT NAME (uppercase — resolved to `<Name>.gsx` like any island, so a
+  scene is a real gosx program: signal-driven SVG, animated canvas, `<Scene3D>`
+  the day the island grammar grows it). A deck file named like a preset's
+  component SHADOWS the preset (eject-and-edit).
+- `scene: false` (or `none`/`off`) opts a slide out of the deck default; any
+  other value replaces it for that slide.
+- The layer is `<div class="slide-scene" aria-hidden="true">` pinned absolute
+  inset-0 at z-index -1 inside the slide's isolated stacking context, with
+  pointer-events off. Scenes are decorative by contract: the layer is hidden
+  under `prefers-reduced-motion` and in print/PDF.
 
 ### Per-deck CSS
 

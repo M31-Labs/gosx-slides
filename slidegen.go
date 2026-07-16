@@ -90,9 +90,13 @@ func generateDeckSource(deck *IslandDeck, islandDefs map[string]islandDef) strin
 type slideLayers struct {
 	Header string
 	Footer string
+	// Scene is the deck-level scene: headmatter value (a preset key or island
+	// name) rendered full-bleed behind every slide's content; per-slide scene:
+	// frontmatter overrides or disables it (see scene.go).
+	Scene string
 }
 
-// deckSlideLayers reads the deck's header:/footer: headmatter.
+// deckSlideLayers reads the deck's header:/footer:/scene: headmatter.
 func deckSlideLayers(deck *IslandDeck) slideLayers {
 	if deck == nil {
 		return slideLayers{}
@@ -100,6 +104,7 @@ func deckSlideLayers(deck *IslandDeck) slideLayers {
 	return slideLayers{
 		Header: strings.TrimSpace(deckFrontmatterString(deck, "header")),
 		Footer: strings.TrimSpace(deckFrontmatterString(deck, "footer")),
+		Scene:  strings.TrimSpace(deckFrontmatterString(deck, "scene")),
 	}
 }
 
@@ -262,6 +267,12 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString("}")
 	}
 	b.WriteString(">")
+	// Scene layer: an island rendered full-bleed BEHIND the content (first
+	// child; baseContentStyle pins it at z-index -1 inside the slide's isolated
+	// stacking context). aria-hidden — scenes are decorative by contract.
+	if scene := slideSceneComponent(slide, layers.Scene); scene != "" {
+		b.WriteString(`<div class="slide-scene" aria-hidden="true">` + componentTagGSX(scene, "") + `</div>`)
+	}
 	if slide.Node != nil {
 		// slideReveal determines whether this slide has fragment reveal enabled.
 		// We thread a counter through the lowering so every top-level <li> in
@@ -754,6 +765,13 @@ func lowerLiteralHTML(literal string) string {
 	if literal == "" {
 		return ""
 	}
+	// Speaker notes are presenter-only by contract: a <Notes>…</Notes> block
+	// arrives as one literal (tag AND inner text), so it must be removed whole
+	// before the raw lane — otherwise the note text would render on the
+	// audience slide. (The old components-only lowering hid it by accident;
+	// the passthrough lane has to hide it on purpose.) The trailing-comment
+	// note form is covered by stripHTMLComments below.
+	literal = notesBlockRe.ReplaceAllString(literal, "")
 	literal = stripHTMLComments(literal)
 	if strings.TrimSpace(literal) == "" {
 		return ""

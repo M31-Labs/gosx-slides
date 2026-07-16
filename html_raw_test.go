@@ -134,6 +134,27 @@ func TestRawHTMLUnknownTagDroppedTextKept(t *testing.T) {
 	}
 }
 
+// TestRawHTMLNeverLeaksSpeakerNotes proves the passthrough lane strips
+// <Notes> blocks whole: the note text reaches the presenter aside but NEVER
+// the audience slide. (The old components-only lowering hid notes by
+// accident; the raw lane must hide them on purpose.)
+func TestRawHTMLNeverLeaksSpeakerNotes(t *testing.T) {
+	md := "---\ntitle: T\ntheme: aurora\n---\n\n# One\n\nvisible prose\n\n" +
+		"<Notes>\nsecret speaker guidance here\n</Notes>\n"
+	deck := loadDeckFromSource(t, md, nil)
+	html := renderSlidesHTML(t, deck)
+
+	if strings.Contains(html, "secret speaker guidance") {
+		t.Fatalf("speaker notes leaked into the audience slide:\n%s", html)
+	}
+	if !strings.Contains(html, "visible prose") {
+		t.Errorf("slide prose lost, got:\n%s", html)
+	}
+	if got := extractSlideNotes(deck.Slides[0]); !strings.Contains(got, "secret speaker guidance") {
+		t.Errorf("presenter notes extraction broken, got: %q", got)
+	}
+}
+
 // TestSanitizeDeckHTMLUnit exercises the sanitizer directly on the fragments
 // the tokenizer must get right: attribute escaping, data-/aria- passthrough,
 // void elements, unbalanced close tags, and img src schemes.

@@ -110,7 +110,7 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 			}
 			return out
 		}
-		if sanitized := sanitizeDeckHTML(stripHTMLComments(n.Literal)); strings.TrimSpace(sanitized) != "" {
+		if sanitized := sanitizeDeckHTML(stripHTMLComments(notesBlockRe.ReplaceAllString(n.Literal, ""))); strings.TrimSpace(sanitized) != "" {
 			return []gosx.Node{gosx.RawHTML(sanitized)}
 		}
 		return nil

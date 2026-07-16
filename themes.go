@@ -140,11 +140,29 @@ main.deck[data-line-numbers="1"] pre.code-block .ts-line::before { content: attr
 main.deck pre.code-block .ts-diff-add { background: rgba(80,200,120,0.14); }
 main.deck pre.code-block .ts-diff-del { background: rgba(255,107,107,0.14); }
 main.deck pre.code-block .ts-diff-meta { color: var(--accent, currentColor); opacity: 0.8; }
-main.deck > .slide { position: relative; }
+main.deck > .slide { position: relative; isolation: isolate; }
 main.deck > .slide .slide-header, main.deck > .slide .slide-footer { position: absolute; left: 1.4rem; right: 1.4rem; z-index: 5; font: 600 0.78rem/1.3 var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #888); opacity: 0.85; }
 main.deck > .slide .slide-header { top: 1.1rem; }
 main.deck > .slide .slide-footer { bottom: 1.1rem; right: 5rem; }
-@media print { main.deck > .slide .slide-header, main.deck > .slide .slide-footer { opacity: 1; } }`
+@media print { main.deck > .slide .slide-header, main.deck > .slide .slide-footer { opacity: 1; } }
+/* Scene layer: an island rendered full-bleed BEHIND the slide's content. The
+   slide isolates its stacking context (above), so z-index -1 paints the scene
+   over the slide's own background but under every in-flow child. Decorative
+   by contract: no pointer events, hidden under prefers-reduced-motion. */
+main.deck > .slide > .slide-scene { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+main.deck > .slide > .slide-scene > div { width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) { main.deck > .slide > .slide-scene { display: none; } }
+@media print { main.deck > .slide > .slide-scene { display: none; } }
+/* Preset: parse-forest — drifting branch strokes in theme colors, the parser's
+   fork forest as ambient texture. Pure compositing (transform-only keyframes). */
+main.deck .scene-parse-forest { position: absolute; inset: 0; opacity: 0.6; }
+main.deck .scene-parse-forest .spf { position: absolute; inset: -30%; }
+main.deck .scene-parse-forest .spf-1 { background: repeating-linear-gradient(112deg, transparent 0 140px, color-mix(in srgb, var(--accent, #888) 22%, transparent) 140px 142px, transparent 142px 280px); animation: spfDrift1 80s linear infinite alternate; }
+main.deck .scene-parse-forest .spf-2 { background: repeating-linear-gradient(68deg, transparent 0 190px, color-mix(in srgb, var(--fg-muted, #888) 18%, transparent) 190px 192px, transparent 192px 380px); animation: spfDrift2 110s linear infinite alternate; }
+main.deck .scene-parse-forest .spf-3 { background: repeating-linear-gradient(91deg, transparent 0 260px, color-mix(in srgb, var(--accent, #888) 12%, transparent) 260px 261px, transparent 261px 520px); animation: spfDrift3 140s linear infinite alternate; }
+@keyframes spfDrift1 { from { transform: translate3d(-2.5%, -1.5%, 0); } to { transform: translate3d(2.5%, 1.5%, 0); } }
+@keyframes spfDrift2 { from { transform: translate3d(2%, -2%, 0); } to { transform: translate3d(-2%, 2%, 0); } }
+@keyframes spfDrift3 { from { transform: translate3d(-1.5%, 2%, 0); } to { transform: translate3d(1.5%, -2%, 0); } }`
 }
 
 // knownLayouts is the set of per-slide layouts every theme styles. A slide's

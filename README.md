@@ -85,6 +85,9 @@ What you get:
   step-through list reveals.
 - **Layers.** Headmatter `header:` / `footer:` render on every slide;
   per-slide `footer: false` hides, any other value replaces.
+- **Scene layers.** `scene:` mounts an island full-bleed BEHIND a slide's
+  content — built-in decorative presets (`parse-forest`) or your own `.gsx`
+  (a live illustration with real state). Hidden under reduced-motion.
 - **Snippet imports.** A fence body of `<<< ./file.go 10-20` shows real
   source read at render time (sandboxed to the deck dir), composing with
   ` {1-3|7} ` click-step highlights.

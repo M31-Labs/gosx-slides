@@ -452,6 +452,28 @@ func (d *IslandDeck) compileComponents() (map[string]*compiledComponent, map[str
 			compiled[ref.Name] = &compiledComponent{prog: prog, json: jsonBytes}
 		}
 	}
+	// Scene islands come from frontmatter, not markdown component tags; compile
+	// them through the preset-aware path (deck file first, embedded preset
+	// second) with the same soft-degrade contract.
+	for _, name := range deckSceneComponents(d) {
+		if _, ok := compiled[name]; ok {
+			continue
+		}
+		if failures != nil {
+			if _, failed := failures[name]; failed {
+				continue
+			}
+		}
+		prog, jsonBytes, err := compileSceneComponent(d, name)
+		if err != nil {
+			if failures == nil {
+				failures = map[string]error{}
+			}
+			failures[name] = err
+			continue
+		}
+		compiled[name] = &compiledComponent{prog: prog, json: jsonBytes}
+	}
 	return compiled, failures
 }
 
@@ -599,6 +621,14 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		"bootstrap-lite.js",
 		"bootstrap-runtime.js",
 		"bootstrap-feature-islands.js",
+		// The Scene3D feature family: staged so a deck island that renders a
+		// <Scene3D> surface hydrates under `slides serve` the day the island
+		// grammar grows it (absent files are skipped below, so older gosx
+		// checkouts stage exactly what they have).
+		"bootstrap-feature-scene3d.js",
+		"bootstrap-feature-scene3d-animation.js",
+		"bootstrap-feature-scene3d-gltf.js",
+		"bootstrap-feature-scene3d-webgpu.js",
 		"patch.js",
 	} {
 		src := filepath.Join(gosxRoot, "client", "js", name)

@@ -80,6 +80,21 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 			defs[ref.Name] = def
 		}
 	}
+	// Scene islands are referenced from frontmatter, not markdown, so they
+	// never appear in slide.Components; resolve them here (deck file first,
+	// embedded preset second — see sceneIslandSource).
+	for _, name := range deckSceneComponents(deck) {
+		if _, ok := defs[name]; ok {
+			continue
+		}
+		source, err := sceneIslandSource(deck, name)
+		if err != nil || strings.TrimSpace(source) == "" {
+			continue
+		}
+		if def := parseIslandDef(source); def.body != "" {
+			defs[name] = def
+		}
+	}
 	return defs
 }
 
