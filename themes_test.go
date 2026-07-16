@@ -219,7 +219,7 @@ func TestLowerSlideLayoutClassUnknownIsDefault(t *testing.T) {
 	if got := slideLayoutClass(deck.Slides[0]); got != "layout-default" {
 		t.Errorf("slideLayoutClass(unknown) = %q, want layout-default", got)
 	}
-	src := lowerSlideToGSX(deck.Slides[0])
+	src := lowerSlideToGSX(deck.Slides[0], slideLayers{})
 	if !strings.Contains(src, `class="slide layout-default"`) {
 		t.Errorf("lowerSlideToGSX did not emit layout-default for unknown layout:\n%s", src)
 	}

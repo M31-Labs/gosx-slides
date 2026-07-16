@@ -24,6 +24,7 @@ package slides
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,15 +71,56 @@ func generateDeckSource(deck *IslandDeck, islandDefs map[string]islandDef) strin
 		b.WriteString("\n\n")
 	}
 
+	layers := deckSlideLayers(deck)
 	for _, slide := range deck.Slides {
 		b.WriteString("func ")
 		b.WriteString(slideFuncName(slide.Index))
 		b.WriteString("() Node {\n\treturn ")
-		b.WriteString(lowerSlideToGSX(slide))
+		b.WriteString(lowerSlideToGSX(slide, layers))
 		b.WriteString("\n}\n\n")
 	}
 
 	return b.String()
+}
+
+// slideLayers carries the deck-level `header:` / `footer:` headmatter values
+// rendered onto every slide (Slidev's global layers, minus the extra files):
+// small persistent chrome — event name, speaker handle, a link — that themes
+// style via .slide-header / .slide-footer. Either may be empty.
+type slideLayers struct {
+	Header string
+	Footer string
+}
+
+// deckSlideLayers reads the deck's header:/footer: headmatter.
+func deckSlideLayers(deck *IslandDeck) slideLayers {
+	if deck == nil {
+		return slideLayers{}
+	}
+	return slideLayers{
+		Header: strings.TrimSpace(deckFrontmatterString(deck, "header")),
+		Footer: strings.TrimSpace(deckFrontmatterString(deck, "footer")),
+	}
+}
+
+// resolveSlideLayer applies a slide's own frontmatter to one deck-level layer
+// value: `footer: false` (or none/off) hides it on that slide, any other
+// non-empty value replaces it, absence inherits the deck value.
+func resolveSlideLayer(slide IslandSlide, key, deckValue string) string {
+	if slide.Node == nil {
+		return deckValue
+	}
+	fm := parseFrontmatter(slide.Node.Attr("frontmatter"))
+	v, present := fm[key]
+	if !present {
+		return deckValue
+	}
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "false", "none", "off", "":
+		return ""
+	default:
+		return v
+	}
 }
 
 // islandDef is the parsed form of a component's <Name>.gsx: its import specs and
@@ -192,11 +234,24 @@ func mergeIslandDefs(defs map[string]islandDef) (imports []string, bodies []stri
 // each top-level list item (`<li>`) is tagged with a `data-fragment="K"` attribute
 // (0-based, in document order). navScript then reveals them one per step as the
 // presenter advances through the slide (see nav.go stepCountFor + show logic).
-func lowerSlideToGSX(slide IslandSlide) string {
+func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 	var b strings.Builder
 	b.WriteString(`<section class="slide `)
 	b.WriteString(slideLayoutClass(slide))
+	// Per-slide `class:` frontmatter: extra identity tokens ("dark",
+	// "centered") the deck stylesheet keys on. Class-based styling is the
+	// robust alternative to matching the serialized style attribute (which
+	// nav's fit-scaler rewrites).
+	for _, cls := range slideExtraClasses(slide) {
+		b.WriteByte(' ')
+		b.WriteString(cls)
+	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	// Per-slide `transition:` frontmatter overrides the deck-level enter
+	// animation for this one slide (fade | none; anything else stamps nothing).
+	if tr := slideTransition(slide); tr != "" {
+		fmt.Fprintf(&b, ` data-transition="%s"`, tr)
+	}
 	// Per-slide overrides: `background:` and `accent:` frontmatter set an inline
 	// style (a background and/or an --accent token override that cascades to the
 	// slide's content). Emitted as a quoted string-literal attribute expression so
@@ -217,6 +272,16 @@ func lowerSlideToGSX(slide IslandSlide) string {
 			b.WriteString(lowerNodeToGSXReveal(child, reveal, &fragIdx))
 		}
 	}
+	// Persistent layers: deck-level header:/footer: headmatter, per-slide
+	// overridable (footer: false hides; any other value replaces). Content goes
+	// through the sanitized raw-HTML lane so a layer can carry a link or a span
+	// but never a script.
+	if h := resolveSlideLayer(slide, "header", layers.Header); h != "" {
+		b.WriteString(`<div class="slide-header">` + rawHTMLCallGSX(h) + `</div>`)
+	}
+	if f := resolveSlideLayer(slide, "footer", layers.Footer); f != "" {
+		b.WriteString(`<div class="slide-footer">` + rawHTMLCallGSX(f) + `</div>`)
+	}
 	b.WriteString("</section>")
 	return b.String()
 }
@@ -232,6 +297,44 @@ func slideHasReveal(slide IslandSlide) bool {
 	v := parseFrontmatter(slide.Node.Attr("frontmatter"))["reveal"]
 	v = strings.TrimSpace(strings.ToLower(v))
 	return v == "true" || v == "list" || v == "1" || v == "yes"
+}
+
+// slideClassTokenRe is the shape a `class:` frontmatter token must have to land
+// on the slide's <section>: a plain CSS class name (leading letter or
+// underscore, then word characters and dashes). Anything else is dropped —
+// injection is impossible regardless (the attribute is emitted as a quoted
+// string), this just keeps the class list sane.
+var slideClassTokenRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
+
+// slideExtraClasses returns the well-formed tokens of the slide's `class:`
+// frontmatter, in authored order (empty when absent).
+func slideExtraClasses(slide IslandSlide) []string {
+	if slide.Node == nil {
+		return nil
+	}
+	raw := parseFrontmatter(slide.Node.Attr("frontmatter"))["class"]
+	var out []string
+	for _, tok := range strings.Fields(raw) {
+		if slideClassTokenRe.MatchString(tok) {
+			out = append(out, tok)
+		}
+	}
+	return out
+}
+
+// slideTransition returns the slide's `transition:` frontmatter when it names
+// a known transition (fade | none), "" otherwise. The value is stamped as
+// data-transition on the section; nav's CSS keys the per-slide enter-animation
+// override on it.
+func slideTransition(slide IslandSlide) string {
+	if slide.Node == nil {
+		return ""
+	}
+	v := strings.ToLower(strings.TrimSpace(parseFrontmatter(slide.Node.Attr("frontmatter"))["transition"]))
+	if v == "fade" || v == "none" {
+		return v
+	}
+	return ""
 }
 
 // slideOverrideStyle builds the inline style for a slide's `background:` / `accent:`
@@ -307,8 +410,9 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 	case mdpp.NodeHTMLBlock, mdpp.NodeHTMLInline:
 		// mdpp folds only INLINE uppercase tags into NodeComponent; a block-level
 		// component arrives as a raw HTML literal. Emit any component tags it
-		// holds; ordinary HTML / closing tags contribute nothing (no raw inject).
-		return lowerLiteralComponents(n.Literal)
+		// holds; ordinary HTML PASSES THROUGH sanitized (html_raw.go) so authors
+		// compose with real markup — div grids, spans, <br>, per-slide <style>.
+		return lowerLiteralHTML(n.Literal)
 
 	case mdpp.NodeHeading:
 		level := n.Level()
@@ -358,6 +462,17 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// time (a single group like `{1-3}` is one step = the old static emphasis).
 		lang := n.Attr("language")
 		highlights := n.Attr("highlights")
+		// Snippet import: a fence whose body is a `<<< ./path` directive pulls
+		// the code from a file next to the deck at render time (Slidev's own
+		// snippet syntax), so talks show real source that never drifts from the
+		// repo. Optional trailing line window: `<<< ./x.go 10-20`. Lowered to
+		// the bound File call (render_program.go) which sandboxes the path to
+		// the deck directory.
+		if path, window, ok := parseSnippetDirective(n.Literal); ok {
+			return "{" + codeNamespace + "." + codeFileFunc + "(" +
+				strconv.Quote(lang) + ", " + strconv.Quote(path) + ", " +
+				strconv.Quote(window) + ", " + strconv.Quote(highlights) + ")}"
+		}
 		return "{" + codeNamespace + "." + codeBlockFunc + "(" +
 			strconv.Quote(lang) + ", " + strconv.Quote(n.Literal) + ", " +
 			strconv.Quote(highlights) + ")}"
@@ -552,14 +667,14 @@ func lowerTextLiteralToGSX(literal string) string {
 	}
 	locs := blockComponentRe.FindAllStringSubmatchIndex(literal, -1)
 	if len(locs) == 0 {
-		return quoteTextExpr(literal)
+		return lowerProseSegment(literal)
 	}
 	var b strings.Builder
 	pos := 0
 	for _, loc := range locs {
 		start, end := loc[0], loc[1]
 		if start > pos {
-			b.WriteString(quoteTextExpr(literal[pos:start]))
+			b.WriteString(lowerProseSegment(literal[pos:start]))
 		}
 		name := literal[loc[2]:loc[3]]
 		props := ""
@@ -570,9 +685,106 @@ func lowerTextLiteralToGSX(literal string) string {
 		pos = end
 	}
 	if pos < len(literal) {
-		b.WriteString(quoteTextExpr(literal[pos:]))
+		b.WriteString(lowerProseSegment(literal[pos:]))
 	}
 	return b.String()
+}
+
+// parseSnippetDirective recognizes a fence body that is a snippet import:
+// its first non-blank line is `<<< <path>` with an optional `<lo>-<hi>` line
+// window, and nothing else follows. Returns ok == false for a normal fence.
+func parseSnippetDirective(body string) (path, window string, ok bool) {
+	trimmed := strings.TrimSpace(body)
+	if !strings.HasPrefix(trimmed, "<<<") || strings.ContainsRune(trimmed, '\n') {
+		return "", "", false
+	}
+	fields := strings.Fields(strings.TrimPrefix(trimmed, "<<<"))
+	switch len(fields) {
+	case 1:
+		return fields[0], "", true
+	case 2:
+		if _, _, rangeOK := parseLineRange(fields[1]); rangeOK {
+			return fields[0], fields[1], true
+		}
+	}
+	return "", "", false
+}
+
+// htmlTagRe matches one HTML tag-shaped run inside prose: an open, close, or
+// self-closing lowercase-led tag. mdpp hands INLINE OPEN TAGS to the lowering
+// inside NodeText literals (only the close arrives as NodeHTMLInline), so
+// prose segments must route tag-shaped runs through the sanitizing raw lane —
+// this is also CommonMark's own semantics for raw inline HTML. The leading
+// [a-z] keeps uppercase component tags (handled by blockComponentRe first)
+// and accidental `a < b` prose (no tag name) out.
+var htmlTagRe = regexp.MustCompile(`</?[a-z][a-zA-Z0-9-]*(?:\s[^<>]*)?/?>`)
+
+// lowerProseSegment lowers one non-component prose run: HTML tag-shaped
+// substrings go through the sanitized raw lane (rawHTMLCallGSX), everything
+// between stays a quoted string expression exactly as before. Prose with no
+// tags takes the single-quoted fast path.
+func lowerProseSegment(seg string) string {
+	locs := htmlTagRe.FindAllStringIndex(seg, -1)
+	if len(locs) == 0 {
+		return quoteTextExpr(seg)
+	}
+	var b strings.Builder
+	pos := 0
+	for _, loc := range locs {
+		if loc[0] > pos {
+			b.WriteString(quoteTextExpr(seg[pos:loc[0]]))
+		}
+		b.WriteString(rawHTMLCallGSX(seg[loc[0]:loc[1]]))
+		pos = loc[1]
+	}
+	if pos < len(seg) {
+		b.WriteString(quoteTextExpr(seg[pos:]))
+	}
+	return b.String()
+}
+
+// lowerLiteralHTML lowers a raw HTML literal to GoSX source: component tags
+// (<Name …/>) are emitted as component tags so islands still mount, and every
+// non-component segment is emitted as a `{__slidesHTML.Raw("…")}` call so the
+// markup renders after render-time sanitization (html_raw.go). The literal is
+// carried as a quoted Go string, so no author markup can corrupt the generated
+// source. Comments are stripped first (the trailing-comment speaker-note form
+// is consumed upstream; the sanitizer would drop them anyway).
+func lowerLiteralHTML(literal string) string {
+	if literal == "" {
+		return ""
+	}
+	literal = stripHTMLComments(literal)
+	if strings.TrimSpace(literal) == "" {
+		return ""
+	}
+	locs := blockComponentRe.FindAllStringSubmatchIndex(literal, -1)
+	var b strings.Builder
+	pos := 0
+	for _, loc := range locs {
+		start, end := loc[0], loc[1]
+		if seg := literal[pos:start]; strings.TrimSpace(seg) != "" {
+			b.WriteString(rawHTMLCallGSX(seg))
+		}
+		name := literal[loc[2]:loc[3]]
+		props := ""
+		if loc[4] >= 0 {
+			props = strings.TrimSpace(literal[loc[4]:loc[5]])
+		}
+		b.WriteString(componentTagGSX(name, props))
+		pos = end
+	}
+	if seg := literal[pos:]; strings.TrimSpace(seg) != "" {
+		b.WriteString(rawHTMLCallGSX(seg))
+	}
+	return b.String()
+}
+
+// rawHTMLCallGSX emits the bound sanitizing passthrough call for one raw HTML
+// segment: `{__slidesHTML.Raw(<quoted segment>)}` (see render_program.go for
+// the binding and html_raw.go for the sanitizer).
+func rawHTMLCallGSX(seg string) string {
+	return "{" + htmlNamespace + "." + htmlRawFunc + "(" + strconv.Quote(seg) + ")}"
 }
 
 // lowerLiteralComponents emits the component tags found in a raw HTML literal

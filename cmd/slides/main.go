@@ -329,7 +329,7 @@ Commands:
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
   build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
-  export [deck-dir] --format spa|single [--out dist]     spa = hostable folder; single = one self-contained snapshot html
+  export [deck-dir] --format spa|single|pdf [--out dist] spa = hostable folder; single = one snapshot html; pdf = one-slide-per-page handout (needs chrome)
   check [deck-dir]                                       title / slide / click / notes / layout counts
   inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
   validate [deck-dir] [--strict] [--profile standard|conference|demo|lecture]

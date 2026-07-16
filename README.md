@@ -73,9 +73,23 @@ What you get:
   `title`, `quote`, `section`, `two-cols`, `full`.
 - **Images & tables.** `![alt](src)` renders (height-capped to 58 vh; local
   assets in `public/`). GFM pipe tables render with a themed header row.
-- **Per-slide overrides.** `background:` and `accent:` in a slide's
-  ` ```yaml ``` ` fence set an inline background and `--accent` token override
-  for that one slide.
+- **Raw HTML, sanitized.** `<div class="grid">`, `<br>`, styled spans, and
+  per-slide `<style>` blocks pass straight through (scripts, handlers, and
+  `javascript:` URLs never survive), so free-form composition needs no island.
+- **Per-deck CSS.** A `deck.css` next to `deck.md` (or headmatter
+  `css: a.css, b.css`) loads after the theme and wins the cascade — restyle a
+  deck without forking a theme.
+- **Per-slide overrides.** `background:`, `accent:`, `class:`, `transition:`,
+  and `reveal:` in a slide's ` ```yaml ``` ` fence: inline background,
+  `--accent` token, extra section classes, a one-slide enter transition, and
+  step-through list reveals.
+- **Layers.** Headmatter `header:` / `footer:` render on every slide;
+  per-slide `footer: false` hides, any other value replaces.
+- **Snippet imports.** A fence body of `<<< ./file.go 10-20` shows real
+  source read at render time (sandboxed to the deck dir), composing with
+  ` {1-3|7} ` click-step highlights.
+- **PDF handouts.** `slides export --format pdf` prints one slide per page
+  through a system Chrome/Chromium.
 - **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen, `o` overview
   grid, `p` presenter view; `#N` deep-links to slide N.
 - **Audience chrome.** A themed progress bar and a slide counter (`3 / 11`)
@@ -113,7 +127,7 @@ slides init <name> [--theme aurora|paper|neon|swiss]          scaffold a portabl
 slides serve [deck-dir] [--port 8080] [--rebuild] [--watch]   serve live islands + evaluated {expr}; --watch = hot-swap loop;
                                                               presenter at ?present or 'p', phone remote at /remote, audience follows over SSE
 slides build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
-slides export [deck-dir] --format spa|single [--out dist]     spa = hostable folder; single = one self-contained snapshot html
+slides export [deck-dir] --format spa|single|pdf [--out dist] spa = hostable folder; single = one snapshot html; pdf = one-slide-per-page handout
 slides check [deck-dir]                                       title / slide / click / notes / layout counts
 slides inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
 slides validate [deck-dir] [--strict] [--profile standard|conference|demo|lecture]

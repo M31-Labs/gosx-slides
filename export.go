@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,8 +21,8 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format string // "spa" (default) or "single"
-	OutDir string // output directory (default "dist")
+	Format string // "spa" (default), "single", or "pdf"
+	OutDir string // output directory (default "dist"); for pdf, may be a .pdf path
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -31,6 +32,8 @@ type ExportOptions struct {
 //	single — one self-contained deck.html: theme + slide navigation work, islands
 //	         show their server-rendered initial state (a static snapshot — the
 //	         island runtime is stripped, since a 30MB wasm cannot live in one file).
+//	pdf    — a one-slide-per-page PDF handout printed through a system
+//	         Chrome/Chromium (optional dependency; see exportPDF).
 func ExportStatic(dir string, opts ExportOptions) error {
 	deck, err := LoadIslandDeck(dir)
 	if err != nil {
@@ -69,9 +72,89 @@ func ExportStatic(dir string, opts ExportOptions) error {
 		return exportSPA(dir, deck, doc, out)
 	case "single":
 		return exportSingleSnapshot(deck, doc, out)
+	case "pdf":
+		return exportPDF(doc, out)
 	default:
-		return fmt.Errorf("unknown export format %q (use spa or single)", opts.Format)
+		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
 	}
+}
+
+// pdfChromeCandidates are the browser binaries exportPDF looks for, in order.
+// SLIDES_CHROME overrides the search entirely.
+var pdfChromeCandidates = []string{
+	"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome",
+}
+
+// pdfPageStyle sizes the printed page to one 16:9 slide with no margins; the
+// print stylesheet (nav.go) already lays slides out one per page, so each PDF
+// page is exactly one slide.
+const pdfPageStyle = `<style>@page { size: 1920px 1080px; margin: 0; }</style>`
+
+// exportPDF prints the deck to a PDF through a system Chrome/Chromium in
+// headless mode — the same single-snapshot page `--format single` writes, so
+// the PDF needs no server and no wasm. out may be a .pdf file path or a
+// directory (then <out>/deck.pdf). Chrome is an OPTIONAL dependency: when no
+// binary is found the error says exactly what to install or set.
+func exportPDF(doc, out string) error {
+	chrome := os.Getenv("SLIDES_CHROME")
+	if chrome == "" {
+		for _, candidate := range pdfChromeCandidates {
+			if found, err := exec.LookPath(candidate); err == nil {
+				chrome = found
+				break
+			}
+		}
+	}
+	if chrome == "" {
+		return fmt.Errorf("pdf export needs Chrome or Chromium on PATH (or SLIDES_CHROME=/path/to/chrome); none found")
+	}
+
+	pdfPath := out
+	if strings.EqualFold(filepath.Ext(out), ".pdf") {
+		if dir := filepath.Dir(out); dir != "." {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := os.MkdirAll(out, 0o755); err != nil {
+			return err
+		}
+		pdfPath = filepath.Join(out, "deck.pdf")
+	}
+	absPDF, err := filepath.Abs(pdfPath)
+	if err != nil {
+		return err
+	}
+
+	// Stage the printable page in a temp dir; @page sizing goes in ahead of
+	// </head> so Chrome prints one 16:9 slide per PDF page.
+	tmp, err := os.MkdirTemp("", "slides-pdf-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	page := stripIslandRuntime(doc)
+	page = strings.Replace(page, "</head>", pdfPageStyle+"</head>", 1)
+	pagePath := filepath.Join(tmp, "deck.html")
+	if err := os.WriteFile(pagePath, []byte(page), 0o644); err != nil {
+		return err
+	}
+
+	cmd := exec.Command(chrome,
+		"--headless=new", "--disable-gpu", "--no-first-run",
+		"--user-data-dir="+filepath.Join(tmp, "profile"),
+		"--no-pdf-header-footer", "--virtual-time-budget=10000",
+		"--print-to-pdf="+absPDF,
+		"file://"+pagePath,
+	)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("chrome pdf print failed: %w\n%s", err, output)
+	}
+	if info, err := os.Stat(absPDF); err != nil || info.Size() == 0 {
+		return fmt.Errorf("chrome exited cleanly but wrote no pdf at %s", absPDF)
+	}
+	return nil
 }
 
 // gosxAbsRefRe matches a quoted absolute /gosx/ asset reference (attribute value

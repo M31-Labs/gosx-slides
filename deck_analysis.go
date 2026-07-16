@@ -382,6 +382,22 @@ func Doctor(dir string) (DoctorReport, error) {
 		report.Items = append(report.Items, DoctorItem{Name: "theme", Status: "ok", Detail: themeName(theme)})
 	}
 
+	// Per-deck stylesheets: every resolved file must exist (a headmatter css:
+	// entry that is missing on disk fails loudly here — serve fails soft).
+	if files := deckCSSFiles(d); len(files) > 0 {
+		var missing []string
+		for _, name := range files {
+			if _, err := os.Stat(filepath.Join(d.Dir, filepath.FromSlash(name))); err != nil {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			report.Items = append(report.Items, DoctorItem{Name: "css", Status: "fail", Detail: "missing stylesheet(s): " + strings.Join(missing, ", ")})
+		} else {
+			report.Items = append(report.Items, DoctorItem{Name: "css", Status: "ok", Detail: strings.Join(files, ", ")})
+		}
+	}
+
 	return report, nil
 }
 

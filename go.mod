@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	golang.org/x/net v0.52.0
 	m31labs.dev/gosx v0.25.8
 	m31labs.dev/mdpp v0.4.7
 	m31labs.dev/sirena v0.0.2-internal.0.20260624175147-81500579801f
@@ -18,7 +19,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect

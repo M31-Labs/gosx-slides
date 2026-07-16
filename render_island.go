@@ -99,8 +99,9 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 
 	case mdpp.NodeHTMLBlock, mdpp.NodeHTMLInline:
 		// Block-level component tags arrive as raw HTML literals (mdpp folds only
-		// inline tags). If the literal is a component, mount the island; closing
-		// tags and ordinary HTML pass through (closing tags contribute nothing).
+		// inline tags). If the literal is a component, mount the island; ordinary
+		// HTML passes through SANITIZED (html_raw.go) so the degrade lane keeps
+		// the same authoring surface as the source-gen lane.
 		refs := scanLiteralComponents(n.Literal)
 		if len(refs) > 0 {
 			var out []gosx.Node
@@ -108,6 +109,9 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 				out = append(out, renderComponentRef(r, ref, components))
 			}
 			return out
+		}
+		if sanitized := sanitizeDeckHTML(stripHTMLComments(n.Literal)); strings.TrimSpace(sanitized) != "" {
+			return []gosx.Node{gosx.RawHTML(sanitized)}
 		}
 		return nil
 

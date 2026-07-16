@@ -263,6 +263,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
+	if custom := deckCustomCSS(d); custom != "" {
+		// The deck's own stylesheet (deck.css / style.css / headmatter css:) goes
+		// AFTER the theme so the author's rules win the cascade at equal
+		// specificity. Inlined so exports carry it and dev refreshes pick up edits.
+		ctx.AddHead(gosx.RawHTML(`<style data-deck-css="true">` + custom + `</style>`))
+	}
 	if dev {
 		// Dev-only chrome CSS, injected solely in --watch so it never reaches a
 		// production page or static export.

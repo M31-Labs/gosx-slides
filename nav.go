@@ -94,6 +94,12 @@ main.deck > .slide.` + navActiveClass + ` { transform-origin: center top; }
   main.deck:not([data-transition="none"]) > .slide.` + navActiveClass + ` {
     animation: slidesDeckEnter 220ms ease both;
   }
+  /* Per-slide overrides: a slide's own data-transition (from its transition:
+     frontmatter) beats the deck-level setting in both directions. */
+  main.deck > .slide.` + navActiveClass + `[data-transition="none"] { animation: none; }
+  main.deck[data-transition="none"] > .slide.` + navActiveClass + `[data-transition="fade"] {
+    animation: slidesDeckEnter 220ms ease both;
+  }
 }
 
 /* Audience chrome: a thin themed progress bar + a slide counter. navScript builds
@@ -112,7 +118,12 @@ main.deck .deck-overflow-badge { position: fixed; left: 1rem; bottom: 0.8rem; z-
 @media print {
   html, body { height: auto !important; overflow: visible !important; }
   main.deck { display: block !important; }
-  main.deck > .slide { display: block !important; min-height: 100vh; transform: none !important; box-shadow: none !important; break-after: page; page-break-after: always; animation: none !important; }
+  /* The second selector repeats the on-screen visibility rule's :not() shape so
+     this print unhide TIES its specificity and wins by order — a bare
+     main.deck > .slide is (0,2,1) and silently loses to the (0,3,1)
+     display:none, which used to drop every non-active layout-default slide
+     from print/PDF output. */
+  main.deck > .slide, main.deck > .slide:not(.` + navActiveClass + `) { display: block !important; min-height: 100vh; max-height: 100vh; overflow: hidden; transform: none !important; box-shadow: none !important; break-after: page; page-break-after: always; animation: none !important; }
   main.deck > .slide.layout-center, main.deck > .slide.layout-title, main.deck > .slide.layout-section, main.deck > .slide.layout-quote { display: flex !important; }
   main.deck .deck-progress, main.deck .deck-counter, main.deck .deck-overflow-badge, main.deck .code-copy, main.deck .slide-notes { display: none !important; }
 }

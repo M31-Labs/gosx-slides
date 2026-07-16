@@ -14,6 +14,8 @@ package slides
 // real.
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -109,7 +111,7 @@ func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, co
 	}
 
 	deckVals := deckFrontmatterValues(deck)
-	funcs := exprFuncs(diagramTheme)
+	funcs := exprFuncs(diagramTheme, deck.Dir)
 
 	var nodes []gosx.Node
 	for _, slide := range deck.Slides {
@@ -153,7 +155,7 @@ func titleCase(s string) string {
 	return strings.Join(words, " ")
 }
 
-func exprFuncs(diagramTheme string) map[string]any {
+func exprFuncs(diagramTheme, deckDir string) map[string]any {
 	return map[string]any{
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,
@@ -170,9 +172,12 @@ func exprFuncs(diagramTheme string) map[string]any {
 		// the renderer (kindExpr), turning the <span> tokens into visible text. See
 		// codeBlockNode for the rationale and the probe that proved RawHTML rides
 		// the eval path; the highlighter itself escapes the code text, so the output
-		// is always safe.
+		// is always safe. File backs the `<<< ./path` snippet-import fence: it reads
+		// the file at render time (sandboxed to the deck dir) and renders through
+		// the same codeBlockNode, so dev-mode refreshes always show current source.
 		codeNamespace: map[string]any{
 			codeBlockFunc: codeBlockNode,
+			codeFileFunc:  slidesCodeFile{deckDir: deckDir}.Render,
 		},
 		// diagramNS backs the generated `{__slidesDiagram.Render(src, theme, view)}`
 		// call that slidegen lowers a sirena fence to. renderSirenaDiagram calls
@@ -181,6 +186,14 @@ func exprFuncs(diagramTheme string) map[string]any {
 		// HTML-escaped. Pure server-side: no JavaScript, no CDN.
 		diagramNamespace: map[string]any{
 			diagramRenderFunc: slidesDiagram{deckTheme: diagramTheme}.Render,
+		},
+		// htmlNS backs the generated `{__slidesHTML.Raw(literal)}` call that
+		// slidegen lowers a raw HTML literal to. rawHTMLNode sanitizes the
+		// fragment (allowlist tags/attrs, no executable constructs — html_raw.go)
+		// and returns a RawHTML Node so safe author markup renders instead of
+		// being dropped.
+		htmlNamespace: map[string]any{
+			htmlRawFunc: rawHTMLNode,
 		},
 	}
 }
@@ -193,7 +206,41 @@ func exprFuncs(diagramTheme string) map[string]any {
 const (
 	codeNamespace = "__slidesCode"
 	codeBlockFunc = "Block"
+	codeFileFunc  = "File"
 )
+
+// slidesCodeFile backs `{__slidesCode.File(lang, path, window, highlights)}` —
+// the lowered form of a `<<< ./path` snippet-import fence. The path is
+// resolved INSIDE the deck directory only (same sandbox rule as deck css);
+// a missing or escaping path renders a visible placeholder block rather than
+// failing the slide.
+type slidesCodeFile struct{ deckDir string }
+
+// Render reads the snippet and renders it through codeBlockNode. window is an
+// optional inclusive 1-based "lo-hi" line slice ("" = whole file).
+func (s slidesCodeFile) Render(lang, path, window, highlights string) gosx.Node {
+	if !safeDeckRelPath(path) {
+		return codeBlockNode(lang, "// snippet blocked: "+path+" escapes the deck directory", "")
+	}
+	data, err := os.ReadFile(filepath.Join(s.deckDir, filepath.FromSlash(path)))
+	if err != nil {
+		return codeBlockNode(lang, "// snippet not found: "+path, "")
+	}
+	src := strings.TrimRight(string(data), "\n")
+	if window != "" {
+		if lo, hi, ok := parseLineRange(window); ok {
+			lines := strings.Split(src, "\n")
+			if lo > len(lines) {
+				lo = len(lines)
+			}
+			if hi > len(lines) {
+				hi = len(lines)
+			}
+			src = strings.Join(lines[lo-1:hi], "\n")
+		}
+	}
+	return codeBlockNode(lang, src, highlights)
+}
 
 // diagramNamespace / diagramRenderFunc name the bound expression function
 // slidegen emits for a sirena fence (e.g. `{__slidesDiagram.Render(src, "", "")}`).

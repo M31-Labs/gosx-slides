@@ -70,7 +70,7 @@ directly also works (the parent directory is used).
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
 | `serve [deck-dir] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
-| `export [deck-dir] --format spa\|single [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file). |
+| `export [deck-dir] --format spa\|single\|pdf [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
 | `inspect [deck-dir] [--json]` | Full authoring analysis: word count, estimated runtime, component usage, warnings. |
 | `validate [deck-dir] [--strict] [--profile standard\|conference\|demo\|lecture]` | Authoring-rule checks by profile. `--strict` exits non-zero on failure (CI gate). |
@@ -209,6 +209,81 @@ slide's `<section>`, overriding the theme for that one slide only:
 These are independent: you can set either or both. The deck headmatter theme
 applies to all other slides unchanged.
 
+**More per-slide keys:**
+
+- `class:` — extra class tokens for the slide's `<section>`
+  (`class: dark centered`), the robust way to give a slide an identity your
+  deck css keys on. Tokens must look like CSS class names; others are dropped.
+- `transition:` — override the deck-level enter transition for this slide
+  (`fade` | `none`).
+- `reveal: true` (or `list`) — top-level list items on the slide appear one
+  per `→` press (each `<li>` is tagged `data-fragment`; the nav layer steps
+  through them before advancing to the next slide). `reveal: false` opts out.
+- `header:` / `footer:` — override the deck-level layers on this slide
+  (`footer: false` hides; any other value replaces).
+
+### Raw HTML (sanitized passthrough)
+
+Ordinary HTML written in `deck.md` renders — block-level and inline — so you
+compose freely without an island or a theme fork:
+
+```md
+<div class="grid two" style="gap: 1rem">
+
+markdown still works **inside**
+
+</div>
+
+# A designed<br>line break, and a <span class="hm1">colored run</span>
+
+<style>.hm1 { color: rebeccapurple; }</style>
+```
+
+- A per-slide `<style>` block passes through raw (CSS combinators intact), so
+  one-off slide styling needs no separate file.
+- Everything is SANITIZED at render time (`html_raw.go`): allowlisted
+  elements/attributes only; `<script>`/`<iframe>`/forms are dropped with their
+  content, `on*` handlers are stripped, URL attributes are scheme-checked
+  (`javascript:` never survives; `data:` only as `data:image/*` on images).
+  `class`, `id`, `style`, `data-*`, and `aria-*` pass through everywhere.
+- Unknown tags are dropped but their TEXT is kept (drop the wrapper, keep the
+  words) — matching how browsers treat unrecognized elements.
+- `<Component/>` tags inside raw HTML still mount as islands.
+
+### Persistent layers: `header:` / `footer:`
+
+Deck-level headmatter rendered on EVERY slide as `.slide-header` /
+`.slide-footer` (absolutely positioned chrome; themes and deck css can
+restyle them):
+
+```md
+---
+footer: myconf 2026 · @me
+header: <span class='tag'>draft</span>
+---
+```
+
+Layer content goes through the raw-HTML sanitizer (a link or span is fine, a
+script is not). Per-slide frontmatter overrides: `footer: false` (or `none` /
+`off`) hides it on that slide; any other value replaces it there.
+
+### Per-deck CSS
+
+A `deck.css` (or `style.css`) next to `deck.md` is auto-discovered and inlined
+into the page AFTER the theme stylesheet, so the deck's rules win the cascade.
+Headmatter `css:` names files explicitly instead (comma-separated, relative,
+subdirectories fine; paths may not escape the deck dir):
+
+```md
+---
+css: brand.css, overrides/dark.css
+---
+```
+
+Inlined means both static export formats carry it automatically and dev-mode
+picks up edits on a browser refresh. `slides doctor` reports the resolved
+files and fails on a named-but-missing one.
+
 ### Inline expressions `{expr}`
 
 `{expr}` is evaluated **server-side** by the GoSX compiler and rendered into
@@ -322,6 +397,22 @@ Fenced code blocks render with syntax highlighting. Two additional features:
 - **Line-number gutter** — enabled deck-wide with `line-numbers: true` in the
   deck headmatter. The gutter is CSS `::before` content and is never included in
   copy-button captures.
+- **Snippet imports** — a fence whose body is `<<< ./path` reads the code from
+  a file next to the deck AT RENDER TIME, so a talk shows real source that
+  never drifts from the repo. Optional inclusive line window, and the step
+  spec composes:
+
+  ````md
+  ```go {1-3|7}
+  <<< ./internal/parser/lexer.go 40-60
+  ```
+  ````
+
+  Paths are sandboxed to the deck directory; a missing or escaping path
+  renders a visible placeholder block, never a broken slide.
+- **Diff coloring** — a ` ```diff ``` ` fence colors `+`/`-`/`@@` lines.
+- **Diagrams** — a ` ```sirena ``` ` fence renders SERVER-SIDE to inline SVG
+  (no JavaScript, no CDN); the diagram theme follows the deck theme.
 
 ### A complete minimal deck
 

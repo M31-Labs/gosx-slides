@@ -139,7 +139,12 @@ main.deck pre.code-block .code-copy:hover { color: var(--accent, currentColor); 
 main.deck[data-line-numbers="1"] pre.code-block .ts-line::before { content: attr(data-line); display: inline-block; width: 2.4ch; margin-right: 1.25ch; text-align: right; opacity: 0.35; -webkit-user-select: none; user-select: none; }
 main.deck pre.code-block .ts-diff-add { background: rgba(80,200,120,0.14); }
 main.deck pre.code-block .ts-diff-del { background: rgba(255,107,107,0.14); }
-main.deck pre.code-block .ts-diff-meta { color: var(--accent, currentColor); opacity: 0.8; }`
+main.deck pre.code-block .ts-diff-meta { color: var(--accent, currentColor); opacity: 0.8; }
+main.deck > .slide { position: relative; }
+main.deck > .slide .slide-header, main.deck > .slide .slide-footer { position: absolute; left: 1.4rem; right: 1.4rem; z-index: 5; font: 600 0.78rem/1.3 var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #888); opacity: 0.85; }
+main.deck > .slide .slide-header { top: 1.1rem; }
+main.deck > .slide .slide-footer { bottom: 1.1rem; right: 5rem; }
+@media print { main.deck > .slide .slide-header, main.deck > .slide .slide-footer { opacity: 1; } }`
 }
 
 // knownLayouts is the set of per-slide layouts every theme styles. A slide's
