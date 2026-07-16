@@ -591,12 +591,20 @@ func lowerLiteralComponents(literal string) string {
 }
 
 // quoteTextExpr turns a prose segment into a Go string-literal EXPRESSION
-// `{"…"}`. Whitespace-only segments are dropped (they carry no prose and only
-// add noise). This is the safety trick: the segment becomes opaque string data
+// `{"…"}`. This is the safety trick: the segment becomes opaque string data
 // the compiler never parses as markup, and the renderer escapes it on output.
+//
+// A whitespace-ONLY segment is collapsed to a single space rather than
+// dropped: mdpp emits the joining space between adjacent inline nodes as its
+// own text node, so dropping it fuses `**strong** *em*` into "strongem".
+// Stray spaces at block level are inert (HTML whitespace processing ignores
+// them, including between flex/grid children).
 func quoteTextExpr(seg string) string {
-	if strings.TrimSpace(seg) == "" {
+	if seg == "" {
 		return ""
+	}
+	if strings.TrimSpace(seg) == "" {
+		return `{" "}`
 	}
 	return "{" + strconv.Quote(seg) + "}"
 }
