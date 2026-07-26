@@ -1,0 +1,515 @@
+main.deck {
+  position: relative;
+  isolation: isolate;
+  background: #010106;
+  --qr-bg: #ffffff;
+  --qr-fg: #0a0812;
+}
+
+main.deck > .deck-scene3d {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden;
+}
+
+main.deck > .deck-scene3d canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+main.deck > .deck-galaxy3d {
+  display: none;
+  position: absolute !important;
+  visibility: hidden;
+  opacity: 0;
+}
+
+main.deck:has(> section.slide.final-invitation.deck-active) > .deck-galaxy3d {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  main.deck:has(> section.slide.final-invitation.deck-active) > .deck-galaxy3d::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgba(255, 176, 58, 0.1);
+    mix-blend-mode: color;
+    pointer-events: none;
+    animation: closing-galaxy-palette 60s ease-in-out infinite;
+  }
+}
+
+/* A slow, continuous drift through six muted colorways. There are no holds or
+   sudden jumps. The palette wash lives inside the Scene3D stacking context,
+   below the closing copy and QR code, so their colors remain untouched. */
+@keyframes closing-galaxy-palette {
+  0% {
+    background-color: rgba(255, 176, 58, 0.08);
+  }
+  16.667% {
+    background-color: rgba(255, 46, 139, 0.38);
+  }
+  33.333% {
+    background-color: rgba(153, 84, 255, 0.4);
+  }
+  50% {
+    background-color: rgba(34, 124, 255, 0.36);
+  }
+  66.667% {
+    background-color: rgba(26, 220, 220, 0.32);
+  }
+  83.333% {
+    background-color: rgba(51, 215, 123, 0.28);
+  }
+  100% {
+    background-color: rgba(255, 176, 58, 0.08);
+  }
+}
+
+main.deck:has(> section.slide.final-invitation.deck-active) > .starfield-surface {
+  opacity: 0;
+}
+
+main.deck > section.slide {
+  z-index: 1;
+  background: transparent !important;
+}
+
+main.deck[data-theme="aurora"] > section.slide.copy-tight {
+  padding-top: clamp(2.5rem, 4vw, 4rem);
+  padding-bottom: clamp(2.5rem, 4vw, 4rem);
+}
+
+main.deck[data-theme="aurora"] > section.slide.copy-tighter {
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+}
+
+main.deck[data-theme="aurora"] > section.slide.copy-tighter > h1 {
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-4);
+}
+
+main.deck[data-theme="aurora"] > section.slide.copy-tighter > p {
+  margin-top: var(--sp-1);
+  margin-bottom: var(--sp-1);
+}
+
+main.deck > section.slide.m31-intro {
+  padding-top: var(--sp-4);
+  padding-bottom: var(--sp-4);
+}
+
+main.deck > section.slide.gosx-inline > p:first-of-type {
+  margin-bottom: var(--sp-1);
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+main.deck > section.slide.gosx-inline {
+  padding-top: var(--sp-2);
+  padding-bottom: var(--sp-2);
+}
+
+main.deck > section.slide.gosx-inline > h1 {
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-3);
+}
+
+main.deck > section.slide.gosx-inline > pre.code-block {
+  width: min(60rem, 100%);
+  margin: 0 auto var(--sp-2);
+  padding: var(--sp-2);
+  font-size: clamp(0.76rem, 1vw, 0.92rem);
+  line-height: 1.25;
+}
+
+main.deck > section.slide.gosx-inline > p:last-of-type {
+  max-width: none;
+  margin-top: var(--sp-1);
+  font-size: var(--fs-6);
+  text-align: center;
+  font-weight: 700;
+}
+
+main.deck > section.slide .tree-legend {
+  margin: calc(-1 * var(--sp-1)) 0 var(--sp-2);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  line-height: 1.35;
+}
+
+main.deck > section.slide .tree-legend code {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+main.deck > section.slide.execution-map .execution-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0;
+}
+
+main.deck > section.slide.execution-map .execution-grid > div {
+  display: flex;
+  min-height: var(--sp-5);
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+main.deck > section.slide.execution-map .execution-grid strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.execution-map .execution-grid span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.execution-map .execution-targets {
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-5);
+  text-align: center;
+}
+
+main.deck > section.slide.execution-map .execution-targets span {
+  padding: 0 var(--sp-1);
+  color: var(--accent);
+}
+
+main.deck > section.slide.execution-map .execution-verdict {
+  margin-top: var(--sp-3);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+  font-weight: 700;
+  text-align: center;
+}
+
+main.deck > section.slide.deck-loop > h1,
+main.deck > section.slide.deck-loop > p {
+  max-width: none;
+  text-align: center;
+}
+
+main.deck > section.slide.deck-loop .deck-proof {
+  display: grid;
+  grid-template-columns: 0.78fr 1.35fr;
+  grid-template-rows: auto auto;
+  width: min(64rem, 100%);
+  margin: var(--sp-3) auto var(--sp-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source {
+  display: grid;
+  grid-row: 1 / 3;
+  align-content: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source code {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-2);
+  font-weight: 800;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline,
+main.deck > section.slide.deck-loop .deck-proof-outputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline {
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline span,
+main.deck > section.slide.deck-loop .deck-proof-outputs span {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  justify-content: center;
+  padding: var(--sp-2);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline span:not(:last-child),
+main.deck > section.slide.deck-loop .deck-proof-outputs span:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline span:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  right: -0.48rem;
+  z-index: 1;
+  padding: 0 0.15rem;
+  background: #090a12;
+  color: var(--accent);
+}
+
+main.deck > section.slide.deck-loop .deck-proof strong {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-outputs strong {
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-verdict {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 800;
+  text-align: center;
+}
+
+main.deck > section.slide.agent-contract .agent-cycle {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0;
+}
+
+main.deck > section.slide.agent-contract .agent-cycle span {
+  position: relative;
+  display: grid;
+  min-height: var(--sp-5);
+  place-items: center;
+  padding: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  text-align: center;
+}
+
+main.deck > section.slide.agent-contract .agent-cycle span:nth-child(even) {
+  transform: translateY(var(--sp-3));
+}
+
+main.deck > section.slide.agent-contract .agent-cycle span:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  left: calc(100% + var(--sp-1));
+  color: var(--accent);
+}
+
+main.deck > section.slide.agent-contract .agent-verdict {
+  margin-top: var(--sp-4);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 700;
+  text-align: center;
+}
+
+main.deck[data-theme="aurora"] > section.slide.final-invitation.deck-active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: repeat(4, auto);
+  gap: var(--sp-2) var(--sp-4);
+  align-content: center;
+  align-items: center;
+  padding-right: var(--sp-5);
+  overflow: visible;
+  text-align: left;
+}
+
+main.deck > section.slide.final-invitation > :not(.closing-galaxy) {
+  position: relative;
+  z-index: 2;
+}
+
+main.deck > section.slide.final-invitation > h1 {
+  grid-column: 1;
+  max-width: 12ch;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--fs-2);
+  text-align: left;
+}
+
+main.deck > section.slide.final-invitation > p {
+  grid-column: 1;
+  max-width: 42rem;
+  margin: 0;
+  text-align: left;
+}
+
+main.deck > section.slide.final-invitation > p:nth-of-type(1) {
+  color: var(--fg-muted);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.final-invitation > p:nth-of-type(2) {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-4);
+  font-weight: 700;
+}
+
+main.deck > section.slide.final-invitation > p:nth-of-type(3) {
+  color: var(--fg);
+  font-family: var(--font-mono);
+}
+
+main.deck > section.slide.final-invitation .closing-galaxy {
+  display: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  z-index: 0;
+  overflow: hidden;
+  transform: translateX(-50%);
+}
+
+main.deck > section.slide.final-invitation .closing-galaxy img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+}
+
+main.deck > section.slide.final-invitation .closing-galaxy-still {
+  display: none;
+}
+
+main.deck > section.slide.final-invitation .closing-contact {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: grid;
+  width: 15rem;
+  min-width: 0;
+  box-sizing: border-box;
+  gap: var(--sp-1);
+  justify-items: center;
+  padding: var(--sp-2);
+  background: var(--qr-bg);
+  border: 1px solid color-mix(in srgb, var(--qr-bg) 80%, transparent);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--qr-fg);
+  overflow: hidden;
+  text-align: center;
+}
+
+main.deck > section.slide.final-invitation .closing-contact img {
+  width: 11rem;
+  max-width: 100%;
+  max-height: none;
+  margin: 0;
+}
+
+main.deck > section.slide.final-invitation .closing-contact span {
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+  font-weight: 700;
+}
+
+main.deck > section.slide.final-invitation .closing-contact code {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  main.deck > section.slide.agent-contract .agent-cycle span {
+    transition: transform 200ms cubic-bezier(0.25, 1, 0.5, 1);
+  }
+}
+
+/* Static local fallback for print, reduced motion, and the first paint before
+   Scene3D mounts. The live canvas is opaque and covers this once ready. */
+.deck-starfield-fallback,
+main.deck::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 17% 21%, rgba(244, 251, 255, 0.42) 0 0.045rem, transparent 0.09rem),
+    radial-gradient(circle at 78% 28%, rgba(191, 219, 254, 0.34) 0 0.05rem, transparent 0.1rem),
+    radial-gradient(circle at 42% 63%, rgba(244, 251, 255, 0.32) 0 0.04rem, transparent 0.085rem),
+    radial-gradient(circle at 64% 72%, rgba(255, 255, 255, 0.28) 0 0.035rem, transparent 0.075rem),
+    linear-gradient(180deg, #080914 0%, #05050c 58%, #030309 100%);
+  background-size: 19rem 17rem, 23rem 20rem, 29rem 24rem, 37rem 31rem, 100% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.deck > .deck-scene3d { display: none !important; }
+  main.deck > section.slide.final-invitation .closing-galaxy { display: block; }
+  main.deck > section.slide.final-invitation .closing-galaxy-still { display: block; }
+}
+
+@media print {
+  main.deck > .deck-scene3d { display: none !important; }
+  main.deck::before { position: fixed; }
+  main.deck > section.slide.final-invitation .closing-galaxy { display: block; }
+  main.deck > section.slide.final-invitation .closing-galaxy-still { display: block; }
+}
