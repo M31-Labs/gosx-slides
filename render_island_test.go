@@ -259,3 +259,29 @@ func TestRenderSlideHeadingLevels(t *testing.T) {
 		t.Fatalf("want <p>body text</p> in:\n%s", html)
 	}
 }
+
+func TestFallbackPreservesMarkdownPlusPlusStructure(t *testing.T) {
+	html := renderSlideHTML(t, `# Native mdpp
+
+:::columns
+:::col "Runtime"
+Trust the tree.
+:::
+:::
+
+> [!NOTE] Witness
+> Keep the regression.
+
+Grammar
+: a maintained tree contract
+`)
+	for _, want := range []string{
+		`data-mdpp-container="columns"`, `class="mdpp-container mdpp-col"`,
+		`class="admonition admonition-note"`, "Witness",
+		"<dl>", "<dt>Grammar</dt>", "<dd>a maintained tree contract</dd>",
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("fallback mdpp lowering missing %q:\n%s", want, html)
+		}
+	}
+}

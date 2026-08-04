@@ -199,10 +199,12 @@ func collectComponentRefs(slide *mdpp.Node) []ComponentRef {
 	slide.Walk(func(n *mdpp.Node) bool {
 		switch n.Type {
 		case mdpp.NodeComponent:
-			refs = append(refs, ComponentRef{
-				Name:  n.Attr("name"),
-				Props: n.Attr("props"),
-			})
+			if name := n.Attr("name"); name != reservedNotesTag {
+				refs = append(refs, ComponentRef{
+					Name:  name,
+					Props: n.Attr("props"),
+				})
+			}
 			// Don't descend: a folded paired component's inner content is its
 			// children; any nested components there are out of Slice-2 scope and
 			// would otherwise be matched twice if they surfaced as literals.
@@ -229,6 +231,9 @@ func scanLiteralComponents(literal string) []ComponentRef {
 	literal = stripHTMLComments(literal)
 	var refs []ComponentRef
 	for _, m := range blockComponentRe.FindAllStringSubmatch(literal, -1) {
+		if m[1] == reservedNotesTag {
+			continue
+		}
 		refs = append(refs, ComponentRef{
 			Name:  m[1],
 			Props: strings.TrimSpace(m[2]),
@@ -236,6 +241,12 @@ func scanLiteralComponents(literal string) []ComponentRef {
 	}
 	return refs
 }
+
+// reservedNotesTag is the built-in speaker-notes block (<Notes>…</Notes>).
+// It is markup consumed by the presenter view (extractSlideNotes), not an
+// island reference — collecting it would make compileComponents/doctor look
+// for a Notes.gsx that rightly does not exist.
+const reservedNotesTag = "Notes"
 
 // parseProps parses a component's raw props source into a structured map for
 // lowering into the island program. Slice-2 scope: literal int, string, and

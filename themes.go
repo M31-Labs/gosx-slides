@@ -132,6 +132,17 @@ main.deck table { border-collapse: collapse; width: 100%; margin: var(--sp-3, 1r
 main.deck th, main.deck td { border: 1px solid var(--line, rgba(128,128,128,0.3)); padding: 0.5em 0.85em; text-align: left; vertical-align: top; }
 main.deck th { background: var(--surface, rgba(128,128,128,0.12)); color: var(--accent, currentColor); font-weight: 700; }
 main.deck tr:nth-child(even) td { background: color-mix(in srgb, var(--surface, gray) 35%, transparent); }
+main.deck .mdpp-container-columns { display: grid; grid-template-columns: repeat(var(--mdpp-columns, 3), minmax(0, 1fr)); gap: var(--sp-3, 1rem); width: 100%; margin: var(--sp-3, 1rem) 0; }
+main.deck .mdpp-container-columns > .mdpp-col { min-width: 0; padding: var(--sp-2, 0.75rem) 0; border-top: 2px solid var(--accent, currentColor); }
+main.deck .mdpp-col > .mdpp-container-title, main.deck .admonition-title { margin: 0 0 var(--sp-1, 0.5rem); color: var(--accent, currentColor); font: 700 0.9em/1.2 var(--font-display, inherit); }
+main.deck .mdpp-col > :last-child, main.deck .admonition > :last-child { margin-bottom: 0; }
+main.deck .admonition { margin: var(--sp-3, 1rem) 0; padding: var(--sp-2, 0.75rem) var(--sp-3, 1rem); border-left: 3px solid var(--accent, currentColor); background: color-mix(in srgb, var(--surface, gray) 55%, transparent); }
+main.deck dl { display: grid; grid-template-columns: minmax(9rem, 0.35fr) minmax(0, 1fr); gap: var(--sp-1, 0.5rem) var(--sp-3, 1rem); margin: var(--sp-3, 1rem) 0; }
+main.deck dt { color: var(--accent, currentColor); font-weight: 700; }
+main.deck dd { margin: 0; color: var(--fg-muted, currentColor); }
+main.deck .task-list-item { list-style: none; }
+main.deck .task-list-item > input { margin-right: 0.55em; accent-color: var(--accent, currentColor); }
+main.deck .footnotes { margin-top: var(--sp-3, 1rem); border-top: 1px solid var(--line, rgba(128,128,128,0.3)); color: var(--fg-muted, currentColor); font-size: 0.78em; }
 main.deck pre.code-block { position: relative; }
 main.deck pre.code-block .code-copy { position: absolute; top: 0.55rem; right: 0.55rem; opacity: 0; transition: opacity 150ms; cursor: pointer; font: 600 0.7rem var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #999); background: var(--surface, rgba(128,128,128,0.2)); border: 1px solid var(--line, rgba(128,128,128,0.3)); border-radius: 6px; padding: 0.25rem 0.6rem; }
 main.deck pre.code-block:hover .code-copy, main.deck pre.code-block .code-copy:focus-visible { opacity: 0.9; }

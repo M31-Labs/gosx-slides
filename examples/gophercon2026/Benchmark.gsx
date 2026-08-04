@@ -1,5 +1,13 @@
 package main
 
+// ⚠ STAGE HAZARD — DO NOT PRESENT WITHOUT RE-DERIVING THE NUMBERS.
+// The 5.95x / 4.41x pair below is not published in the current BENCH.md or
+// README.md (only the concept survives, CHANGELOG.md:3191). BENCH.md opens with
+// "anything not on this page is not a claim" and has already withdrawn two C
+// headlines as oracle-mismatched. Before this island goes on a slide, re-derive
+// against the frozen tag, or retarget it at a published figure — the sealed
+// equal-fixture geomean is 5.526x C (BENCH.md:201).
+//
 // Benchmark is the headline island: an interactive bar chart of the Go-vs-C
 // wall-time ratio for JavaScript parsing, before and after the GLR
 // fork-reduction work (Hyphae: concept.glr-fork-reduction, PR #90).

@@ -1,5 +1,5 @@
 ---
-title: "Pure-Go Tree-sitter"
+title: "GoTreeSitter: building an ambitious parser substrate with AI"
 theme: aurora
 aspect-ratio: 16:9
 caption-safe-bottom: 20%
@@ -8,703 +8,797 @@ offline-required: true
 scene: m31-starfield
 ---
 
-```yaml
+``` yaml
 layout: title
 class: copy-tight
 ```
 
-# Pure-Go Tree-sitter
+# GoTreeSitter
 
-Rebuilding the runtime, proving behavioral parity, and making grammars in Go.
+How we built an ambitious parser substrate with AI—and kept it honest
 
 Oscar Villavicencio · M31 Labs · GopherCon 2026
 
-<Notes>
-0:00. Most parser demonstrations begin with valid code. That is a little
-dishonest. The moment our tooling earns its keep is when the program is half
-typed, half wrong, and still moving.
-Today I want to make three claims. First, a Tree-sitter runtime can be worth
-rebuilding in pure Go even when a full parse costs more. Second, a
-reimplementation does not have to ask you to trust the reimplementer. It can
-be checked against an independent executable answer. And third, once grammar
-generation is in Go too, this stops being merely a port. It becomes a language
-toolchain that can carry existing grammars and create entirely new ones.
-This is the story of gotreesitter, grammargen, and what happened after making
-a parser became inexpensive enough to do more than once.
-</Notes>
+<!--
+[TIME 0:00–0:50]
+
+GoTreeSitter is a pure-Go Tree-sitter runtime and grammar ecosystem. It can
+detect languages, build full or incremental trees, run queries, produce
+highlights and tags, parse injections, and carry structural rewrites into the
+next parse.
+
+Every existing Go option wraps the C library through CGo. That is fine until
+you cross-compile, target WebAssembly, or want to ship one clean static binary.
+So we rebuilt the runtime in pure Go—and then had to learn how to trust it.
+
+But this talk is mostly about how we built something that large without
+confusing AI-generated progress with correctness. I will establish the product
+surface first, then spend the rest of our time on the methods that made it
+possible: decomposition, oracles, reduction, ratchets, and owned boundaries.
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime.”
+- “Programmable Grammars Are Infrastructure.”
+- “GoTreeSitter: The Product Starts One Layer Above the Parser.”
+-->
 
 ---
 
-```yaml
-class: m31-intro
+``` yaml
+class: copy-tight mdpp-four
 ```
 
-# I build tools that see structure
+# It ships the layer between parsing and product
 
-<style>
-.m31-layout { display: grid !important; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 2.2rem; align-items: center; }
-.m31-copy { display: flex; flex-direction: column; gap: 0.9rem; }
-.m31-copy p { margin: 0; }
-.m31-art { min-width: 0; }
-.m31-og { width: 100%; max-height: 44vh; object-fit: cover; border-radius: 0.75rem; box-shadow: 0 1.2rem 3rem rgba(0,0,0,0.35); }
-.m31-og-static { display: none !important; }
-@media print {
-  .m31-og-live { display: none !important; }
-  .m31-og-static { display: block !important; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .m31-og-live { display: none !important; }
-  .m31-og-static { display: block !important; }
-}
-</style>
+:::columns
+:::col "FIND"
 
-<div class="m31-layout">
-  <div class="m31-copy">
-    <p>Oscar Villavicencio · founder, <strong>M31 Labs</strong></p>
-    <p><strong>People, tools, and agents should be able to work from the same structure.</strong></p>
-    <p>M31 Labs is where I build that thesis. gotreesitter made it concrete.</p>
-  </div>
-  <div class="m31-art">
-    <img class="m31-og m31-og-live" src="/public/m31labs-og.gif" alt="Animated M31 Labs particle galaxy" />
-    <img class="m31-og m31-og-static" src="/public/m31labs-og.png" alt="M31 Labs particle galaxy" />
-  </div>
-</div>
+Detect a language; fully or incrementally parse it.
+:::
 
-<Notes>
-~0:50. I am Oscar. I founded M31 Labs to build tools that understand the
-structure of software, so people, conventional tools, and software agents can
-work from the same source of truth. That is the M31 Labs thesis. gotreesitter
-made it concrete.
-Before any tool can explain, navigate, rewrite, or reason about code, it first
-has to keep understanding that code while we are still changing it.
-</Notes>
+:::col "READ"
+
+Run queries; return tags and typed captures.
+:::
+
+:::col "PRESENT"
+
+Produce highlight ranges and injected child trees.
+:::
+
+:::col "CHANGE"
+
+Apply atomic rewrites; emit the next `InputEdit` records.
+:::
+:::
+
+> [!IMPORTANT]
+> Application-ready Go APIs: 206 embedded grammars, 119 hand-written Go scanners, 156 highlight and 69 tags query packs—not a checklist to rebuild.
+
+<!--
+[TIME 0:50–2:15]
+
+A parser that prints a tree has completed the tutorial. Applications need the
+loop around it. They start with a file, retain an edited tree, ask bounded
+structural questions, render classified ranges, parse embedded languages, and
+often change the source again.
+
+GoTreeSitter packages those transitions as one coordinate-preserving layer.
+An editor, document system, compiler, code browser, or refactoring tool can
+drop in the capabilities it needs and spend its complexity on product meaning.
+
+The registry ships 206 grammars today, and all 206 parse their smoke samples
+without errors. 119 of them need context-sensitive tokens, so 119 external
+scanners are hand-written Go. Coverage is a receipt, not a quality stamp: every
+entry carries a quality classification you can inspect before you promise a
+feature on top of it.
+
+That is the table stakes. The next slide shows how little application code is
+required to cross that boundary.
+
+[Sources]
+- “GoTreeSitter: The Product Starts One Layer Above the Parser,” capability pipeline.
+- GoTreeSitter README, detection, queries, highlighting, tags, injections, and rewriting.
+-->
 
 ---
 
-# Code does not wait until it is valid
-
-```go
-func Handle(req *http.Request) {
-    result :=
+``` yaml
+class: copy-tight query-operations mdpp-two
 ```
 
-The editor still has to know:
-
-**What is this?** · **What am I inside?** · **What belongs here?** · **What changed?**
-
-<Notes>
-~1:25. Consider this exact keystroke. A batch compiler is allowed to reject
-this program. An editor is not allowed to become useless.
-Syntax highlighting still has to color the function. Navigation still has to
-know that I am inside Handle. Completion needs to understand what may follow
-the assignment. A refactoring tool needs to avoid damaging the rest of the
-file. And after the next keystroke, the editor should not have to rediscover
-the whole program from scratch.
-Those are the conditions under which Tree-sitter becomes interesting.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# Tree-sitter keeps broken code useful
-
-Tree-sitter is a parser generator and runtime for tools that read changing code.
-
-- Concrete trees keep every source detail.
-- Recovery keeps incomplete code queryable.
-- Incremental parsing reuses what did not change.
-- Queries name the structures tools care about.
-
-**Its contract is usefulness before validity.**
-
-<Notes>
-~2:10. Tree-sitter produces a concrete syntax tree. Unlike a compiler AST,
-whose job is often to discard punctuation and normalize several forms into one
-semantic representation, this tree stays close to the source. It keeps
-punctuation, byte ranges, delimiters, and the distinctions editing tools need.
-When the input is incomplete, the parser records uncertainty instead of
-abandoning the tree. When an edit arrives, it can reuse portions of the
-previous tree. And its query system gives tools a way to say: find function
-names, imported modules, or the language embedded inside this string.
-Its most important promise is not, “This program is valid.” It is, “Here is
-the structure I can still defend.”
-</Notes>
-
----
-
-```yaml
-fallback: static
-class: copy-tight
-```
-
-# Even broken code has a useful shape
-
-The tree remains queryable while the program is incomplete. **Select a node:**
-
-<div class="tree-legend"><code>ERROR</code> = source the parser could not place · <code>MISSING</code> = expected syntax that is absent</div>
-
-<ParseTree/>
-
-<Notes>
-~3:10. Let us make that concrete.
-[Select the function declaration.] The body is incomplete, but the outer
-function_declaration still exists. It has a type, an exact byte range, and
-children we can inspect. The parser has not reduced the whole file to “syntax
-error.”
-[Select the incomplete expression and its recovery node.] Here the uncertainty
-becomes visible. An ERROR node contains source the parser could not fit into
-the expected structure. A MISSING node is different: it is a zero-width record
-that expected syntax is absent. A tool can react differently to malformed
-source and syntax that simply has not been typed yet.
-[Complete the expression, then make one small edit.] The recovery node
-disappears and a more specific expression takes its place. Incremental parsing
-combines the edit, the old tree, and the new source, reconsidering the affected
-path without treating the rest of the file as a new discovery.
-Syntax highlighting is only hello world for this tree. Navigation, indexing,
-selection, rewriting, refactoring, and language injection all depend on the
-precise observable shape of the result. That exact shape is the behavior a
-reimplementation has to preserve.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# Why rebuild a runtime that already works?
-
-- **One binary** wherever Go runs.
-- **Cross-compile normally** without target-specific C toolchains.
-- **Profile, fuzz, cover, and race-check** the parser in Go.
-- **Keep grammars in process** as Go data.
-
-The point is not to escape C. It is to remove a product boundary.
-
-<Notes>
-~5:40. CGo is not the villain in this talk. It is a perfectly sensible way to
-use Tree-sitter, and for many products it is the correct choice.
-But it creates a system boundary. Every command-line tool, server image,
-plugin host, cross-build, and WASM target inherits some combination of a C
-compiler, target libraries, ABI assumptions, and ownership rules.
-I wanted Go's ordinary build story all the way down. I wanted Go's profiler,
-fuzzer, coverage tools, and race detector to see the parser itself—not only the
-wrapper around it. And I wanted grammars to be ordinary in-process Go data.
-The goal was not ideological purity. It was to make the parser part of the Go
-program instead of a dependency sitting immediately beneath it.
-</Notes>
-
----
-
-# The cost does not disappear. It moves.
-
-Pure Go may spend more time on a full parse.
-
-CGo moves complexity to the build, ABI, ownership, and deployment boundaries.
-
-**Benchmark the product you need to ship, not only the parser call.**
-
-<Notes>
-~6:40. There is no free lunch hiding behind the word “pure.” I do not have a
-slide where every performance bar points in my direction. That would be
-marketing, not engineering.
-Some full parses cost more wall-clock time in pure Go. That is real, and it
-belongs in the decision. But CGo has a bill too. It arrives in cross-toolchains,
-deployment matrices, memory ownership, debugging boundaries, and targets where
-the foreign runtime is difficult or impossible to carry. Incremental workloads
-may also have a different shape from cold full parses.
-The useful question is not which function call wins in isolation. It is: what
-is the cost of the product workload, on every target where this product must
-run? A fast parser that cannot comfortably reach the deployment target is not
-necessarily the faster system.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# 206 grammar packages now ship like Go
-
-**One runtime · One Go API · No CGo in the product**
-
-GLR · recovery · queries · highlights · tags · injections · incremental edits
-
-```go
-lang := grammars.GoLanguage()
-tree, err := gotreesitter.NewParser(lang).Parse(source)
-```
-
-*Coverage is not the same as identical maturity.*
-
-<Notes>
-~7:35. The current result is one Go runtime serving 206 grammar packages.
-Those are not 206 handwritten parser ports. The grammar-specific portion is
-generated data, and the same runtime executes it.
-A consumer imports a package, gets a language value, and parses through one Go
-API. The runtime supports generalized parsing, recovery, queries, highlights,
-tags, injections, and incremental edits.
-That number is an ecosystem-coverage claim, not a claim that every grammar has
-identical maturity or an equally deep test corpus. Getting a grammar to load
-is not the same thing as knowing its trees are correct. That led to the harder
-question: how could I know the new runtime was producing the right answer?
-</Notes>
-
----
-
-```yaml
-layout: section
-```
-
-# The original runtime became an oracle
-
-**Same question. Independent execution. Comparable answer.**
-
-<Notes>
-~8:25. Reimplementations are often checked against a written specification. I
-had something more concrete: the original C runtime could execute the exact
-same grammar against the exact same source and answer the exact same structural
-question. That made it a behavioral oracle.
-I use the word “prove” operationally here, not in the theorem-prover sense. For
-a pinned grammar revision, a specific byte sequence, and a specific edit
-history, two separate runtime implementations must agree on the observable
-result.
-That does not prove agreement over every input anyone could construct. It gives
-us repeatable, falsifiable evidence over a growing corpus—and when the
-implementations disagree, a concrete counterexample. The C runtime is the
-compatibility target. Its most valuable property is that it can disagree with
-me.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# CGo stayed in the laboratory
-
-```text
-                same grammar · same source · same edit
-                              │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-             C Tree-sitter       Pure-Go runtime
-                    └─────────┬─────────┘
-                              ▼
-                      structural comparison
-```
-
-**Product:** pure Go · **Reference tests:** CGo, isolated in a separate module
-
-<Notes>
-~9:25. The reference tests live in a separate test module. Both runtimes
-receive the same grammar revision, the same source bytes, and—when testing
-incremental behavior—the same edit sequence. Then their answers are compared.
-The product does not call into C. The laboratory does, deliberately. The
-deployment constraint and the verification strategy do not have to be
-identical. CGo is removed from the product boundary while remaining available
-where it provides the strongest independent evidence. I did not want to throw
-away the C implementation. I wanted to quarantine it somewhere it could be
-maximally useful.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# Parity hides in the details
-
-For every node: symbol · byte range · named / missing / error · ordered children
-
-Then queries, highlights, tags, injections, and incremental results.
-
-```text
-real source → structural difference → minimal witness → permanent test
-```
-
-**A plausible tree can still be wrong. Every fixed bug leaves a witness.**
-
-<Notes>
-~10:15. A root node named program is not parity. The two implementations walk
-the tree in lockstep: symbol, byte range, named, missing, and error state, and
-the order of children. Those are byte ranges, not rune counts. A single UTF-8
-boundary mistake is a real behavioral difference. We also compare query-facing
-behavior: captures, highlights, tags, injections, and the result after
-incremental edits. When a real file exposes a difference, the first job is to
-preserve it. Then we shrink the input until the reason becomes legible. Pinned
-open-source files keep us honest on programs nobody designed to flatter the
-parser. Deliberately invalid files exercise recovery, because malformed input
-is not an edge case in an editor. Every fixed failure becomes a permanent
-witness—a small museum of parser misunderstandings we never have to
-rediscover.
-</Notes>
-
----
-
-# AI raises throughput. The reference supplies evidence.
-
-**No change supplies its own evidence.**
-
-Every human or agent change passes the same independent comparison.
-
-<Notes>
-~11:25. Once that proof loop existed, AI could safely increase the rate of
-change. It became possible to produce, inspect, and revise a large amount of
-parser code very quickly.
-But faster code production is not stronger evidence. It can also be a way to
-become wrong at impressive speed. The model is not the judge, and I am not the
-judge. A model reviewing code it helped produce is not an independent
-verification strategy. Human confidence is not one either.
-The evidence comes from outside the process that proposed the change: the
-reference runtime, the locked corpus, and the permanent witnesses. AI expands
-the search. The parity gate decides which results survive. Every change—human
-or agent—enters through exactly the same door.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# First prove it. Then measure it.
-
-**Does the structure match?**
-
-C-reference parity · focused witnesses · one grammar at a time
-
-**What does that structure cost?**
-
-full parse · single-byte incremental edit · no-edit incremental parse
-
-`GOMAXPROCS=1` · repeated samples · allocations · peak RSS (resident set size)
-
-<Notes>
-~12:15. Correctness and performance are different experiments. A benchmark of
-the wrong tree is just a fast bug.
-First, the implementation has to pass the structural gate against the C
-reference, one grammar at a time. Different languages stress different lexer
-states, conflicts, recovery paths, and parse-table shapes. Only then do we
-measure cost.
-A full parse measures the cold path. A single-byte edit measures an editor-like
-workload: update the source, edit the old tree, and parse with reuse. A no-edit
-incremental parse measures fixed orchestration cost when reuse has its greatest
-opportunity. The settings stay stable: one logical processor, repeated samples,
-allocation data, and process-level peak memory—not only the Go heap.
-This separation has paid for itself. At one point an optimization preserved
-the expected JavaScript output and turned Python into a root ERROR. A blended
-throughput number could have hidden that. The correctness gate did exactly what
-it was designed to do.
-</Notes>
-
----
-
-```yaml
-layout: section
-```
-
-# Then the parser learned to make parsers
-
-Running generated grammars was only half a toolchain.
-
-<Notes>
-~13:35. At this stage gotreesitter could execute grammar tables, but it could
-not create them. The runtime was pure Go, yet production of those tables still
-depended on an external generator.
-That was a workable bootstrap, but it left an important boundary in place. A
-runtime can consume a language. A toolchain can define one. grammargen is where
-the project crossed that line.
-</Notes>
-
----
-
-```yaml
-class: copy-tight
-```
-
-# Two roads produce one runtime grammar
-
-```text
-upstream parser.c ── ts2go ─────┐
-                                ├─ grammar blob ─ one runtime
-grammar source ──── grammargen ─┘
-```
-
-**Bootstrap road:** carry existing grammars into Go
-
-**Native road:** create grammars without a C ancestor
-
-Different producers. Same blob. Same runtime. Same parity gate.
-
-<Notes>
-~14:20. There are two roads into the same runtime representation. ts2go starts
-with an upstream generated parser.c. It extracts the grammar tables and carries
-them into Go. That brought the existing Tree-sitter ecosystem across without
-first recreating the entire generator.
-grammargen starts earlier. It consumes the grammar description and constructs
-the tables in Go. Both roads emit the same grammar blob, and the runtime does
-not need to know which producer created it.
-This gives the project a controlled migration path. A grammar can begin on the
-bootstrap road through ts2go. Its native grammargen output can then be compared
-against the reference behavior. It moves to the native road only after parity
-agrees. The old ecosystem remains available while the new toolchain proves
-itself grammar by grammar.
-</Notes>
-
----
-
-# grammargen turns syntax into tables
-
-```text
-grammar DSL · grammar.json · .grammar
-                    │
-                    ▼
-        normalize → NFA → DFA → LALR(1)
-                    │        + LR(1) splitting / GLR
-                    ▼
-              runtime grammar blob
-```
-
-**High-level syntax in. Executable parser data out.**
-
-<Notes>
-~15:25. This slide contains enough acronyms for a small compiler course, so
-here is the practical version.
-A grammar author begins with sequences, alternatives, repetition, precedence,
-associativity, and declared conflicts. Normalization removes that surface
-shorthand and converts it into smaller, explicit rules the generator can
-analyze.
-For lexing, an NFA represents the paths by which characters may form tokens. A
-DFA determinizes those possibilities into efficient transitions. For parsing,
-the generator builds states that answer: given the current state and the next
-token, should the parser shift, reduce, accept, or report a conflict?
-LALR state merging keeps the tables compact. When merging loses context that a
-grammar genuinely needs, LR(1) splitting restores more precise states. When
-ambiguity is intentional, GLR preserves multiple legal paths until there is
-enough evidence to choose.
-The compiler emits executable grammar data. At runtime there is no grammar DSL
-to interpret and no C generator to call. There is one blob and one engine that
-knows how to execute it.
-</Notes>
-
----
-
-```yaml
-class: copy-tight copy-tighter
-```
-
-# Inexpensive grammars made new languages practical
-
-M31 Labs now uses the same mechanism across several domain-specific languages (DSLs).
-
-**Authoring and interface**
-
-GoSX · GoSX Native · Markdown++ · Sirena
-
-**Policy and workflow**
-
-Arbiter · Danmuji · Horizon · blockchain-lang
-
-**Systems and compute**
-
-Selena · Eos · Fyx/Fyrox · Ferrous Wheel
-
-**Different maturity levels. One grammar mechanism.**
-
-<Notes>
-~16:50. Once grammar creation became an in-process, testable operation, M31
-Labs kept finding places to use it. Almost every one of these began the same
-way: as a language hiding inside our own tools—in strings, templates, and
-conventions—before it had a grammar. Please do not try to memorize this
-slide. The point is the spread.
-Some of these languages describe interfaces and documents. Some encode policy
-or workflow. Some explore systems and compute. They are not all equally mature,
-and this is not a claim that every name represents a finished production
-language.
-The important result is that a new language no longer has to begin with an ad
-hoc parser and a promise to build tooling later. It can begin on the same
-structural substrate: recovery, incremental parsing, queries, and a testable
-tree contract. “Inexpensive” does not mean free. It means the marginal cost is
-low enough that domain-specific syntax becomes a practical design option rather
-than a research project.
-</Notes>
-
----
-
-```yaml
-class: gosx-inline
-```
-
-# One file. One tree. Go and markup together.
-
-**`card.gsx`**
-
-```gosx
-type CardProps struct {
-    Title string
-    Saved bool
+# Start with a file; ask for the capability
+
+:::columns
+:::col "APPLICATION CODE"
+
+``` go
+entry := grammars.DetectLanguage("handler.ts")
+if entry == nil {
+    return ErrUnsupported
 }
 
-func actionLabel(saved bool) string {
-    if saved { return "Saved" }
-    return "Save"
-}
-
-func Card(props CardProps) Node {
-    return <article class="card">
-        <h2>{props.Title}</h2>
-        <button disabled={props.Saved}>
-            {actionLabel(props.Saved)}
-        </button>
-    </article>
-}
+tree, _ := gotreesitter.NewParser(
+    entry.Language(),
+).Parse(source)
 ```
+:::
 
-**The markup is not a string. The Go is not glue. One parser sees both.**
+:::col "WHAT THE ENTRY CAN CARRY"
 
-<Notes>
-~17:55. The filename matters. This is one card.gsx file. CardProps and
-actionLabel are ordinary Go declarations. The component invokes that Go
-function directly inside its markup.
-In many template systems, the host language constructs some data, a second
-parser interprets a string or template file, and tooling has to reconstruct the
-seam between them. GoSX composes the markup into the Go grammar. The markup is
-represented by real nodes, the surrounding Go is represented by real nodes,
-and one parse tree spans the boundary.
-A structural tool can understand where a Go expression enters markup instead
-of treating the transition as opaque interpolation. The component then lowers
-back into ordinary Go. This is not a separate template language wearing a
-Go-shaped API. Notice what disappears when the language boundary disappears:
-less glue, fewer coordinate systems, and fewer places where one tool's
-understanding stops exactly where another language begins.
-GoSX uses the same idea at a larger scale: syntax marks where work runs—server,
-action, island, engine, hub—so the toolchain can see deployment boundaries,
-not only expression boundaries.
-</Notes>
+Grammar
+: portable parser tables for the runtime
+
+Feature queries
+: highlights and tags when the grammar ships them
+
+Runtime facts
+: extensions, scanner support, and quality classification
+:::
+:::
+
+> [!NOTE]
+> GoTreeSitter is more than a parser—and deliberately less than a language server.
+
+<!--
+[TIME 2:15–3:35]
+
+The application begins with the file, not a hard-coded parser constructor.
+Detection returns a capability entry: the grammar plus the optional highlight
+and tags packs and runtime facts the application can inspect before promising a
+feature.
+
+The boundary is intentionally narrow. GoTreeSitter supplies syntax, exact
+ranges, and reusable structural operations. Scope, resolution, diagnostics,
+workspace meaning, and product policy still belong above it.
+
+Now that we know what consumers receive, we can talk about why building that
+surface was an ambitious systems project rather than a parser port.
+
+[Sources]
+- “GoTreeSitter: The Product Starts One Layer Above the Parser,” registry and responsibility boundaries.
+- GoTreeSitter README, `grammars.DetectLanguage` and `LangEntry`.
+-->
 
 ---
 
-```yaml
-class: deck-loop copy-tight
+``` yaml
+class: copy-tight mdpp-four
 ```
 
-# This deck is running the stack it describes
+# The bet was much larger than “rewrite C in Go”
 
-<div class="deck-proof">
-  <div class="deck-proof-source">
-    <span>one authored source</span>
-    <code>deck.md</code>
-  </div>
-  <div class="deck-proof-pipeline">
-    <span><strong>Markdown++</strong> parses structure</span>
-    <span><strong>GoSX</strong> compiles components</span>
-    <span><strong>gosx-slides</strong> runs the room</span>
-  </div>
-  <div class="deck-proof-outputs">
-    <span><strong>LIVE</strong> interactive tree + Scene3D</span>
-    <span><strong>OFFLINE</strong> self-contained bundle</span>
-    <span><strong>BACKUP</strong> 16:9 PDF</span>
-  </div>
-</div>
+:::columns
+:::col "REPLACE A RUNTIME"
 
-<div class="deck-proof-verdict">You are looking at the live build.</div>
+Own lexing, LR/GLR parsing, recovery, scanners, queries, and incremental reuse in Go.
+:::
 
-<Notes>
-~19:20. The presentation is inside the presentation.
-Markdown++ parses deck.md. GoSX compiles the components and the interactive
-tree. gosx-slides is running the room, and Scene3D is moving behind every slide.
-The same authored source can become the offline bundle and the PDF backup.
-So the M31 Labs stack I am describing is also producing the talk you are
-watching. [Pause.]
-That does not prove every grammar is perfect or every architectural claim is
-universally correct. It proves something narrower and useful: these pieces
-compose well enough to carry their own demonstration through authoring,
-parsing, rendering, bundling, and export.
-Dogfooding is not a replacement for differential testing. It is a high-pressure
-integration test where a failure would be extremely visible. Especially to me.
-</Notes>
+:::col "KEEP THE ECOSYSTEM"
+
+Load mature Tree-sitter grammars instead of asking every language to start over.
+:::
+
+:::col "PRESERVE BEHAVIOR"
+
+Match observable trees, fields, ranges, errors, and scanner-dependent results.
+:::
+
+:::col "SHIP THE NEXT LAYER"
+
+Expose the application capabilities those structures make possible.
+:::
+:::
+
+> [!IMPORTANT]
+> The project was too large to “vibe-check.” Every boundary needed a witness.
+
+<!--
+[TIME 3:35–5:05]
+
+The naive framing is a C-to-Go rewrite. The real scope was a chain of ownership
+claims: the lexer recognized the correct token, the parser attached the right
+children and fields, recovery localized damage, a scanner restored its exact
+state, and incremental parsing reused only structure it still owned.
+
+Any mistake in that chain can produce a plausible-looking tree. That made
+ordinary code review insufficient and made unrestricted AI generation actively
+dangerous. We needed a way for a fast implementation loop to collide with
+independent evidence on every change.
+
+The project became tractable when we stopped asking “is the parser done?” and
+started asking “which observable contract can we prove next?”
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” runtime boundary and constrained decisions.
+- “Programmable Grammars Are Infrastructure,” maintained tree contract.
+-->
 
 ---
 
-```yaml
-class: agent-contract
+``` yaml
+class: copy-tight mdpp-two method-slide
 ```
 
-# What if agents edited structure, not text?
+# We ported observable behavior—not source code
 
-<div class="agent-cycle">
-  <span>human or agent</span>
-  <span>query</span>
-  <span>transform</span>
-  <span>parse again</span>
-  <span>verify</span>
-</div>
+:::columns
+:::col "REFERENCE LANE"
 
-<div class="agent-verdict">Structure makes intent reviewable and testable.</div>
+Same source
 
-<Notes>
-~20:30. Highlighting was only the first consumer of these trees. Most software
-agents still operate primarily through text patches. A text diff can tell us
-which bytes moved, but often says little about which program construct the
-change intended to target.
-A grammar gives us a selection language. A query can identify a function
-declaration, import, call expression, or argument with a particular structural
-relationship. A transformation can operate on captured nodes. The next parse
-can verify that the expected structure still exists.
-That does not make an agent correct. Reparsing cannot prove the business logic
-is right. It can prove more than “the patch applied”: it can constrain the
-target, expose malformed output, and make structural postconditions executable.
-Humans receive the same benefit in codemods, refactoring tools, migrations, and
-code review. A text edit says what changed physically. A structural edit can
-also say what the change meant to touch.
-</Notes>
+Same grammar version
+
+Tree-sitter C runtime
+
+Normalized structural result
+:::
+
+:::col "CANDIDATE LANE"
+
+Same source
+
+Same grammar version
+
+Pure-Go runtime
+
+Normalized structural result
+:::
+:::
+
+> [!IMPORTANT] The oracle was the unlock
+> Compare node types, child shape, fields, byte ranges, missing nodes, and error placement.
+
+<!--
+[TIME 5:05–6:45]
+
+A parser runtime has a rare advantage: there is a reference implementation.
+We could run the same source and grammar through both systems, normalize their
+observable results, and compare them structurally.
+
+The production boundary stayed pure Go. The C runtime remained an independent
+validation lane. That separation mattered: we did not ask the implementation
+to certify itself, and we did not require consumers to carry the oracle.
+
+This reframed every large unknown as a measurable difference. Instead of
+arguing whether a tree “looked right,” we could name the first type, field,
+range, error, or child-shape divergence.
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” evidence loop.
+- “Part 2 — Oracles and Bench Gates,” oracle workflow.
+-->
 
 ---
 
-```yaml
+``` yaml
 layout: center
-class: final-invitation
+class: copy-tight mdpp-four method-slide
 ```
 
-# What will your tools understand next?
+# AI proposed; evidence decided
 
-Somewhere in your work is a language your tools still see as text.
+:::columns
+:::col "PROPOSE"
 
-**If one came to mind, I would love to hear about it.**
+AI explores candidate code, tests, and explanations.
+:::
+
+:::col "COMPARE"
+
+The oracle and invariants reject plausible lies.
+:::
+
+:::col "REDUCE"
+
+One mismatch becomes the smallest source that still fails.
+:::
+
+:::col "KEEP"
+
+The witness becomes a permanent regression test.
+:::
+:::
+
+> [!IMPORTANT]
+> The model accelerated the search. It was never the evidence.
+
+<!--
+[TIME 6:45–8:25]
+
+AI was useful because it could search a wide solution space quickly. It could
+trace unfamiliar mechanisms, propose an implementation, generate test
+variations, and challenge an assumption. None of those outputs earned trust
+by themselves.
+
+The loop was propose, compare, reduce, keep. A candidate crossed the oracle and
+invariant gates. A failure was reduced to a minimal witness. The fix was
+accepted only when that witness passed without regressing the corpus, and the
+witness stayed in the suite.
+
+That is the transferable method: give AI high freedom inside a boundary whose
+acceptance criteria it does not control.
+
+[Sources]
+- “Part 2 — Oracles and Bench Gates,” AI-assisted proof loop.
+- GoTreeSitter parity and regression-test methodology.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-five method-slide
+```
+
+# Every mismatch became a smaller problem
+
+:::columns
+:::col "CORPUS"
+
+Find a real file where behavior diverges.
+:::
+
+:::col "DIFF"
+
+Name the first structural disagreement.
+:::
+
+:::col "REDUCE"
+
+Delete everything that does not preserve it.
+:::
+
+:::col "INVARIANT"
+
+State the rule the implementation violated.
+:::
+
+:::col "RATCHET"
+
+Keep the minimal case and move the floor forward.
+:::
+:::
+
+> [!TIP]
+> Ask AI to solve a falsifiable boundary—not “make the whole parser correct.”
+
+<!--
+[TIME 8:25–9:50]
+
+Large failures create vague prompts and vague patches. Reduction changed the
+unit of work. We started from a real corpus divergence, located the first
+observable mismatch, minimized the source, and named the violated invariant.
+
+That gave the model a bounded problem and gave the reviewer a bounded claim.
+It also produced durable project memory. The reduced witness explained more
+than a comment because it could still fail the implementation years later.
+
+This is applicable beyond parsers. Minimize a database history, protocol
+exchange, rendering state, or compiler input until one contract is under test.
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” focused witnesses and parity.
+- “Part 2 — Oracles and Bench Gates,” compare-and-ratchet workflow.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-three method-slide
+```
+
+# Build vertical proof slices
+
+:::columns
+:::col "FULL PARSE"
+
+Grammar → tables → blob → loader → tree → oracle comparison
+:::
+
+:::col "PRODUCT CAPABILITY"
+
+Query pack → captures → highlight, tag, or injection result → fixture
+:::
+
+:::col "EDIT LOOP"
+
+Old tree → edit → incremental candidate → fresh parse comparison → admit or fall back
+:::
+:::
+
+> [!IMPORTANT]
+> A component is not done when its unit test passes; it is done when one real path crosses the system.
+
+<!--
+[TIME 9:50–11:25]
+
+Horizontal implementation plans are seductive: finish the lexer, then the
+parser, then the loader, then queries. They delay integration evidence until
+the most assumptions have accumulated.
+
+We used vertical proof slices instead. A small grammar crossed generation,
+serialization, loading, parsing, and comparison. A small query crossed compile,
+execution, capture conversion, and a product-shaped result. One edit crossed
+coordinate maintenance, reuse admission, and a fresh-parse comparison.
+
+Each slice exposed bad interfaces early and created an executable path the next
+slice could reuse. Massive projects become manageable when every milestone
+ends in evidence at the boundary users will actually cross.
+
+[Sources]
+- “Programmable Grammars Are Infrastructure,” transport chain and consumer contract.
+- GoTreeSitter runtime, query, and incremental test lanes.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-four method-slide
+```
+
+# Treat every optimization as an admission protocol
+
+:::columns
+:::col "CANDIDATE"
+
+An old subtree, scanner checkpoint, or fast path might be reusable.
+:::
+
+:::col "PROOF"
+
+Ranges, parser state, fragility, and external state must still agree.
+:::
+
+:::col "FALLBACK"
+
+Uncertain work returns to the slower production path.
+:::
+
+:::col "MEASURE"
+
+Bench gates verify the safe path is still useful.
+:::
+:::
+
+> [!WARNING]
+> A slower honest result is better than a fast structural lie.
+
+<!--
+[TIME 11:25–12:55]
+
+Incremental parsing taught the most general systems lesson in the project.
+Reuse is not an entitlement. It is a candidate that must prove it still belongs
+to the new document. Unchanged bytes help, but parser and scanner history can
+still make the old structure invalid.
+
+The same pattern applies to caches, memoization, indexes, replicated state, and
+AI-generated patches: name the conditions under which the shortcut is valid,
+test those conditions independently, and fail closed when they are uncertain.
+
+Correct fallback is a feature. Performance only counts after the optimized
+result has earned admission.
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” incremental admission and scanner checkpoints.
+- “Part 2 — Oracles and Bench Gates,” performance gates.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-four
+```
+
+# grammargen turned language work into a reproducible pipeline
+
+:::columns
+:::col "AUTHOR"
+
+Import resolved `grammar.json` or maintain a reviewable Go grammar DSL.
+:::
+
+:::col "NORMALIZE"
+
+Converge both inputs on one grammar intermediate representation.
+:::
+
+:::col "GENERATE"
+
+Build lexer tables, parser tables, fields, conflicts, and scanner metadata.
+:::
+
+:::col "SHIP"
+
+Embed a portable grammar blob beside optional query packs.
+:::
+:::
+
+> [!IMPORTANT]
+> Applications load the artifact. They do not carry the generator or its toolchain.
+
+<!--
+[TIME 12:55–14:30]
+
+The runtime became reusable when grammar work became reproducible. grammargen
+can import a resolved upstream grammar or accept a grammar authored as Go
+values. Both paths converge on one IR, generate the tables and metadata the
+runtime needs, and serialize a portable blob.
+
+That pipeline separated build-time complexity from the consumer. A product can
+embed or load the artifact without Node, a C compiler, or the generator. This
+is the self-hosting arc in the talk title: ts2go bootstraps the 206-grammar
+breadth from upstream tables, while grammargen is a real pure-Go grammar
+compiler that already compiles our whole in-house language family with no C
+ancestor, replacing bootstrap blobs grammar by grammar behind the parity
+ratchet. The
+same pipeline also made every failure locatable: grammar source, normalized IR,
+generated tables, blob, loader, runtime, or consumer.
+
+For an ambitious project, this is the artifact lesson: turn expensive knowledge
+into a versioned output that the next layer can consume cheaply.
+
+[Sources]
+- “Programmable Grammars Are Infrastructure,” grammar IR and transport chain.
+- GoTreeSitter `grammargen` authoring and generation guides.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-three responsibility-slide
+```
+
+# Explicit ownership kept the layers honest
+
+:::columns
+:::col "RUNTIME OWNS"
+
+Parser execution, recovery, ranges, queries, bounded work, and safe reuse.
+:::
+
+:::col "GRAMMAR OWNS"
+
+Tree vocabulary, fields, conflicts, scanner behavior, feature queries, and corpus compatibility.
+:::
+
+:::col "PRODUCT OWNS"
+
+Scope, resolution, semantics, policy, user experience, and migration intent.
+:::
+:::
+
+> [!NOTE]
+> A clear boundary lets people—and AI agents—change one layer without pretending to own the others.
+
+<!--
+[TIME 14:30–16:00]
+
+The runtime cannot infer what a grammar does not encode. The grammar cannot
+turn a syntax capture into workspace meaning. The product should not quietly
+rebuild parser safety or coordinate logic in every feature.
+
+Writing those responsibilities down prevented magical thinking. It also made
+parallel work safer. A runtime change had parity and invariant gates. A grammar
+change had tree-shape and query fixtures. A product change had semantic and
+user-facing acceptance tests.
+
+Boundaries are not bureaucracy here. They are the mechanism that lets a large
+project move quickly without every change reopening the entire system.
+
+[Sources]
+- “Programmable Grammars Are Infrastructure,” maintained tree contract.
+- “GoTreeSitter: The Product Starts One Layer Above the Parser,” syntax/semantics boundary.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-four method-slide
+```
+
+# The harness had to ratchet, not merely test
+
+:::columns
+:::col "PARITY GATE"
+
+Compare observable structure against the reference runtime.
+:::
+
+:::col "CORPUS GATE"
+
+Keep real language families and scanner paths in the loop.
+:::
+
+:::col "BENCH GATE"
+
+Catch fake wins. We withdrew our own headline when the harness caught one.
+:::
+
+:::col "RELEASE RECEIPT"
+
+Pin the grammar, corpus, capability, and version behind each claim.
+:::
+:::
+
+> [!IMPORTANT]
+> After a bug is fixed, the allowed regression surface should only shrink.
+
+<!--
+[TIME 16:00–17:35]
+
+A test suite can stay green while the project quietly changes its definition
+of success. A ratchet prevents that. Every reduced mismatch becomes a fixture;
+every supported corpus keeps a floor; every accepted capability is attached to
+a named grammar and version; benchmark gates prevent fake wins that simply do
+less work.
+
+The bench gate is not decoration. An audit found an old full-parse headline was
+timing a path that skipped tree materialization, so the project withdrew it in
+public. The honest replacement: full parses run about five and a half times C on
+locked real-Go fixtures under a sealed receipt. We trade raw full-parse speed for
+portability. Incremental is where the design pays back: a no-edit reparse returns
+in nanoseconds and a one-byte edit runs at microsecond scale, orders of magnitude
+below a full parse. We publish no incremental Go-versus-C headline, because the
+old one failed our own oracle-identity rule. That is the ratchet doing its job on
+our own marketing.
+
+The harness also improved the AI workflow. Agents could explore aggressively
+because the acceptance surface was executable and cumulative. The repository
+remembered the project better than any prompt could.
+
+When you build something ambitious, invest early in machinery that makes it
+hard to redefine “done” after a regression.
+
+[Sources]
+- “Part 2 — Oracles and Bench Gates,” parity, corpus, and benchmark gates.
+- GoTreeSitter release and certification methodology.
+-->
+
+---
+
+``` yaml
+class: copy-tight products-slide
+```
+
+# The substrate paid back across very different products
+
+GoSX
+: composes maintained Go syntax with native markup, then compiles the combined tree
+
+Markdown++
+: gives parsing, formatting, linting, LSP, rendering, and these slides one document model
+
+qml-language-server
+: built by someone outside this project—QML and Qt workspace meaning above GoTreeSitter trees and ranges
+
+Canopy and Graft
+: build structural code intelligence and entity-aware version control above shared syntax
+
+> [!IMPORTANT] This deck is recursive dogfooding
+> Markdown++ authoring → compiled GoSX slide components → a live Go application.
+
+<!--
+[TIME 17:35–19:15]
+
+The proof of a substrate is not another substrate demo. It is the different
+products that can begin above it. GoSX composes a language and builds a compiler.
+Markdown++ shares one tree across editing, diagnostics, formatting, rendering,
+and this deck. qml-language-server is the one I did not build: someone else
+picked up the runtime and added real QML and Qt workspace semantics on top of
+it. That is the strongest evidence the boundary is in the right place—an
+outside developer could start at trees and ranges instead of at a parser.
+Canopy and Graft add code-intelligence and version-control rules.
+
+None receives semantics for free. They share grammar artifacts, trees, ranges,
+queries, and edits, then deliberately diverge at the product boundary.
+
+Dogfooding made that boundary concrete. When a downstream product hurt, it
+exposed missing substrate behavior more honestly than another synthetic test.
+
+[Sources]
+- “Programmable Grammars Are Infrastructure,” downstream product boundaries.
+- “GoTreeSitter: The Product Starts One Layer Above the Parser,” downstream consumers.
+- This deck’s mdpp → GoSX rendering path.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-five lessons-slide
+```
+
+# A playbook for your massive project
+
+:::columns
+:::col "1 · SUBSTRATE"
+
+Choose the narrow foundation that several outcomes can share.
+:::
+
+:::col "2 · CONTRACT"
+
+Name observable behavior and ownership before implementation spreads.
+:::
+
+:::col "3 · WITNESS"
+
+Build an independent oracle, simulator, fixture, or invariant.
+:::
+
+:::col "4 · SEARCH"
+
+Let AI explore freely inside that falsifiable boundary.
+:::
+
+:::col "5 · COMPOUND"
+
+Reduce failures, ratchet the harness, and dogfood the result.
+:::
+:::
+
+> [!IMPORTANT]
+> AI amplifies the system you give it. Build the evidence system before chasing velocity.
+
+<!--
+[TIME 19:15–22:15]
+
+Here is the method I would carry into another massive project.
+
+First, choose a substrate narrow enough to own but valuable enough to support
+several outcomes. Second, write its observable contracts and responsibility
+boundaries. Third, create an independent witness: a reference implementation,
+simulator, replay log, model checker, invariant sweep, or carefully curated
+fixture. Fourth, let AI search hard inside that falsifiable boundary. Finally,
+turn every discovery into a reduced regression and dogfood the substrate in a
+real downstream product.
+
+The goal is not to make AI cautious. The goal is to make ambitious exploration
+cheap and incorrect acceptance expensive. Velocity compounds when the harness,
+artifacts, and consumers all remember what the team has learned.
+
+[Sources]
+- The complete GoTreeSitter article trilogy.
+- GoTreeSitter oracle, reduction, ratchet, and dogfooding methodology.
+-->
+
+---
+
+``` yaml
+class: final-invitation copy-tight mdpp-two
+```
+
+# Build one layer lower—so every product can start higher
+
+Name the contract. Create the witness. Let AI search. Keep the proof.
+
+**Then spend your ambition on what only your product can mean.**
+
+:::columns
+:::col "REPOSITORY"
 
 `github.com/odvcencio/gotreesitter`
+:::
 
-<div class="closing-galaxy" aria-hidden="true">
-  <img class="closing-galaxy-still" src="/public/m31labs-og.png" alt="" />
-</div>
+:::col "BUILD WITH M31 LABS"
 
-<div class="closing-contact">
-  <img src="/public/contact-qr.png" alt="QR code for the M31 Labs Get in Touch form" />
-  <span>Continue the conversation</span>
-  <code>m31labs.dev/build</code>
-</div>
+![QR code for M31 Labs contact](/public/contact-qr.png)
 
-<Notes>
-~21:40. We began with `result :=`: a program that was not valid yet, but
-still had useful structure. That is the thread through the whole talk.
-Pure Go makes that structure easier to ship, inspect, profile, fuzz, and carry
-wherever the rest of a Go product needs to run. The C reference makes the
-reimplementation accountable to an independent behavioral answer. Self-hosted
-grammar generation makes new structured languages inexpensive enough to
-explore. And M31 Labs is where those ideas are being turned into working
-systems—not someday, but in the presentation you just watched.
-Somewhere in your work there is probably a language hiding in strings, regular
-expressions, YAML conventions, comments, filenames, or tribal knowledge. Your
-team already sees the structure. Your tools still see text.
-What would change if they could see it too? [Pause.]
-If one came to mind, I would love to hear about it after the talk. The
-conference does not want stage questions, so hold on the repository and QR
-code. Nominal finish near 22:55. Hard finish by 24:30.
-</Notes>
+`m31labs.dev/build`
+:::
+:::
+
+<!--
+[TIME 22:15–23:30]
+
+GoTreeSitter is useful because consumers can start with language detection,
+trees, queries, highlights, tags, injections, and safe rewrite coordinates
+instead of rebuilding them.
+
+The larger lesson is how it got there. Name the observable contract. Build an
+independent witness. Give AI freedom to search. Reduce every failure. Ratchet
+the proof. Turn expensive knowledge into a reusable artifact. Dogfood it in
+the products that depend on the boundary.
+
+That is how an ambitious project stops being one enormous leap and becomes a
+sequence of claims the system can actually earn.
+-->

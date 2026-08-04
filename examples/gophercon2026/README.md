@@ -1,77 +1,91 @@
-# Pure-Go Tree-sitter — GopherCon 2026
+# GoTreeSitter: the structural layer for Go tools
 
-Twenty-five-minute GopherCon 2026 talk by Oscar Villavicencio, founder of M31
-Labs. The talk is Wednesday, August 5 at 4:15 PM PDT in Finneran Ballroom 2.
+GopherCon 2026 deck by Oscar Villavicencio of M31 Labs. The talk uses the GoTreeSitter trilogy as a deliberately lightweight 15-slide microcosm:
 
-The 21-slide `aurora` deck follows one cumulative story:
+1. “Inside a Pure-Go Tree-sitter Runtime”
+2. “Programmable Grammars Are Infrastructure”
+3. “What GoTreeSitter Makes Possible”
 
-1. Changing code needs useful structure before it becomes valid.
-2. Pure Go removes a product boundary while preserving an honest performance
-   tradeoff.
-3. The original C runtime supplies an independent behavioral oracle.
-4. grammargen turns the runtime into a pure-Go language toolchain.
-5. M31 Labs uses that substrate across a family of working systems, including
-   the deck itself.
-6. Structural editing gives people and agents more testable intent than text
-   patches alone.
+The deck follows three cumulative acts: application-ready capabilities first; the proof methods used to build an ambitious compatible runtime second; then grammargen, ownership, downstream products, and a reusable project playbook. AI accelerated candidate code and tests, while an independent oracle, reduced witnesses, ratcheted gates, and real consumers decided what earned trust.
 
-The talk teaches first and acts as a credibility showcase for M31 Labs through
-the artifacts on screen. The closing invitation points to the anchored Build
-contact form without turning the stage into a sales pitch.
+The deck source is native Markdown++ authoring, not raw-HTML layout scaffolding. mdpp container directives, admonitions, definition lists, code, notes, and the ParseTree component lower into compiled GoSX slide components. The same deck therefore demonstrates the integration it describes.
 
-## Readiness materials
+## Canonical materials
 
-- [`transcript.md`](transcript.md) — editor-ready visible copy and spoken track.
-- [`rehearsal.md`](rehearsal.md) — dated practice schedule, timing valves,
-  question bank, and run scorecard.
-- [`campaign.md`](campaign.md) — opportunity goals, publishing calendar, ready
-  copy, conversation scripts, lead log, and follow-up path.
+- `deck.md` — audience slides and presenter notes.
+- `deck.md` speaker notes — canonical spoken track.
+- `transcript.md` — archived long-form prior track; do not use for rehearsal.
+- `rehearsal.md` — current timing, demo fallback, trim valves, and precision cues.
+- `source-to-slide-beat-map.md` — editorial provenance for every slide.
+- `deck.css` — deck-specific visual contract layered on the Aurora theme.
+- `VISUAL_SYSTEM.md` — palette, typography, motion, and caption-safe rules.
 
-## Conference contract
+REVIEW.md and the prior deck are historical planning artifacts. The AI-methodology slide uses the author’s implementation practice, summarized in campaign.md; the remaining technical claims trace to the article trilogy.
 
-`deck.md` encodes 16:9 output, a reserved 20-percent caption band, a 25-minute
-slot, offline operation, and a static fallback for the interactive tree. Add
-`caption-guide: true` temporarily while authoring to display the reserved band.
-The guide is off during normal live and PDF output.
+## Communication contract
 
-## Run it
+By the end, Go developers should know which GoTreeSitter capabilities can be dropped into an application, understand grammargen’s delivery and ownership responsibilities, and know how to keep AI-assisted infrastructure evidence-led.
 
-```sh
-GOWORK=off go build -o /tmp/slides ./cmd/slides
-/tmp/slides serve examples/gophercon2026            # http://127.0.0.1:8080
-/tmp/slides validate examples/gophercon2026 --profile conference --strict
-/tmp/slides rehearse examples/gophercon2026         # speaker run sheet
-/tmp/slides export examples/gophercon2026 --format spa --out /tmp/gophercon-offline
-/tmp/slides export examples/gophercon2026 --format pdf --out /tmp/gophercon-2026.pdf
+- Slot: 25:00.
+- Nominal finish: 23:30, leaving a 1:30 hard-stop buffer.
+- Hard stop: 25:00.
+- Aspect ratio: 16:9 at 1600×900.
+- Caption-safe lower band: 20 percent.
+- Offline operation: required.
+- Live interaction: none required; the Scene3D atmosphere degrades locally.
+- Live visual layer: a bounded 30 fps full-deck Scene3D starfield, with the
+zoomed, color-cycling closing galaxy isolated to the final slide and a static reduced-motion/print fallback.
+- Projector contrast: every content region sits on a bounded near-black glass
+  plate; unused canvas remains live.
+
+## Build and authoring checks
+
+From the repository root:
+
+``` sh
+GOWORK=off go build -o /tmp/gosx-slides ./cmd/slides
+/tmp/gosx-slides check examples/gophercon2026
+/tmp/gosx-slides inspect examples/gophercon2026 --json
+/tmp/gosx-slides validate examples/gophercon2026 --strict --profile conference
+/tmp/gosx-slides rehearse examples/gophercon2026
+/tmp/gosx-slides components examples/gophercon2026 --json
+/tmp/gosx-slides doctor examples/gophercon2026 --json
 ```
 
-`→`/`Space` advances, `o` opens overview, `p` opens presenter view, and `f`
-enters fullscreen. Presenter notes carry cumulative cues to a nominal 22:55
-finish; the target finish stays 24:30, and the difference is planned slack.
+Run locally:
 
-Presenter-sync caveat: every open deck window drives every other one. Close
-stray tabs before presenting.
+``` sh
+/tmp/gosx-slides serve examples/gophercon2026 --port 8080
+```
 
-## Components
+Navigation: `→` or Space advances, `←` goes back, `o` toggles overview, `p`
+opens presenter view, and `f` toggles fullscreen.
 
-| File | Role |
-| --- | --- |
-| `ParseTree.gsx` | Interactive incomplete-Go tree used in the live demo. |
-| `Timeline.gsx` | Retained project chronology for alternate cuts. |
-| `Benchmark.gsx` | Retained benchmark component; use only with current receipts. |
-| `Citation.gsx` | Evidence chip for benchmark-bearing alternate cuts. |
+## Durable release artifacts
 
-The current talk intentionally omits unsealed benchmark numbers. Any numeric
-performance claim added before August 5 must be single-sourced from the frozen
-receipt and reconciled with `BENCH.md`.
+The verified export target is outside the source example:
 
-## Final readiness gates
+``` text
+.tiller/artifacts/gophercon2026-trilogy/
+├── spa/
+├── gophercon2026-trilogy.pdf
+├── screenshots-1600x900/
+└── contact-sheet.png
+```
 
-- Strict conference validation passes on the frozen deck.
-- All custom components compile and hydrate.
-- Live demo succeeds offline and has a rehearsed static fallback.
-- Offline bundle and PDF backup are copied to the laptop and USB drive.
-- Every spoken correctness and performance claim matches the frozen repo.
-- QR opens `m31labs.dev/build#contact`; submission reaches the contact inbox.
-- Notifications, screen saver, and automatic updates are disabled.
-- Laptop, power supply, preferred adapter, and advancer are packed.
+Rebuild after any content or CSS change:
+
+``` sh
+/tmp/gosx-slides build examples/gophercon2026 \
+  --out .tiller/artifacts/gophercon2026-trilogy/spa
+/tmp/gosx-slides export examples/gophercon2026 --format pdf \
+  --out .tiller/artifacts/gophercon2026-trilogy/gophercon2026-trilogy.pdf
+```
+
+## Stage fallback
+
+If the slide-8 tree does not respond on the first click, stop interacting and
+say, “The interaction is incidental; the structure is the artifact.” Point to
+the visible `source_file`, `short_var_declaration`, and
+`parenthesized_expression` labels, then continue. Do not refresh or troubleshoot
+on stage.

@@ -172,6 +172,7 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 		SlideCount:  len(d.Slides),
 		Layouts:     map[string]int{},
 		Components:  map[string]int{},
+		Conference:  deckConferenceConfig(d),
 	}
 	if norm := strings.TrimSpace(strings.ToLower(theme)); norm != "" && themeName(theme) != norm {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
@@ -205,6 +206,7 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 			Citations:        citations,
 			Checkpoints:      checkpoints,
 			HasNotes:         notes != "",
+			Fallback:         slideFallback(slide),
 		})
 		if !layoutKnown {
 			out.Warnings = append(out.Warnings, "slide "+strconv.Itoa(slide.Index+1)+": unknown layout "+layoutName)
@@ -340,6 +342,7 @@ func Doctor(dir string) (DoctorReport, error) {
 
 	// gosx module resolution — the deck must be (or live inside) a module that
 	// requires m31labs.dev/gosx so the GOOS=js build resolves.
+	offlineRequired := deckConferenceConfig(d).OfflineRequired
 	if data, err := os.ReadFile(filepath.Join(dir, "go.mod")); err == nil {
 		if strings.Contains(string(data), "m31labs.dev/gosx") {
 			report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: "ok", Detail: "go.mod requires m31labs.dev/gosx (portable deck)"})
@@ -347,7 +350,11 @@ func Doctor(dir string) (DoctorReport, error) {
 			report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: "warn", Detail: "go.mod present but does not require m31labs.dev/gosx"})
 		}
 	} else {
-		report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: "warn", Detail: "no go.mod — deck serves only from inside a gosx module (run `slides init` for a portable deck)"})
+		status := "warn"
+		if offlineRequired {
+			status = "fail"
+		}
+		report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: status, Detail: "no go.mod — deck serves only from inside a gosx module (run `slides init` for a portable deck)"})
 	}
 
 	// Island compile health — the highest-value check: a broken .gsx degrades to an

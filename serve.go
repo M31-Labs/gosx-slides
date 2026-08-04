@@ -167,6 +167,26 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			return nil, fmt.Errorf("stage runtime assets: %w", err)
 		}
 		app.SetRuntimeRoot(root)
+		// GoSX v0.25.x's compatibility asset map serves the primary Scene3D
+		// feature but omits its split sub-feature chunks unless a hashed build
+		// manifest is present. Decks stage the unhashed compatibility files, so
+		// expose those exact local files explicitly. Without this, capable
+		// browsers request the advertised WebGPU URL and receive a 404.
+		for _, name := range []string{
+			"bootstrap-feature-scene3d-webgpu.js",
+			"bootstrap-feature-scene3d-gltf.js",
+			"bootstrap-feature-scene3d-animation.js",
+		} {
+			path := filepath.Join(root, "build", name)
+			if !isRegularFile(path) {
+				continue
+			}
+			assetPath := path
+			app.Mount("/gosx/"+name, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+				http.ServeFile(w, r, assetPath)
+			}))
+		}
 	}
 
 	return app, nil
@@ -241,6 +261,11 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// to the default for an absent/unknown value), so the served head always
 	// carries one real theme and `<main>` a matching data-theme hook.
 	theme := themeName(deckTheme(d))
+	conference := deckConferenceConfig(d)
+	fonts := fontLinks(theme)
+	if conference.OfflineRequired {
+		fonts = ""
+	}
 
 	// Slide-visibility CSS + the selected THEME + viewport go in the document head
 	// via the Context. The App composes ctx.Head() into the single <head>, after
@@ -255,7 +280,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// --font-* stack, so an offline deck still looks intentional; this link makes
 		// the designer faces actually render. fontLinks returns "" for a webfont-less
 		// theme, in which case this emits nothing.
-		gosx.RawHTML(fontLinks(theme)),
+		gosx.RawHTML(fonts),
 		// navStyle (one-slide visibility + overview grid) and presenterStyle (the
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
@@ -268,6 +293,11 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// AFTER the theme so the author's rules win the cascade at equal
 		// specificity. Inlined so exports carry it and dev refreshes pick up edits.
 		ctx.AddHead(gosx.RawHTML(`<style data-deck-css="true">` + custom + `</style>`))
+	}
+	if style := conferenceStyle(conference); style != "" {
+		// The room contract applies after the theme and deck CSS. Normal flow can
+		// never enter the caption overlay, and --watch shows the reserved band.
+		ctx.AddHead(gosx.RawHTML(`<style data-conference-safe-area="true">` + style + `</style>`))
 	}
 	if dev {
 		// Dev-only chrome CSS, injected solely in --watch so it never reaches a
@@ -291,6 +321,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// current slide's note out of them. A slide with no note emits nothing (the
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
+	starfield := deckScene3DBackground(ctx.Runtime(), d)
 
 	return gosx.El("main",
 		gosx.Attrs(
@@ -303,7 +334,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			// data-line-numbers="1" (deck headmatter `line-numbers: true`) turns on
 			// the code-block line-number gutter (a CSS ::before; see baseContentStyle).
 			gosx.Attr("data-line-numbers", boolAttr(deckLineNumbers(d))),
+			gosx.Attr("data-aspect-ratio", conference.AspectRatio),
+			gosx.Attr("data-caption-safe-bottom", conference.CaptionSafeBottom),
+			gosx.Attr("data-caption-guide", boolAttr(conference.CaptionGuide)),
+			gosx.Attr("data-offline", boolAttr(conference.OfflineRequired)),
 		),
+		starfield,
 		gosx.Fragment(slideNodes...),
 		gosx.Fragment(noteNodes...),
 		// Dev-only build-error overlay: a deck/island compile failure is otherwise
@@ -621,6 +657,12 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		"bootstrap-lite.js",
 		"bootstrap-runtime.js",
 		"bootstrap-feature-islands.js",
+		// Scene3D is an engine surface. The shared engine feature installs the
+		// generic engine mount/dispatch path before the Scene3D-specific renderer
+		// registers GoSXScene3D. Staging only the Scene3D chunks leaves the
+		// document manifest valid but makes bootstrap-runtime.js fail its first
+		// dependency fetch, so no canvas can ever mount.
+		"bootstrap-feature-engines.js",
 		// The Scene3D feature family: staged so a deck island that renders a
 		// <Scene3D> surface hydrates under `slides serve` the day the island
 		// grammar grows it (absent files are skipped below, so older gosx
