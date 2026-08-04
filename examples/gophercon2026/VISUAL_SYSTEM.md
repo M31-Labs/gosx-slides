@@ -33,7 +33,8 @@ Color architecture:
 Motion:
 
 - Philosophy: **Subtle**. The persistent Scene3D starfield moves slowly in six
-  independent depth bands behind the bounded content plate, capped at 30 fps.
+  independent depth bands behind the bounded content plate, capped at 30 fps
+  as a render budget—not a measured device-performance claim.
   The finale replaces it with a cropped galaxy surface and a deliberately
   exaggerated spectral cycle. Foreground movement is limited to slide fades
   and the small, audience-triggered syntax-tree disclosure.

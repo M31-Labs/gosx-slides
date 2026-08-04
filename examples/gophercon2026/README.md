@@ -33,7 +33,7 @@ By the end, Go developers should know which GoTreeSitter capabilities can be dro
 - Caption-safe lower band: 20 percent.
 - Offline operation: required.
 - Live interaction: none required; the Scene3D atmosphere degrades locally.
-- Live visual layer: a bounded 30 fps full-deck Scene3D starfield, with the
+- Live visual layer: a full-deck Scene3D starfield with a 30 fps render cap, with the
 zoomed, color-cycling closing galaxy isolated to the final slide and a static reduced-motion/print fallback.
 - Projector contrast: every content region sits on a bounded near-black glass
   plate; unused canvas remains live.

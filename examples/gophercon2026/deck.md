@@ -634,13 +634,16 @@ less work.
 
 The bench gate is not decoration. An audit found an old full-parse headline was
 timing a path that skipped tree materialization, so the project withdrew it in
-public. The honest replacement: full parses run about five and a half times C on
-locked real-Go fixtures under a sealed receipt. We trade raw full-parse speed for
-portability. Incremental is where the design pays back: a no-edit reparse returns
-in nanoseconds and a one-byte edit runs at microsecond scale, orders of magnitude
-below a full parse. We publish no incremental Go-versus-C headline, because the
-old one failed our own oracle-identity rule. That is the ratchet doing its job on
-our own marketing.
+public. The current sealed four-file receipt (gotreesitter main at `492cd600`,
+2026-08-02) reports **4.815× C** for production full parses and **3.986× C**
+for the compact route. Those are locked, human-authored Go fixtures—not a
+universal speed claim. We trade raw full-parse speed for portability.
+
+On the separate pinned 19,294-byte, 500-function straight-LR control, a
+materialized full parse is 10.907 ms, a one-byte edit is 1.98 µs, and a no-edit
+reparse is 9.9 ns; both incremental lanes allocate zero. Those absolute timings
+are host- and fixture-specific, so we publish no incremental Go-versus-C
+headline. That is the ratchet doing its job on our own marketing.
 
 The harness also improved the AI workflow. Agents could explore aggressively
 because the acceptance surface was executable and cumulative. The repository
@@ -651,6 +654,7 @@ hard to redefine “done” after a regression.
 
 [Sources]
 - “Part 2 — Oracles and Bench Gates,” parity, corpus, and benchmark gates.
+- GoTreeSitter performance receipt (v9, 2026-08-02) and incremental parsing receipt.
 - GoTreeSitter release and certification methodology.
 -->
 
