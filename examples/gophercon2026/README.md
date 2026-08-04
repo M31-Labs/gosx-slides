@@ -20,7 +20,7 @@ The deck source is native Markdown++ authoring, not raw-HTML layout scaffolding.
 - `deck.css` — deck-specific visual contract layered on the Aurora theme.
 - `VISUAL_SYSTEM.md` — palette, typography, motion, and caption-safe rules.
 
-REVIEW.md and the prior deck are historical planning artifacts. The AI-methodology slide uses the author’s implementation practice, summarized in campaign.md; the remaining technical claims trace to the article trilogy.
+Internal campaign notes are archived in Hyphae rather than shipped with the deck. The AI-methodology slide reflects the author’s implementation practice; the remaining technical claims trace to the article trilogy.
 
 ## Communication contract
 
