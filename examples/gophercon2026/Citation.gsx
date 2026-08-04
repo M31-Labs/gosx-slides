@@ -3,7 +3,7 @@ package main
 // Citation is a small static evidence chip: a quantitative claim on a slide
 // points at the artifact that produced it (a PR, a floor file, a bench run).
 // The conference validation profile requires one alongside any evidence
-// island (e.g. <Benchmark/>). Props bind by exact attribute name; the
+// island. Props bind by exact attribute name; the
 // deck-side analysis (slideCitations) reads lowercase href/label from the
 // tag, so this island uses lowercase prop names throughout.
 //
