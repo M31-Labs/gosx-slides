@@ -7,10 +7,8 @@ require (
 	golang.org/x/net v0.52.0
 	m31labs.dev/gosx v0.36.0
 	m31labs.dev/mdpp v0.4.7
-	m31labs.dev/sirena v0.0.2-internal.0.20260624175147-81500579801f
+	m31labs.dev/sirena v0.1.0
 )
-
-replace m31labs.dev/sirena => ../sirena
 
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
