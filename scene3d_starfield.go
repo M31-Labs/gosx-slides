@@ -156,15 +156,16 @@ func m31ClosingGalaxyScene() scene.Props {
 				Static: scene.Bool(true),
 			},
 			// The GLB carries no baked animation and Models cannot spin, so the
-			// finale's life comes from two counter-turning dust shells around
-			// it. Their point-spin is also what makes the runtime keep the
-			// animation loop alive, which the AutoRotate camera orbit needs —
-			// without an animated node the closing shot renders one frame and
-			// freezes.
+			// finale's apparent rotation is the AutoRotate orbit: camera motion
+			// turns arms, gas, and dust together as one body. The shells spin
+			// the SAME direction, slowly and differentially, so their drift
+			// reads as depth shear inside that shared rotation — never as a
+			// separate field fighting the arms. Their point-spin is also what
+			// keeps the runtime's animation loop (and the orbit) alive.
 			m31GalaxyDustLayer(m31StarfieldSeed+101, "galaxy-dust-inner", 900,
-				150, 420, 1.6, 2.2, scene.Euler{Y: 0.030, Z: 0.010}, "#d9b8ff"),
+				150, 420, 1.6, 2.2, scene.Euler{Y: 0.009, Z: 0.003}, "#d9b8ff"),
 			m31GalaxyDustLayer(m31StarfieldSeed+211, "galaxy-dust-outer", 1400,
-				420, 950, 1.2, 1.8, scene.Euler{Y: -0.014, Z: 0.005}, "#ffd9a0"),
+				420, 950, 1.2, 1.8, scene.Euler{Y: 0.004, Z: 0.0015}, "#ffd9a0"),
 		),
 	}
 }
@@ -336,14 +337,15 @@ func m31StarfieldBandLayer(seed uint64, band m31StarfieldBand) scene.Points {
 		BlendMode:    scene.BlendAdditive,
 		DepthWrite:   false,
 		Attenuation:  false,
-		// Drift and pan live in the shader with wraparound. The node spin is
-		// Z-only and slow: rotation about the VIEW axis keeps the
-		// frustum-authored cloud in frame forever (Y/X spin swung it out and
-		// emptied the sky), adds a gentle differential in-plane turn, and —
-		// critically — it is what makes the Scene3D runtime keep a continuous
-		// animation loop running, which the custom material's time-driven
-		// drift, pan, and twinkle all depend on.
-		Spin: scene.Euler{Z: band.PanX * 0.15},
+		// Drift and bounded sway live in the shader. The node spin is a
+		// visually-negligible Z rotation (under four degrees across a whole
+		// 25-minute talk, inside the frustum overscan margins) whose only job
+		// is to make the Scene3D runtime keep its animation loop — and
+		// therefore the time uniform driving drift, sway, and twinkle —
+		// running. Faster spin on any axis eventually thins the
+		// frustum-authored cloud on screen; that is why the visible tangential
+		// motion is the shader sway, which cannot accumulate.
+		Spin: scene.Euler{Z: 0.0001},
 		Material: m31StarfieldTwinkleMaterial(band.Shimmer, band.PulseRate,
 			(band.WrapSpeed/span)/m31StarfieldTau, band.DistMin, band.DistMax,
 			band.PanX, band.PanY),
@@ -433,10 +435,14 @@ void main() {
 	float baseHalfH = max(starfieldTanHalfFOV * baseDist, 0.001);
 	float nx = a_position.x / max(baseHalfH * starfieldAspect * starfieldMarginX, 0.001);
 	float ny = a_position.y / max(baseHalfH * starfieldMarginY, 0.001);
-	// Tangential pan with screen-space wraparound: a star that slides off one
-	// edge re-enters on the other, so band coverage never thins over time.
-	nx = starfieldFract((nx * 0.5 + 0.5) + time * starfieldPanX) * 2.0 - 1.0;
-	ny = starfieldFract((ny * 0.5 + 0.5) + time * starfieldPanY) * 2.0 - 1.0;
+	// Tangential SWAY, not accumulating pan: a bounded sinusoidal drift whose
+	// amplitude stays inside the frustum's overscan margins, so coverage is
+	// stable forever — no fold-over banding, no emptied edges. The spatial
+	// phase term turns the band's motion into a slow wave instead of a rigid
+	// sheet slide.
+	float swayPhase = nx * 0.9 + ny * 0.5;
+	nx += 0.045 * sin(time * starfieldPanX * 6.2832 + swayPhase);
+	ny += 0.035 * sin(time * starfieldPanY * 6.2832 + swayPhase * 1.3);
 	float phase = starfieldFract((baseDist - starfieldDistMin) / starfieldSpan - starfieldFract(time * starfieldDepthRate));
 	float dist = starfieldDistMin + phase * starfieldSpan;
 	float halfH = starfieldTanHalfFOV * dist;

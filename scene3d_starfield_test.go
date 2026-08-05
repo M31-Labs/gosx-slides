@@ -190,7 +190,9 @@ func TestM31ClosingGalaxySceneUsesOfflineModelAndAnimation(t *testing.T) {
 	}
 	// The GLB has no baked animation, so the dust shells' spin is the ONLY
 	// thing keeping the runtime's animation loop (and the AutoRotate orbit)
-	// alive on the closing shot. Both must spin, in opposite directions.
+	// alive on the closing shot. Both must spin the SAME direction — the gas
+	// and arms must read as one rotating body, with the shells adding only
+	// gentle depth shear inside that shared rotation.
 	spins := []float64{}
 	for _, node := range props.Graph.Nodes[1:] {
 		dust, ok := node.(scene.Points)
@@ -200,9 +202,12 @@ func TestM31ClosingGalaxySceneUsesOfflineModelAndAnimation(t *testing.T) {
 		if dust.Spin == (scene.Euler{}) {
 			t.Fatalf("%s does not spin; the finale would render one frame and freeze", dust.ID)
 		}
+		if dust.Spin.Y > 0.02 {
+			t.Fatalf("%s spinY = %.4f, fast enough to fight the arms instead of shearing with them", dust.ID, dust.Spin.Y)
+		}
 		spins = append(spins, dust.Spin.Y)
 	}
-	if spins[0]*spins[1] >= 0 {
-		t.Fatalf("dust shells spin the same way (%v); counter-rotation is the alive read", spins)
+	if spins[0]*spins[1] <= 0 {
+		t.Fatalf("dust shells counter-rotate (%v); the gas must move with the spiral arms, not against them", spins)
 	}
 }
