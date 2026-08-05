@@ -902,7 +902,7 @@ fallback: "If the tree does not respond, point at the rendered node names and co
 :::columns
 :::col "THE ISLAND SOURCE (GoSX, TRIMMED)"
 
-``` go
+``` gosx
 type ParseTreeProps struct {
     Expr string
 }
