@@ -115,8 +115,14 @@ func TestM31StarfieldMatchesHistoricalM31ContentScene(t *testing.T) {
 	// rotating that pyramid swings the population out of frame over a few
 	// minutes, thinning the field and bunching the rest in one region.
 	for _, layer := range layers {
-		if layer.Spin != (scene.Euler{}) {
-			t.Fatalf("%s uses rigid node spin; frustum-authored stars must pan via shader wraparound", layer.ID)
+		if layer.Spin.X != 0 || layer.Spin.Y != 0 {
+			t.Fatalf("%s spins about X/Y; those axes swing the frustum-authored cloud out of frame", layer.ID)
+		}
+		if layer.Spin.Z == 0 {
+			t.Fatalf("%s has no Z spin; the runtime only keeps the animation loop (time uniform) alive for animated nodes", layer.ID)
+		}
+		if layer.Spin.Z > 0.01 {
+			t.Fatalf("%s spinZ = %.4f, too fast — the sky would read as a turning sheet", layer.ID, layer.Spin.Z)
 		}
 		if layer.Position.Z != 0 {
 			t.Fatalf("%s group offset z = %.1f, want frustum-placed stars at true depth", layer.ID, layer.Position.Z)

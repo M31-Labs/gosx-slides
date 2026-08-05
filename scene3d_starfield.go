@@ -287,9 +287,14 @@ func m31StarfieldBandLayer(seed uint64, band m31StarfieldBand) scene.Points {
 		BlendMode:    scene.BlendAdditive,
 		DepthWrite:   false,
 		Attenuation:  false,
-		// Drift and pan both live in the shader with wraparound; no node spin,
-		// because rotating the frustum-authored cloud empties the frame over
-		// time. No group offset — stars sit at their true depth.
+		// Drift and pan live in the shader with wraparound. The node spin is
+		// Z-only and slow: rotation about the VIEW axis keeps the
+		// frustum-authored cloud in frame forever (Y/X spin swung it out and
+		// emptied the sky), adds a gentle differential in-plane turn, and —
+		// critically — it is what makes the Scene3D runtime keep a continuous
+		// animation loop running, which the custom material's time-driven
+		// drift, pan, and twinkle all depend on.
+		Spin: scene.Euler{Z: band.PanX * 0.15},
 		Material: m31StarfieldTwinkleMaterial(band.Shimmer, band.PulseRate,
 			(band.WrapSpeed/span)/m31StarfieldTau, band.DistMin, band.DistMax,
 			band.PanX, band.PanY),
