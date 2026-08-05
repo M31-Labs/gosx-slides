@@ -47,12 +47,13 @@ main.deck > .starfield-surface {
   filter: brightness(1.15);
 }
 
+/* No darkening veil over the closing galaxy: the M31 beat should come through
+   at full luminance. The slide's own copy sits on the card surface, so the
+   background does not need to yield to it. */
 main.deck > .deck-galaxy3d {
   visibility: hidden;
   opacity: 0;
-  background:
-    linear-gradient(rgba(1, 1, 6, 0.32), rgba(1, 1, 6, 0.32)),
-    url("/public/m31labs-og.png") center / cover no-repeat;
+  background: url("/public/m31labs-og.png") center / cover no-repeat;
   transition: opacity 420ms ease, visibility 0s linear 420ms;
 }
 
@@ -131,6 +132,15 @@ main.deck[data-theme="aurora"] > section.slide:not(.layout-title):not(.layout-ce
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+/* The deck's glass card sits deeper than the framework's caption reserve
+   (20vh + 0.5rem), so slides must pad past their OWN frame line plus inner
+   breathing—otherwise in-flow content can legally sit on the card border. */
+main.deck[data-caption-safe-bottom="20"] > section.slide {
+  padding-bottom: calc(
+    var(--caption-safe-height, 20vh) + clamp(1.25rem, 2.5vh, 2rem) + 1.25rem
+  );
 }
 
 main.deck > section.slide::before {
@@ -244,6 +254,15 @@ main.deck > section.slide.query-operations .mdpp-col > pre.code-block {
   font-size: clamp(0.95rem, 1.15vw, 1.2rem);
   line-height: 1.34;
   padding: 0.6rem 0.9rem;
+}
+
+/* The DSL-to-Go pair slides carry ~15-line columns; step the type down one
+   notch from the flagship code slides so both columns clear the caption band
+   without auto-scaling. */
+main.deck > section.slide.query-operations.code-dense .mdpp-col > pre.code-block {
+  font-size: clamp(0.82rem, 0.98vw, 1.02rem);
+  line-height: 1.26;
+  padding: 0.5rem 0.8rem;
 }
 
 /* The grammargen slide pairs the tall DSL snippet with a four-row pipeline

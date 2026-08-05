@@ -106,6 +106,55 @@ defended. Move.
 ---
 
 ``` yaml
+class: copy-tight mdpp-three
+```
+
+# First, the reference: Tree-sitter
+
+:::columns
+:::col "THE C RUNTIME"
+
+Over a decade of parser engineering: incremental, error-tolerant, and hardened inside the editors millions of developers type into daily.
+:::
+
+:::col "THE GRAMMAR ECOSYSTEM"
+
+Hundreds of community grammars—accumulated years of real-world edge cases nobody wants to rediscover.
+:::
+
+:::col "THE GO PROBLEM"
+
+Every Go binding wraps the C library through CGo—painful to cross-compile, ship static, or run in WebAssembly.
+:::
+:::
+
+> [!IMPORTANT]
+> GoTreeSitter reimplements the runtime in pure Go, keeps the grammar ecosystem, and the C original becomes the reference implementation we test against.
+
+<!--
+[TIME 1:45–2:25]
+
+Forty seconds of shared vocabulary, and the scale matters. Tree-sitter is not
+a weekend parser: it is over a decade of engineering on incremental,
+error-tolerant parsing, running inside the editors and code tools millions of
+developers use every day. Around it sit hundreds of community grammars, and
+each one is years of accumulated edge cases—string quirks, ambiguities,
+recovery behavior—that nobody sane wants to rediscover from scratch.
+
+So the bet was never "replace Tree-sitter." Throwing that heritage away would
+have been the most expensive possible mistake. The catch for Go teams is only
+the CGo boundary. We wanted the runtime itself in Go while keeping every
+grammar—and the C implementation becomes the most valuable thing an ambitious
+rewrite can have: a source of truth to compare against. Hold that thought; it
+becomes the oracle in a few minutes.
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” motivation and reference lanes.
+-->
+
+---
+
+``` yaml
 class: copy-tight mdpp-four
 ```
 
@@ -137,7 +186,7 @@ Apply atomic rewrites; emit the next `InputEdit` records.
 > Application-ready Go APIs: 206 embedded grammars, 119 hand-written Go scanners, 156 highlight and 69 tags query packs—not a checklist to rebuild.
 
 <!--
-[TIME 1:45–3:05]
+[TIME 2:25–3:45]
 
 A parser that prints a tree has completed the tutorial. Applications need the
 loop around it. They start with a file, retain an edited tree, ask bounded
@@ -203,7 +252,7 @@ Runtime facts
 > GoTreeSitter is more than a parser—and deliberately less than a language server.
 
 <!--
-[TIME 3:05–4:20]
+[TIME 3:45–5:00]
 
 The application begins with the file, not a hard-coded parser constructor.
 Detection returns a capability entry: the grammar plus the optional highlight
@@ -263,7 +312,7 @@ A no-edit reparse returns in single-digit nanoseconds, with zero allocations.
 :::
 
 <!--
-[TIME 4:20–5:45]
+[TIME 5:00–6:25]
 
 Both halves of the loop are plain Go. A query is the full Tree-sitter
 S-expression pattern language—quantifiers, alternation, field constraints,
@@ -320,7 +369,7 @@ Normalized structural result
 > Compare node types, child shape, fields, byte ranges, missing nodes, and error placement.
 
 <!--
-[TIME 5:45–7:15]
+[TIME 6:25–7:55]
 
 A parser runtime has a rare advantage: there is a reference implementation.
 We could run the same source and grammar through both systems, normalize their
@@ -376,7 +425,7 @@ Expose the application capabilities those structures make possible.
 > The project was too large to “vibe-check.” Every boundary needed a witness.
 
 <!--
-[TIME 7:15–8:30]
+[TIME 7:55–9:10]
 
 The naive framing is a C-to-Go rewrite. The real scope was a chain of ownership
 claims: the lexer recognized the correct token, the parser attached the right
@@ -431,7 +480,7 @@ The witness becomes a permanent regression test.
 > The model accelerated the search. It was never the evidence.
 
 <!--
-[TIME 8:30–9:45]
+[TIME 9:10–10:25]
 
 AI was useful because it could search a wide solution space quickly. It could
 trace unfamiliar mechanisms, propose an implementation, generate test
@@ -490,7 +539,7 @@ Keep the minimal case and move the floor forward.
 > Give AI one small, checkable problem—not “make the whole parser correct.”
 
 <!--
-[TIME 9:45–11:00]
+[TIME 10:25–11:40]
 
 Large failures create vague prompts and vague patches. Reduction changed the
 unit of work. We started from a real corpus divergence, located the first
@@ -537,7 +586,7 @@ Old tree → edit → incremental candidate → fresh parse comparison → admit
 > A component is not done when its unit test passes; it is done when one real path crosses the system.
 
 <!--
-[TIME 11:00–12:10]
+[TIME 11:40–12:50]
 
 Horizontal implementation plans are seductive: finish the lexer, then the
 parser, then the loader, then queries. They delay integration evidence until
@@ -591,7 +640,7 @@ Bench gates verify the safe path is still useful.
 > A slower honest result is better than a fast structural lie.
 
 <!--
-[TIME 12:10–13:25]
+[TIME 12:50–14:05]
 
 Incremental parsing taught the most general systems lesson in the project.
 Reuse is not an entitlement. It is a candidate that must prove it still belongs
@@ -652,7 +701,7 @@ Ship
 :::
 
 <!--
-[TIME 13:25–14:50]
+[TIME 14:05–15:30]
 
 The runtime became reusable when grammar work became reproducible. grammargen
 can import a resolved upstream grammar or accept a grammar authored as Go
@@ -707,7 +756,7 @@ Scope, resolution, semantics, policy, user experience, and migration intent.
 > A clear boundary lets people—and AI agents—change one layer without pretending to own the others.
 
 <!--
-[TIME 14:50–16:00]
+[TIME 15:30–16:40]
 
 The runtime cannot infer what a grammar does not encode. The grammar cannot
 turn a syntax capture into workspace meaning. The product should not quietly
@@ -760,7 +809,7 @@ Pin the grammar, corpus, capability, and version behind each claim.
 > Once a bug is fixed, it can never quietly come back—the bar only moves up.
 
 <!--
-[TIME 16:00–17:40]
+[TIME 16:40–18:15]
 
 A test suite can stay green while the project quietly changes its definition
 of success. A ratchet prevents that. Every reduced mismatch becomes a fixture;
@@ -818,7 +867,7 @@ Canopy and Graft
 > qml-language-server starts at trees and ranges—the strongest evidence the boundary is in the right place.
 
 <!--
-[TIME 17:40–18:50]
+[TIME 18:15–19:10]
 
 The proof of a foundation is not another foundation demo. It is the different
 products that can begin above it. GoSX composes a language and builds a compiler.
@@ -877,7 +926,7 @@ func ParseTree(props ParseTreeProps) Node {
 :::
 
 <!--
-[TIME 18:50–19:50]
+[TIME 19:10–20:00]
 
 Nothing on this screen is a screenshot. These slides are Markdown++, parsed by
 GoTreeSitter grammars, lowered into compiled GoSX components, and running as a
@@ -899,6 +948,148 @@ talk.
 [Sources]
 - This deck’s `ParseTree.gsx` island.
 - This deck’s mdpp → GoSX rendering path.
+-->
+
+---
+
+``` yaml
+class: copy-tight query-operations code-dense mdpp-two
+```
+
+# Danmuji: tests you can read aloud
+
+:::columns
+:::col "THE DSL (.dmj)"
+
+``` danmuji
+package cart_test
+
+import "testing"
+
+unit "ShoppingCart.Add" {
+    given "an empty cart" {
+        cart := NewCart()
+        when "adding an item" {
+            cart.Add("widget")
+            then "count increases" {
+                expect cart.Count() == 1
+            }
+        }
+    }
+}
+```
+:::
+
+:::col "THE GENERATED `go test` (TRIMMED)"
+
+``` go
+func TestShoppingCartAdd(t *testing.T) {
+    t.Parallel()
+    t.Run("an empty cart", func(t *testing.T) {
+        cart := NewCart()
+        t.Run("adding an item", func(t *testing.T) {
+            cart.Add("widget")
+            t.Run("count increases", func(t *testing.T) {
+                assert.EqualValues(t, 1, cart.Count())
+            })
+        })
+    })
+}
+```
+:::
+:::
+
+<!--
+[TIME 20:00–20:40]
+
+The left column is highlighted by Danmuji’s own grammar blob, loaded by this
+deck at render time—the registry mechanism from Act I, live on stage. The
+right column is the transpiler’s real output, trimmed of `//line` directives.
+
+Danmuji extends Go with behavior-driven test structure and emits normal Go
+tests: those line directives keep failures located in the original source,
+and the result runs under plain `go test` with no Danmuji runtime. The
+language disappears into the host toolchain.
+
+[Sources]
+- Danmuji README, unit/given/when/then example; `danmuji build` output.
+- This deck’s `grammars/danmuji.bin` highlight lane.
+-->
+
+---
+
+``` yaml
+class: copy-tight query-operations code-dense mdpp-two
+```
+
+# Ferrous Wheel: rusty in, boring Go out
+
+:::columns
+:::col "THE DSL (.fw)"
+
+``` ferrous
+package main
+
+import "os"
+
+enum Status { Active, Suspended(string) }
+
+derive Equal for Status
+
+func loadUser(path string) (string, error) {
+    let data = os.ReadFile(path)?
+    let mut name = string(data)
+    if name == "" {
+        name = "anonymous"
+    }
+    return name, nil
+}
+```
+:::
+
+:::col "THE EMITTED GO (TRIMMED)"
+
+``` go
+type Status struct {
+    tag        int
+    suspended0 string
+}
+
+func (x Status) Equal(other Status) bool {
+    return x == other
+}
+
+func loadUser(path string) (string, error) {
+    data, _fwTryErr0 := os.ReadFile(path)
+    if _fwTryErr0 != nil {
+        return *new(string), _fwTryErr0
+    }
+    name := string(data)
+    // … unchanged from the source
+}
+```
+:::
+:::
+
+<!--
+[TIME 20:40–21:20]
+
+Again the left column is highlighted by Ferrous Wheel’s own grammar blob.
+The right column is the transpiler’s real `emit` output, trimmed of the
+generated header, `//line` directives, and the constructor block.
+
+Deliberately Rust-shaped in: a payload enum, a derive, `let mut`, and the `?`
+operator. Deliberately boring Go out: a tag struct, an `Equal` method, and
+the classic explicit error return. Same grammar-composition mechanism as
+Danmuji; opposite product choice—Danmuji disappears into `go test`, Ferrous
+Wheel keeps its own surface and emits Go you could have written by hand.
+
+That choice belongs to the product. The foundation just hands both a tree
+they can trust.
+
+[Sources]
+- Ferrous Wheel README; `ferrous-wheel emit` output for this exact source.
+- This deck’s `grammars/ferrous.bin` highlight lane.
 -->
 
 ---
@@ -940,7 +1131,7 @@ Reduce failures, ratchet the harness, and dogfood the result.
 > AI amplifies the system you give it. Build the evidence system before chasing velocity.
 
 <!--
-[TIME 19:50–22:20]
+[TIME 21:20–23:20]
 
 Here is the method I would carry into another massive project.
 
@@ -989,7 +1180,7 @@ Name the contract. Create the witness. Let AI search. Keep the proof.
 :::
 
 <!--
-[TIME 22:20–23:20]
+[TIME 23:20–24:10]
 
 GoTreeSitter is useful because consumers can start with language detection,
 trees, queries, highlights, tags, injections, and safe rewrite coordinates

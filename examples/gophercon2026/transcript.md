@@ -5,21 +5,21 @@
 **Speaker:** Oscar Villavicencio, M31 Labs
 **Venue:** GopherCon 2026
 **Slot:** 25 minutes
-**Nominal finish:** 23:20
+**Nominal finish:** 24:10
 **Hard stop:** 25:00
 **Audience:** Go developers of all levels who may know Tree-sitter by
 reputation without knowing its runtime, grammar-generation, or product
 boundaries.
 
 The talk runs in three acts, previewed on the agenda slide: **I. What it is
-and the reference implementation (slides 1–7)**, **II. How we built it
-(slides 8–15)**, **III. How it's used, use cases, and demos (slides 16–19)**.
+and the reference implementation (slides 1–8)**, **II. How we built it
+(slides 9–16)**, **III. How it's used, use cases, and demos (slides 17–22)**.
 By the end, the audience should understand that GoTreeSitter is a bounded
 pure-Go structural foundation they can safely build above, and should leave
 with an evidence-gated method for using AI on correctness-sensitive work:
 contract → witness → AI search → reduction → ratchet → dogfood.
 
-This is the canonical spoken track for the 19-slide deck. Section titles and
+This is the canonical spoken track for the 22-slide deck. Section titles and
 time ranges match the slide headlines and the `[TIME]` blocks in `deck.md`.
 Bracketed text is a stage direction, not spoken copy.
 
@@ -65,7 +65,23 @@ playbook you can steal.
 [One breath per act. No numbers here; the receipts land where they can be
 defended.]
 
-## 4. It ships the layer between parsing and product — 1:45–3:05
+## 4. First, the reference: Tree-sitter — 1:45–2:25
+
+Forty seconds of shared vocabulary, and the scale matters. Tree-sitter is
+not a weekend parser: it is over a decade of engineering on incremental,
+error-tolerant parsing, running inside the editors and code tools millions
+of developers use every day. Around it sit hundreds of community grammars,
+each one carrying years of accumulated edge cases—string quirks,
+ambiguities, recovery behavior—that nobody sane wants to rediscover.
+
+So the bet was never "replace Tree-sitter." Throwing that heritage away
+would have been the most expensive possible mistake. The catch for Go teams
+is only the CGo boundary. We wanted the runtime itself in Go while keeping
+every grammar—and the C implementation becomes the most valuable thing an
+ambitious rewrite can have: a source of truth to compare against. Hold that
+thought; it returns as the oracle in a few minutes.
+
+## 5. It ships the layer between parsing and product — 2:25–3:45
 
 A parser that prints a tree has completed the tutorial. Applications need the
 loop around it. They start with a file, retain an edited tree, ask bounded
@@ -86,7 +102,7 @@ promise a feature on top of it.
 That is the table stakes. The next slide shows how little application code is
 required to cross that boundary.
 
-## 5. Start with a file; ask for the capability — 3:05–4:20
+## 6. Start with a file; ask for the capability — 3:45–5:00
 
 The application begins with the file, not a hard-coded parser constructor.
 Detection returns a capability entry: the grammar plus the optional highlight
@@ -99,7 +115,7 @@ workspace meaning, and product policy still belong above it.
 
 And once you have a tree, the rest of the loop is just as plain.
 
-## 6. Queries and rewrites are ordinary Go — 4:20–5:45
+## 7. Queries and rewrites are ordinary Go — 5:00–6:25
 
 Both halves of the loop are plain Go. A query is the full Tree-sitter
 S-expression pattern language—quantifiers, alternation, field constraints,
@@ -117,7 +133,7 @@ That is what GoTreeSitter is: parse, ask, change, reparse—as ordinary Go.
 The next question is why anyone should trust those trees. The answer is that
 we never asked you to take our word for it.
 
-## 7. We ported observable behavior—not source code — 5:45–7:15
+## 8. We ported observable behavior—not source code — 6:25–7:55
 
 A parser runtime has a rare advantage: there is a reference implementation.
 We could run the same source and grammar through both systems, normalize their
@@ -136,7 +152,7 @@ we actually built it.
 
 ## Act II — How we built it
 
-## 8. The bet was much larger than "rewrite C in Go" — 7:15–8:30
+## 9. The bet was much larger than "rewrite C in Go" — 7:55–9:10
 
 The naive framing is a C-to-Go rewrite. The real scope was a chain of
 ownership claims: the lexer recognized the correct token, the parser attached
@@ -151,7 +167,7 @@ independent evidence on every change.
 The project became tractable when we stopped asking "is the parser done?" and
 started asking "which observable contract can we prove next?"
 
-## 9. AI proposed; evidence decided — 8:30–9:45
+## 10. AI proposed; evidence decided — 9:10–10:25
 
 AI was useful because it could search a wide solution space quickly. It could
 trace unfamiliar mechanisms, propose an implementation, generate test
@@ -166,7 +182,7 @@ witness stayed in the suite.
 That is the transferable method: give AI high freedom inside a boundary whose
 acceptance criteria it does not control.
 
-## 10. Every mismatch became a smaller problem — 9:45–11:00
+## 11. Every mismatch became a smaller problem — 10:25–11:40
 
 Large failures create vague prompts and vague patches. Reduction changed the
 unit of work. We started from a real corpus divergence, located the first
@@ -179,7 +195,7 @@ than a comment because it could still fail the implementation years later.
 This is applicable beyond parsers. Minimize a database history, protocol
 exchange, rendering state, or compiler input until one contract is under test.
 
-## 11. Build vertical proof slices — 11:00–12:10
+## 12. Build vertical proof slices — 11:40–12:50
 
 Horizontal implementation plans are seductive: finish the lexer, then the
 parser, then the loader, then queries. They delay integration evidence until
@@ -194,7 +210,7 @@ Each slice exposed bad interfaces early and created an executable path the
 next slice could reuse. Massive projects become manageable when every
 milestone ends in evidence at the boundary users will actually cross.
 
-## 12. Every optimization had to earn its way in — 12:10–13:25
+## 13. Every optimization had to earn its way in — 12:50–14:05
 
 Incremental parsing taught the most general systems lesson in the project.
 Reuse is not an entitlement. It is a candidate that must prove it still
@@ -209,7 +225,7 @@ uncertain.
 Correct fallback is a feature. Performance only counts after the optimized
 result has earned admission.
 
-## 13. grammargen made language work reproducible — 13:25–14:50
+## 14. grammargen made language work reproducible — 14:05–15:30
 
 The runtime became reusable when grammar work became reproducible. grammargen
 can import a resolved upstream grammar or accept a grammar authored as Go
@@ -230,7 +246,7 @@ representation, generated tables, blob, loader, runtime, or consumer.
 For an ambitious project, this is the artifact lesson: turn expensive
 knowledge into a versioned output that the next layer can consume cheaply.
 
-## 14. Explicit ownership kept the layers honest — 14:50–16:00
+## 15. Explicit ownership kept the layers honest — 15:30–16:40
 
 The runtime cannot infer what a grammar does not encode. The grammar cannot
 turn a syntax capture into workspace meaning. The product should not quietly
@@ -244,7 +260,7 @@ semantic and user-facing acceptance tests.
 Boundaries are not bureaucracy here. They are the mechanism that lets a large
 project move quickly without every change reopening the entire system.
 
-## 15. The harness had to ratchet, not merely test — 16:00–17:40
+## 16. The harness had to ratchet, not merely test — 16:40–18:15
 
 A test suite can stay green while the project quietly changes its definition
 of success. A ratchet prevents that. Every reduced mismatch becomes a fixture;
@@ -275,7 +291,7 @@ hard to redefine "done" after a regression.
 
 ## Act III — How it's used, use cases, and demos
 
-## 16. The foundation paid back across very different products — 17:40–18:50
+## 17. The foundation paid back across very different products — 18:15–19:10
 
 The proof of a foundation is not another foundation demo. It is the different
 products that can begin above it. GoSX composes a language and builds a
@@ -290,7 +306,7 @@ None receives semantics for free. They share grammar artifacts, trees, ranges,
 queries, and edits, then deliberately diverge at the product boundary. And the
 nearest dogfood is on this screen.
 
-## 17. This deck is the demo — 18:50–19:50
+## 18. This deck is the demo — 19:10–20:00
 
 Nothing on this screen is a screenshot. These slides are Markdown++, parsed by
 GoTreeSitter grammars, lowered into compiled GoSX components, and running as a
@@ -309,7 +325,34 @@ signal, and markup literals are ordinary Go, compiled by the GoSX compiler
 that starts from a GoTreeSitter tree. The stack on stage is the stack in the
 talk.
 
-## 18. A playbook for your massive project — 19:50–22:20
+## 19. Danmuji: tests you can read aloud — 20:00–20:40
+
+The left column is highlighted by Danmuji's own grammar blob, loaded by this
+deck at render time—the registry mechanism from Act I, live on stage. The
+right column is the transpiler's real output, trimmed of line directives.
+
+Danmuji extends Go with behavior-driven test structure and emits normal Go
+tests: those line directives keep failures located in the original source,
+and the result runs under plain `go test` with no Danmuji runtime. The
+language disappears into the host toolchain.
+
+## 20. Ferrous Wheel: rusty in, boring Go out — 20:40–21:20
+
+Again the left column is highlighted by Ferrous Wheel's own grammar blob, and
+the right column is the transpiler's real emit output, trimmed of the
+generated header and constructor block.
+
+Deliberately Rust-shaped in: a payload enum, a derive, let mut, and the
+question-mark operator. Deliberately boring Go out: a tag struct, an Equal
+method, and the classic explicit error return. Same grammar-composition
+mechanism as Danmuji; opposite product choice—Danmuji disappears into go
+test, Ferrous Wheel keeps its own surface and emits Go you could have
+written by hand.
+
+That choice belongs to the product. The foundation just hands both a tree
+they can trust.
+
+## 21. A playbook for your massive project — 21:20–23:20
 
 [Slow down. This is the protected teaching slide.]
 
@@ -327,7 +370,7 @@ The goal is not to make AI cautious. The goal is to make ambitious exploration
 cheap and incorrect acceptance expensive. Velocity compounds when the harness,
 artifacts, and consumers all remember what the team has learned.
 
-## 19. Build one layer lower—so every product can start higher — 22:20–23:20
+## 22. Build one layer lower—so every product can start higher — 23:20–24:10
 
 GoTreeSitter is useful because consumers can start with language detection,
 trees, queries, highlights, tags, injections, and safe rewrite coordinates
