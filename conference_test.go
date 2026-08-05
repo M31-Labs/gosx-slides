@@ -8,7 +8,7 @@ import (
 )
 
 func TestConferenceSafeAreaRenders(t *testing.T) {
-	deck := loadDeckFromSource(t, "---\naspect-ratio: 16:9\ncaption-safe-bottom: 10%\n---\n\n# Safe\n", nil)
+	deck := loadDeckFromSource(t, "---\naspect-ratio: 16:9\ncaption-safe-bottom: 20%\n---\n\n# Safe\n", nil)
 	app, err := deck.NewServer(ServeOptions{})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
@@ -16,7 +16,7 @@ func TestConferenceSafeAreaRenders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	app.Build().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	body := rec.Body.String()
-	for _, want := range []string{`data-aspect-ratio="16:9"`, `data-caption-safe-bottom="10"`, `data-conference-safe-area="true"`, `--caption-safe-height: 10vh`, `calc(10vh + 1.5rem)`} {
+	for _, want := range []string{`data-aspect-ratio="16:9"`, `data-caption-safe-bottom="20"`, `data-conference-safe-area="true"`, `--caption-safe-height: 20vh`, `max(clamp(2.5rem, 5vw, 5rem), 20vh)`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("conference rendering missing %q", want)
 		}
@@ -24,7 +24,7 @@ func TestConferenceSafeAreaRenders(t *testing.T) {
 }
 
 func TestConferenceCaptionGuideIsOptIn(t *testing.T) {
-	deck := loadDeckFromSource(t, "---\ncaption-safe-bottom: 10%\ncaption-guide: true\n---\n\n# Guide\n", nil)
+	deck := loadDeckFromSource(t, "---\ncaption-safe-bottom: 20%\ncaption-guide: true\n---\n\n# Guide\n", nil)
 	if !deckConferenceConfig(deck).CaptionGuide {
 		t.Fatal("caption-guide: true was not enabled")
 	}

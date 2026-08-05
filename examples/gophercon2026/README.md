@@ -30,7 +30,7 @@ By the end, Go developers should know which GoTreeSitter capabilities can be dro
 - Nominal finish: 23:30, leaving a 1:30 hard-stop buffer.
 - Hard stop: 25:00.
 - Aspect ratio: 16:9 at 1600×900.
-- Caption-safe lower band: 10 percent.
+- Caption-safe lower band: 20 percent.
 - Offline operation: required.
 - Live interaction: none required; the Scene3D atmosphere degrades locally.
 - Live visual layer: a full-deck Scene3D starfield with a 30 fps render cap, with the

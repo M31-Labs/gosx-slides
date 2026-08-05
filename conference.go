@@ -7,10 +7,9 @@ import (
 
 const (
 	conferenceAspectRatio = "16:9"
-	// A two-line live-caption overlay needs a compact lower buffer, not a full
-	// fifth of a 16:9 projection. Ten percent leaves captions room while
-	// allowing audience content to use the middle and lower canvas.
-	conferenceCaptionSafeFloor = 10
+	// Reserve the lower fifth of a 16:9 projection for live captions. The
+	// content layout centers and packs into the remaining 80% above this line.
+	conferenceCaptionSafeFloor = 20
 )
 
 // ConferenceConfig is the presentation-room contract declared in deck
@@ -85,9 +84,10 @@ func conferenceStyle(config ConferenceConfig) string {
 }
 main.deck[data-caption-safe-bottom="` + bottom + `"] > .slide {
   box-sizing: border-box;
-  /* The caption reserve is the lower bound. A 7vw floor duplicated that
-     space on wide projectors and forced otherwise-fitting slides to scale. */
-  padding-bottom: max(clamp(2.5rem, 5vw, 5rem), calc(` + bottom + `vh + 1.5rem));
+  /* The caption reserve is the lower bound. Keep the optical margin in the
+     plate, not in another viewport-sized padding band, so the upper 80% stays
+     available to the talk. */
+  padding-bottom: max(clamp(2.5rem, 5vw, 5rem), ` + bottom + `vh);
 }
 main.deck[data-caption-guide="1"][data-caption-safe-bottom="` + bottom + `"]::after {
   content: "caption-safe area · bottom ` + bottom + `%";

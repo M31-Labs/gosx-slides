@@ -25,8 +25,9 @@ Color architecture:
 - Accent (10%): `var(--accent)`, the warm amber signal color.
 - Text: `var(--fg)` for primary copy and `var(--fg-muted)` for supporting
   copy. The Aurora theme supplies AA-or-better contrast for both on the canvas.
-- Content backing: `rgba(1, 1, 6, 0.78)` with blur, reduced saturation, reduced
-  brightness, and a subtle token-based border. It ends above the caption band.
+- Content backing: a low-opacity near-black glass gradient with blur, reduced
+  saturation, reduced brightness, and a subtle token-based border. It ends
+  above the caption band so the live field remains visible around the copy.
 - The closing QR card alone uses `var(--qr-bg)` and `var(--qr-fg)` to preserve
   scanner contrast.
 
@@ -58,7 +59,7 @@ Implementation rules:
 - Dense reference slides use ruled panels, not generic floating card grids.
 - Headings and the amber signal remain the strongest visual elements on every
   slide.
-- Reading slides center their composition inside the full usable canvas; only
-  the compact lower caption band stays intentionally clear.
-- The 10% caption-safe lower band remains free of essential content; the glass
+- Reading slides center their composition inside the 80% usable canvas; only
+  the lower caption band stays intentionally clear.
+- The 20% caption-safe lower band remains free of essential content; the glass
   plate ends just above it so the live starfield can occupy the full canvas.

@@ -2,7 +2,7 @@
 title: "GoTreeSitter: building an ambitious parser substrate with AI"
 theme: aurora
 aspect-ratio: 16:9
-caption-safe-bottom: 10%
+caption-safe-bottom: 20%
 duration-minutes: 25
 offline-required: true
 scene: m31-starfield

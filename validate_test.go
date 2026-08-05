@@ -32,7 +32,7 @@ func TestConferenceContract(t *testing.T) {
 		t.Fatalf("conference contract should report metadata and fallback errors: %v", r.Errors)
 	}
 
-	ready := loadDeckFromSource(t, "---\naspect-ratio: 16:9\ncaption-safe-bottom: 10%\nduration-minutes: 25\noffline-required: true\n---\n\n```yaml\nfallback: static\n```\n\n# A\n\n<ParseTree/>\n\n<!-- fallback -->\n", map[string]string{"ParseTree.gsx": "component ParseTree() { <div>tree</div> }"})
+	ready := loadDeckFromSource(t, "---\naspect-ratio: 16:9\ncaption-safe-bottom: 20%\nduration-minutes: 25\noffline-required: true\n---\n\n```yaml\nfallback: static\n```\n\n# A\n\n<ParseTree/>\n\n<!-- fallback -->\n", map[string]string{"ParseTree.gsx": "component ParseTree() { <div>tree</div> }"})
 	if r := Validate(ready, ValidateOptions{Profile: "conference"}); len(r.Errors) != 0 {
 		t.Fatalf("complete conference contract errors: %v", r.Errors)
 	}
