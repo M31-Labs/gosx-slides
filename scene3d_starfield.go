@@ -149,11 +149,60 @@ func m31ClosingGalaxyScene() scene.Props {
 			Exposure:         1,
 			ToneMapping:      "aces",
 		},
-		Graph: scene.NewGraph(scene.Model{
-			ID:     "m31-homepage-galaxy",
-			Src:    "/public/m31-galaxy.glb",
-			Static: scene.Bool(true),
-		}),
+		Graph: scene.NewGraph(
+			scene.Model{
+				ID:     "m31-homepage-galaxy",
+				Src:    "/public/m31-galaxy.glb",
+				Static: scene.Bool(true),
+			},
+			// The GLB carries no baked animation and Models cannot spin, so the
+			// finale's life comes from two counter-turning dust shells around
+			// it. Their point-spin is also what makes the runtime keep the
+			// animation loop alive, which the AutoRotate camera orbit needs —
+			// without an animated node the closing shot renders one frame and
+			// freezes.
+			m31GalaxyDustLayer(m31StarfieldSeed+101, "galaxy-dust-inner", 900,
+				150, 420, 1.6, 2.2, scene.Euler{Y: 0.030, Z: 0.010}, "#d9b8ff"),
+			m31GalaxyDustLayer(m31StarfieldSeed+211, "galaxy-dust-outer", 1400,
+				420, 950, 1.2, 1.8, scene.Euler{Y: -0.014, Z: 0.005}, "#ffd9a0"),
+		),
+	}
+}
+
+// m31GalaxyDustLayer scatters one deterministic spherical shell of additive
+// glow points around the closing galaxy. Shells are rotation-invariant, so
+// the spin can run forever without thinning the frame the way the old
+// frustum-cloud rotation did.
+func m31GalaxyDustLayer(seed uint64, id string, count int, rMin, rMax, sizeMin, sizeSpan float64, spin scene.Euler, color string) scene.Points {
+	positions := make([]scene.Vector3, count)
+	sizes := make([]float64, count)
+	r3min, r3max := rMin*rMin*rMin, rMax*rMax*rMax
+	for i := range positions {
+		u := m31StarRand(seed, uint64(i)*3+1)
+		v := m31StarRand(seed, uint64(i)*3+2)
+		w := m31StarRand(seed, uint64(i)*3+3)
+		z := 2*u - 1
+		theta := 2 * math.Pi * v
+		ring := math.Sqrt(math.Max(0, 1-z*z))
+		radius := math.Cbrt(r3min + (r3max-r3min)*w)
+		positions[i] = scene.Vec3(math.Cos(theta)*ring*radius, math.Sin(theta)*ring*radius, z*radius)
+		sizes[i] = sizeMin + m31StarRand(seed, uint64(i)*7+5)*sizeSpan
+	}
+	return scene.Points{
+		ID:           id,
+		Count:        count,
+		Positions:    positions,
+		Sizes:        sizes,
+		Color:        color,
+		Style:        scene.PointStyleGlow,
+		Size:         2,
+		MinPixelSize: 1.2,
+		MaxPixelSize: 6,
+		Opacity:      0.9,
+		BlendMode:    scene.BlendAdditive,
+		DepthWrite:   false,
+		Attenuation:  true,
+		Spin:         spin,
 	}
 }
 

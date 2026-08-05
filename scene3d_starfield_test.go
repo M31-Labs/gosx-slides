@@ -178,8 +178,8 @@ func TestM31ClosingGalaxySceneUsesOfflineModelAndAnimation(t *testing.T) {
 	if props.CanvasAlpha == nil || !*props.CanvasAlpha || props.Background != "transparent" {
 		t.Fatal("closing galaxy must composite over the local first-paint underlay")
 	}
-	if len(props.Graph.Nodes) != 1 {
-		t.Fatalf("graph nodes = %d, want 1 offline model", len(props.Graph.Nodes))
+	if len(props.Graph.Nodes) != 3 {
+		t.Fatalf("graph nodes = %d, want the offline model plus two dust shells", len(props.Graph.Nodes))
 	}
 	model, ok := props.Graph.Nodes[0].(scene.Model)
 	if !ok {
@@ -187,5 +187,22 @@ func TestM31ClosingGalaxySceneUsesOfflineModelAndAnimation(t *testing.T) {
 	}
 	if model.Src != "/public/m31-galaxy.glb" {
 		t.Fatalf("model src = %q, want offline galaxy GLB", model.Src)
+	}
+	// The GLB has no baked animation, so the dust shells' spin is the ONLY
+	// thing keeping the runtime's animation loop (and the AutoRotate orbit)
+	// alive on the closing shot. Both must spin, in opposite directions.
+	spins := []float64{}
+	for _, node := range props.Graph.Nodes[1:] {
+		dust, ok := node.(scene.Points)
+		if !ok {
+			t.Fatalf("closing dust node = %T, want scene.Points", node)
+		}
+		if dust.Spin == (scene.Euler{}) {
+			t.Fatalf("%s does not spin; the finale would render one frame and freeze", dust.ID)
+		}
+		spins = append(spins, dust.Spin.Y)
+	}
+	if spins[0]*spins[1] >= 0 {
+		t.Fatalf("dust shells spin the same way (%v); counter-rotation is the alive read", spins)
 	}
 }
