@@ -13,8 +13,15 @@ package main
 // distinguishes both. The component does not claim to parse on stage; it is a
 // faithful interactive rendering of a verified tree.
 //
+// ParseTreeProps is the island's typed prop surface: props are an ordinary Go
+// struct, so a misspelled or mistyped prop fails compilation instead of
+// rendering wrong.
+type ParseTreeProps struct {
+	Expr string
+}
+
 //gosx:island
-func ParseTree(props any) Node {
+func ParseTree(props ParseTreeProps) Node {
 	declOpen := signal.New(true)
 	rhsOpen := signal.New(true)
 	groupOpen := signal.New(false)
@@ -24,7 +31,7 @@ func ParseTree(props any) Node {
 
 	return <div class="ptree" style="font-family:var(--font-mono);font-size:0.9rem;line-height:1.45;width:min(760px,100%);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.3rem">
 		<div style="display:flex;justify-content:space-between;gap:1rem;margin-bottom:0.45rem">
-			<strong style="color:var(--accent)">total := price * (count + 1)</strong>
+			<strong style="color:var(--accent)">{"total := price * (count + 1)"}</strong>
 			<span style="color:var(--fg-muted)">bytes 0–28</span>
 		</div>
 		<div style="color:var(--accent);font-weight:700">source_file</div>

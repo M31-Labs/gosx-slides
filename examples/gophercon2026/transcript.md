@@ -1,406 +1,345 @@
-# GoTreeSitter: from parser runtime to product substrate
+# GoTreeSitter: building an ambitious parser foundation with AI
 
 ## Editor brief
 
 **Speaker:** Oscar Villavicencio, M31 Labs
-**Venue:** GopherCon 2026  
+**Venue:** GopherCon 2026
 **Slot:** 25 minutes
-**Nominal finish:** 24:10
-**Hard stop:** 24:50
-**Audience:** Go developers who may know Tree-sitter by reputation without
-knowing its runtime, grammar-generation, or product boundaries.
+**Nominal finish:** 23:20
+**Hard stop:** 25:00
+**Audience:** Go developers of all levels who may know Tree-sitter by
+reputation without knowing its runtime, grammar-generation, or product
+boundaries.
 
-The communication job is precise: by the end, the audience should understand
-that GoTreeSitter is a bounded pure-Go structural substrate they can safely
-build above because runtime correctness, grammar artifacts, and product
-capabilities each carry explicit proof boundaries.
+The talk runs in three acts, previewed on the agenda slide: **I. What it is
+and the reference implementation (slides 1–7)**, **II. How we built it
+(slides 8–15)**, **III. How it's used, use cases, and demos (slides 16–19)**.
+By the end, the audience should understand that GoTreeSitter is a bounded
+pure-Go structural foundation they can safely build above, and should leave
+with an evidence-gated method for using AI on correctness-sensitive work:
+contract → witness → AI search → reduction → ratchet → dogfood.
 
-This is the canonical spoken track. Bracketed text is a stage direction, not
-spoken copy. The exact inter-slide transitions also appear in `deck.md`.
+This is the canonical spoken track for the 19-slide deck. Section titles and
+time ranges match the slide headlines and the `[TIME]` blocks in `deck.md`.
+Bracketed text is a stage direction, not spoken copy.
 
 ---
 
-## 1. GoTreeSitter — 0:00–0:40
+## Act I — What it is and the reference implementation
 
-Parser demos end when source becomes a tree. Products begin there.
+## 1. GoTreeSitter — 0:00–0:50
 
-Editors and agents need structure while code is incomplete; compilers and tools
-need exact nodes and ranges they can trust. I rebuilt Tree-sitter's runtime in
-Go because CGo pushed deployment and observability across a foreign boundary.
+GoTreeSitter is a pure-Go Tree-sitter runtime and grammar ecosystem. It can
+detect languages, build full or incremental trees, run queries, produce
+highlights and tags, parse injections, and carry structural rewrites into the
+next parse.
 
-This talk follows the work that earns the substrate: defensible trees, portable
-grammar artifacts, and bounded product operations.
+Every existing Go option wraps the C library through CGo. That is fine until
+you cross-compile, target WebAssembly, or want to ship one clean static
+binary. So we rebuilt the runtime in pure Go—and then had to learn how to
+trust it.
 
-One question remains: what can the next layer safely believe?
+But this talk is mostly about how we built something that large without
+confusing AI-generated progress with correctness. I will establish the product
+surface first, then spend the rest of our time on the methods that made it
+possible: decomposition, oracles, reduction, ratchets, and owned boundaries.
 
-The answer begins with a rule that sounds obvious and turns out to be
-demanding.
+## 2. Hi, I'm Oscar — 0:50–1:15
 
-## 2. Every layer inherits the proof burden below it — 0:40–1:10
+I build developer tools at M31 Labs. GoTreeSitter, GoSX, Markdown++, Canopy,
+and Graft all ship from one bet: own the syntax layer once, in pure Go, and
+let every product start above it.
 
-This is an accumulating contract backed by operational evidence.
+This deck is one of those products. Let's look at the layer underneath it.
 
-The runtime earns a reusable tree. The grammar pipeline makes that tree
-contract portable. Products then depend on stable nodes, fields, and ranges.
-If a lower layer can lie, the product merely amplifies the lie.
+[Land the bet sentence slowly; it is the thesis the talk keeps returning to.]
 
-So let us begin at the moment text stops being enough.
+## 3. The next twenty-five minutes — 1:15–1:45
 
-## 3. Incomplete code still has to power the tool — 1:10–1:55
+Three acts. First, what it is: an application-ready parsing layer in pure Go,
+and the C reference implementation it answers to. Second, how we built it: an
+AI-assisted loop where evidence, not the model, decides what merges. Third,
+how it's used: products above the boundary, running live on this deck, and a
+playbook you can steal.
 
-[Pause for the room to read the incomplete function.]
+[One breath per act. No numbers here; the receipts land where they can be
+defended.]
 
-This program is incomplete, but the editor cannot become useless. An agent,
-analyzer, or compiler service cannot treat every mid-edit document as opaque
-text either.
+## 4. It ships the layer between parsing and product — 1:45–3:05
 
-Text search can find the spelling `Handle`; it cannot distinguish a call from a
-declaration, comment, string, or unrelated identifier.
+A parser that prints a tree has completed the tutorial. Applications need the
+loop around it. They start with a file, retain an edited tree, ask bounded
+structural questions, render classified ranges, parse embedded languages, and
+often change the source again.
 
-A parser can preserve the outer function, damaged expression, and exact ranges
-while the user is still typing. That is the first product requirement:
-usefulness before validity.
+GoTreeSitter packages those transitions as one layer that keeps every byte
+position accurate across edits. An editor, document system, compiler, code
+browser, or refactoring tool can drop in the capabilities it needs and spend
+its complexity on product meaning.
 
-To see how the runtime keeps that promise, follow six verbs.
+The registry ships 206 grammars today, and all 206 parse their smoke samples
+without errors. 119 of them need context-sensitive tokens, so 119 external
+scanners are hand-written Go. Coverage is a receipt, not a quality stamp:
+every entry carries a quality classification you can inspect before you
+promise a feature on top of it.
 
-## 4. Follow six verbs through the runtime — 1:55–2:40
+That is the table stakes. The next slide shows how little application code is
+required to cross that boundary.
 
-Recognize a token. Shift it onto the parser stack. Reduce completed grammar
-pieces into a parent. Fork when one interpretation cannot safely win. Recover
-when no ordinary action accepts the input. Reuse only when an old subtree still
-belongs in the new document.
+## 5. Start with a file; ask for the capability — 3:05–4:20
 
-Each new verb appears because the simpler mechanism can no longer preserve
-correctness.
+The application begins with the file, not a hard-coded parser constructor.
+Detection returns a capability entry: the grammar plus the optional highlight
+and tags packs and runtime facts the application can inspect before promising
+a feature.
 
-Those verbs are not improvised at runtime; the grammar compiles most of the
-decisions in advance.
+The boundary is intentionally narrow. GoTreeSitter supplies syntax, exact
+ranges, and reusable structural operations. Scope, resolution, diagnostics,
+workspace meaning, and product policy still belong above it.
 
-## 5. A grammar becomes executable decisions — 2:40–3:35
+And once you have a tree, the rest of the loop is just as plain.
 
-A Tree-sitter grammar describes tokens, rules, precedence, fields, conflicts,
-and external tokens. Generation turns that knowledge into decision tables.
+## 6. Queries and rewrites are ordinary Go — 4:20–5:45
 
-A lex table maps lexical state and an input character to another lexical
-state. A parse table maps parser state and lookahead symbol to an action.
+Both halves of the loop are plain Go. A query is the full Tree-sitter
+S-expression pattern language—quantifiers, alternation, field constraints,
+predicates—and each capture keeps its node and exact source range. The
+`tsquery` generator can turn a query's captures into typed Go structs, so a
+misspelled capture name becomes a compile error instead of a runtime surprise.
 
-The grammar contains the language knowledge. The runtime executes decisions
-that were already encoded.
+The rewriter closes the loop. It collects replacements, insertions, and
+deletions, rejects overlaps, applies the accepted set atomically, and emits
+the `InputEdit` records that let the next parse reuse everything the edit did
+not touch. When nothing changed at all, a reparse returns in single-digit
+nanoseconds, with zero allocations.
 
-But even the first arrow in this picture hides a negotiation.
+That is what GoTreeSitter is: parse, ask, change, reparse—as ordinary Go.
+The next question is why anyone should trust those trees. The answer is that
+we never asked you to take our word for it.
 
-## 6. The lexer and parser negotiate — 3:35–4:25
+## 7. We ported observable behavior—not source code — 5:45–7:15
 
-The obvious design tokenizes the whole file first. Real grammars break that
-design because the same characters can represent different tokens in different
-parser states.
+A parser runtime has a rare advantage: there is a reference implementation.
+We could run the same source and grammar through both systems, normalize their
+observable results, and compare them structurally.
 
-Parser state constrains which token rules are valid. The lexer returns
-lookahead. The selected parse action changes parser state and therefore the
-next lexical context.
+The production boundary stayed pure Go. The C runtime remained an independent
+validation lane. That separation mattered: we did not ask the implementation
+to certify itself, and we did not require consumers to carry the oracle.
 
-This feedback matters again during incremental parsing: unchanged bytes alone
-cannot restore the context that owned them.
+This reframed every large unknown as a measurable difference. Instead of
+arguing whether a tree "looked right," we could name the first type, field,
+range, error, or child-shape divergence.
 
-With a token in hand, one parser stack handles the easy path.
+That is what GoTreeSitter is, and the reference it answers to. Act two is how
+we actually built it.
 
-## 7. One stack works—until the grammar disagrees — 4:25–5:30
+## Act II — How we built it
 
-LR handles the ordinary case. Shift consumes lookahead. Reduce replaces
-completed grammar pieces with their parent.
+## 8. The bet was much larger than "rewrite C in Go" — 7:15–8:30
 
-When a state and lookahead admit several actions, GLR keeps competing stacks
-alive, shares their common history, and later kills or merges them.
+The naive framing is a C-to-Go rewrite. The real scope was a chain of
+ownership claims: the lexer recognized the correct token, the parser attached
+the right children and fields, recovery localized damage, a scanner restored
+its exact state, and incremental parsing reused only structure it still owned.
 
-That preserves ambiguity, but only within limits. Iteration, stack-depth,
-stack-count, and node-work budgets keep one pathological grammar or document
-from holding an editor forever.
+Any mistake in that chain can produce a plausible-looking tree. That made
+ordinary code review insufficient and made unrestricted AI generation actively
+dangerous. We needed a way for a fast implementation loop to collide with
+independent evidence on every change.
 
-A successful stack is still not the public object a tool needs.
+The project became tractable when we stopped asking "is the parser done?" and
+started asking "which observable contract can we prove next?"
 
-## 8. Parser states must become a useful source tree — 5:30–6:35
+## 9. AI proposed; evidence decided — 8:30–9:45
 
-A successful parser stack is not yet a useful result. A concrete syntax tree
-keeps grammar concepts, punctuation, fields, and exact ranges. Those details
-are why the tree can support highlighting, selection, refactoring, and reuse.
+AI was useful because it could search a wide solution space quickly. It could
+trace unfamiliar mechanisms, propose an implementation, generate test
+variations, and challenge an assumption. None of those outputs earned trust by
+themselves.
 
-[Click `function_declaration` once to collapse it, then again to restore it.
-Click `parenthesized_expression` to reveal the grouped addition.]
+The loop was propose, compare, reduce, keep. A candidate crossed the oracle
+and invariant gates. A failure was reduced to a minimal witness. The fix was
+accepted only when that witness passed without regressing the corpus, and the
+witness stayed in the suite.
 
-The interaction is incidental; the structure is the artifact.
+That is the transferable method: give AI high freedom inside a boundary whose
+acceptance criteria it does not control.
 
-[If the first click does not respond, point to `source_file`,
-`short_var_declaration`, and `parenthesized_expression` in the rendered tree. Do not
-troubleshoot.]
+## 10. Every mismatch became a smaller problem — 9:45–11:00
 
-The tree becomes most valuable exactly where clean input ends.
+Large failures create vague prompts and vague patches. Reduction changed the
+unit of work. We started from a real corpus divergence, located the first
+observable mismatch, minimized the source, and named the violated invariant.
 
-## 9. Recovery can be approximate; scanner checkpoints cannot — 6:35–7:30
+That gave the model a bounded problem and gave the reviewer a bounded claim.
+It also produced durable project memory. The reduced witness explained more
+than a comment because it could still fail the implementation years later.
 
-When no ordinary action accepts lookahead, recovery keeps nearby structure and
-localizes damage.
+This is applicable beyond parsers. Minimize a database history, protocol
+exchange, rendering state, or compiler input until one contract is under test.
 
-External scanners are stricter. HTML scanner state includes the complete stack
-of open tags; names and depth can exceed the 4,096-byte checkpoint capacity.
-Truncating that state would invent the wrong history, so serialization is all
-or nothing.
+## 11. Build vertical proof slices — 11:00–12:10
 
-The certification witness is a 137-kibibyte stateful document that must safely
-reuse at least 25 percent of its bytes.
+Horizontal implementation plans are seductive: finish the lexer, then the
+parser, then the loader, then queries. They delay integration evidence until
+the most assumptions have accumulated.
 
-That same fail-closed posture governs the whole incremental path.
+We used vertical proof slices instead. A small grammar crossed generation,
+serialization, loading, parsing, and comparison. A small query crossed
+compile, execution, capture conversion, and a product-shaped result. One edit
+crossed coordinate maintenance, reuse admission, and a fresh-parse comparison.
 
-## 10. Reuse is admission control before it is optimization — 7:30–8:50
+Each slice exposed bad interfaces early and created an executable path the
+next slice could reuse. Massive projects become manageable when every
+milestone ends in evidence at the boundary users will actually cross.
 
-Incremental parsing is an admission decision, not “the bytes look unchanged,
-so keep the subtree.”
+## 12. Every optimization had to earn its way in — 12:10–13:25
 
-An invariant sweep compared single-byte incremental edits with fresh parses of
-identical bytes. One duplicated opening parenthesis returned quickly and
-without an error, yet the incremental program root had 20 extra children.
+Incremental parsing taught the most general systems lesson in the project.
+Reuse is not an entitlement. It is a candidate that must prove it still
+belongs to the new document. Unchanged bytes help, but parser and scanner
+history can still make the old structure invalid.
 
-A hidden reduction still had to occur before the next visible sibling could
-attach. The fix replays that deterministic reduction chain until the live stack
-reaches the subtree’s ownership frontier. Otherwise reuse is rejected.
+The same pattern applies to caches, memoization, indexes, replicated state,
+and AI-generated patches: name the conditions under which the shortcut is
+valid, test those conditions independently, and fail closed when they are
+uncertain.
 
-Byte equality is evidence, not proof.
+Correct fallback is a feature. Performance only counts after the optimized
+result has earned admission.
 
-That bug suggests the discipline for the entire runtime.
+## 13. grammargen made language work reproducible — 13:25–14:50
 
-## 11. Pure Go moves the boundary; evidence keeps it honest — 8:50–9:55
+The runtime became reusable when grammar work became reproducible. grammargen
+can import a resolved upstream grammar or accept a grammar authored as Go
+values—the snippet on screen is a real grammargen grammar, and that `g.Test`
+line is an embedded corpus test that locks the parse. Both paths converge on
+one internal representation, generate the tables and metadata the runtime
+needs, and serialize a portable blob.
 
-Removing CGo simplifies the product boundary: ordinary Go builds,
-cross-compilation, WebAssembly, profiling, fuzzing, and race detection can all
-reach the runtime.
+That pipeline separated build-time complexity from the consumer. A product can
+embed or load the artifact without Node, a C compiler, or the generator. This
+is the project's self-hosting arc: ts2go bootstraps the 206-grammar breadth
+from upstream tables, while grammargen is a real pure-Go grammar compiler that
+already compiles our whole in-house language family with no C ancestor,
+replacing bootstrap blobs grammar by grammar behind the parity ratchet. The
+same pipeline also made every failure locatable: grammar source, normalized
+representation, generated tables, blob, loader, runtime, or consumer.
 
-But a pure-Go tree can still lie. Fixtures, corpora, invariant sweeps, and
-C-reference lanes compare observable shape, fields, ranges, missing nodes,
-error placement, scanners, and focused witnesses.
+For an ambitious project, this is the artifact lesson: turn expensive
+knowledge into a versioned output that the next layer can consume cheaply.
 
-The product remains pure Go; the oracle may use C because validation and
-deployment have different jobs. Performance then climbs behind a correctness
-ratchet.
+## 14. Explicit ownership kept the layers honest — 14:50–16:00
 
-A dependable runtime solves execution. It creates a new question: how does a
-language reach that runtime?
+The runtime cannot infer what a grammar does not encode. The grammar cannot
+turn a syntax capture into workspace meaning. The product should not quietly
+rebuild parser safety or coordinate logic in every feature.
 
-## 12. A dependable runtime creates a new problem — 9:55–10:15
+Writing those responsibilities down prevented magical thinking. It also made
+parallel work safer. A runtime change had parity and invariant gates. A
+grammar change had tree-shape and query fixtures. A product change had
+semantic and user-facing acceptance tests.
 
-The runtime can defend the tree it returns. A product still needs a repeatable
-path from grammar rules to that runtime, with consumers surviving grammar
-change. That is Act II.
+Boundaries are not bureaucracy here. They are the mechanism that lets a large
+project move quickly without every change reopening the entire system.
 
-The first move is to separate generation from execution.
+## 15. The harness had to ratchet, not merely test — 16:00–17:40
 
-## 13. A grammar becomes a portable runtime artifact — 10:15–11:10
+A test suite can stay green while the project quietly changes its definition
+of success. A ratchet prevents that. Every reduced mismatch becomes a fixture;
+every supported corpus keeps a floor; every accepted capability is attached to
+a named grammar and version; benchmark gates prevent fake wins that simply do
+less work.
 
-Go is the control case: its established grammar must survive import, generation,
-serialization, loading, and parsing with the expected tree intact.
+The bench gate is not decoration. An audit found an old full-parse headline
+was timing a path that skipped tree materialization, so the project withdrew
+it in public. The current sealed four-file receipt reports 4.815 times C for
+production full parses and 3.986 times C for the compact route. Those are
+locked, human-authored Go fixtures—not a universal speed claim. We trade raw
+full-parse speed for portability.
 
-GoTreeSitter can import resolved `grammar.json` or accept reviewable grammar
-source written with a Go DSL. Both converge on one grammar intermediate
-representation.
+On the separate pinned control—a 19,294-byte file with 500 functions—a
+materialized full parse is 10.9 milliseconds, a one-byte edit is about two
+microseconds, and a no-edit reparse is under ten nanoseconds; both incremental
+lanes allocate zero. Those absolute timings are host- and fixture-specific, so
+we publish no incremental Go-versus-C headline. That is the ratchet doing its
+job on our own marketing.
 
-Pure-Go generation produces lexer and parser tables, and a portable blob
-carries those tables plus metadata into the product. The product embeds the
-artifact, not the generator.
+The harness also improved the AI workflow. Agents could explore aggressively
+because the acceptance surface was executable and cumulative. The repository
+remembered the project better than any prompt could.
 
-That separation changes how a product owns syntax.
+When you build something ambitious, invest early in machinery that makes it
+hard to redefine "done" after a regression.
 
-## 14. A grammar ships like data—but behaves like a dependency — 11:10–12:00
+## Act III — How it's used, use cases, and demos
 
-The product can embed a grammar blob and load it without shipping the generator.
-But portable does not mean ownerless.
+## 16. The foundation paid back across very different products — 17:40–18:50
 
-A renamed node can break a lowerer. A hidden node can break an editor. A
-shifted range can break a formatter even when the parser still accepts the
-source.
+The proof of a foundation is not another foundation demo. It is the different
+products that can begin above it. GoSX composes a language and builds a
+compiler. Markdown++ shares one tree across editing, diagnostics, formatting,
+rendering, and this deck. qml-language-server is the one I did not build:
+someone else picked up the runtime and added real QML and Qt workspace
+semantics on top of it. That is the strongest evidence the boundary is in the
+right place—an outside developer could start at trees and ranges instead of at
+a parser. Canopy and Graft add code-intelligence and version-control rules.
 
-External scanners also remain language-specific code with their own tests.
-Once consumers depend on tree shape, the grammar behaves like a public package
-and deserves the same review.
+None receives semantics for free. They share grammar artifacts, trees, ranges,
+queries, and edits, then deliberately diverge at the product boundary. And the
+nearest dogfood is on this screen.
 
-Owning that contract also lets us change a language without copying the whole
-thing.
+## 17. This deck is the demo — 18:50–19:50
 
-## 15. Extend a grammar instead of forking it — 12:00–13:05
+Nothing on this screen is a screenshot. These slides are Markdown++, parsed by
+GoTreeSitter grammars, lowered into compiled GoSX components, and running as a
+Go application in front of you.
 
-Grammar composition means extending a base without copying its entire
-definition. GoSX starts from the maintained Go grammar and adds native markup
-rules.
+The tree on the right is the concrete syntax tree for `total := price *
+(count + 1)`—a faithful rendering of the verified GoTreeSitter parse, and the
+collapse toggles are Go signals compiled to WebAssembly.
 
-Its public tree keeps `jsx_*` node names because lowering and formatting depend
-on them. A renamed node can break consumers even when source syntax does not
-change.
+[Click `function_declaration` to collapse and restore it. If the click does
+not respond, point at the node names and move on. Do not troubleshoot.]
 
-Conflicts, precedence, and external scanners still need explicit policy and
-tests. Composition exposes the choice; it does not choose the intended parse.
+The code on the left is that island's source, trimmed to the mechanism: props
+are a typed Go struct—a misspelled prop is a compile error—state is a Go
+signal, and markup literals are ordinary Go, compiled by the GoSX compiler
+that starts from a GoTreeSitter tree. The stack on stage is the stack in the
+talk.
 
-GoSX turns that mechanism into a visible product boundary.
+## 18. A playbook for your massive project — 19:50–22:20
 
-## 16. Go becomes GoSX — 13:05–14:05
+[Slow down. This is the protected teaching slide.]
 
-GoSX starts with ordinary Go and adds native markup.
+Here is the method I would carry into another massive project.
 
-The parser must know when the less-than sign begins markup rather than
-comparison, preserve Go expressions inside braces, and distinguish text,
-attributes, components, and raw script or style bodies.
+First, choose a foundation narrow enough to own but valuable enough to support
+several outcomes. Second, write its observable contracts and responsibility
+boundaries. Third, create an independent witness: a reference implementation,
+simulator, replay log, model checker, invariant sweep, or carefully curated
+fixture. Fourth, let AI search hard inside that boundary, where wrong answers
+get caught. Finally, turn every discovery into a reduced regression and
+dogfood the foundation in a real downstream product.
 
-The tree then feeds a compiler: server components become HTML; island
-components become compact browser programs. The grammar is not merely
-highlighting syntax. It defines a compiler boundary.
+The goal is not to make AI cautious. The goal is to make ambitious exploration
+cheap and incorrect acceptance expensive. Velocity compounds when the harness,
+artifacts, and consumers all remember what the team has learned.
 
-The same composition machinery can preserve the host toolchain or erase richer
-syntax back into it.
+## 19. Build one layer lower—so every product can start higher — 22:20–23:20
 
-## 17. Composition can preserve—or disappear into—the Go toolchain — 14:05–15:20
+GoTreeSitter is useful because consumers can start with language detection,
+trees, queries, highlights, tags, injections, and safe rewrite coordinates
+instead of rebuilding them.
 
-Danmuji extends Go with behavior-driven test structure, then emits normal Go
-tests. Line directives keep failures located in the original source, and the
-result runs through `go test` without a Danmuji runtime.
+The larger lesson is how it got there. Name the observable contract. Build an
+independent witness. Give AI freedom to search. Reduce every failure. Ratchet
+the proof. Turn expensive knowledge into a reusable artifact. Dogfood it in
+the products that depend on the boundary.
 
-Ferrous Wheel adds Rust-inspired enums, matches, derives, `Result`, and
-`Option`, then walks the tree and emits standard Go. Support helpers are
-injected only when the tree shows they are needed and the source has not
-defined those names itself.
-
-Same composition mechanism; opposite product choices.
-
-A grammar contract does not have to begin with Go at all.
-
-## 18. The same contract can govern policy or documents — 15:20–16:20
-
-Arbiter authors a decision language directly in the Go grammar DSL. Its tree
-lowers to checked IR and fixed-width bytecode, while the runtime can emit a
-structured explanation of why an outcome was eligible.
-
-Markdown++ uses block and inline grammars so formatting, linting, navigation,
-rendering, and PDF export share one document model.
-
-These products want very different semantics. They share the same
-infrastructure obligation: node kinds, fields, and ranges must be owned and
-tested.
-
-At this point syntax is durable—but a durable tree is still not a product.
-
-## 19. A dependable grammar is still not a product — 16:20–16:40
-
-We now have a runtime and maintained grammar artifact. Can one Go process detect
-the language, keep an edited tree, ask structural questions, parse embedded
-regions, and produce the next edits without pretending syntax is semantics?
-
-The product path starts before anyone constructs a parser.
-
-## 20. Start with the file, not the parser constructor — 16:40–17:50
-
-A multi-language tool first asks what it is looking at.
-
-At the trilogy’s pinned revision, the registry contains 206 grammars and maps
-filenames to languages plus capability metadata. The shipped tests compile 156
-highlight queries and 69 tags queries.
-
-Those are precise coverage receipts, not a quality stamp. Registered means the
-runtime can locate a grammar. Parse-, highlight-, and tag-capable are separate
-claims.
-
-A caller can inspect the difference instead of flattening it into a misleading
-supported-or-unsupported bit.
-
-Once a tree exists, queries let consumers ask bounded questions.
-
-## 21. Parse once; ask bounded questions — 17:50–18:50
-
-Walking children is enough for a prototype. A query makes a repeated structural
-question readable and shareable.
-
-Each capture retains a node and source range; streamed execution avoids
-materializing another tree-shaped model. The same mechanism drives highlights,
-tags, and application-specific captures.
-
-But the boundary matters: a query can identify a function declaration locally.
-It cannot resolve calls across scopes, imports, packages, generated files, and
-build configurations. The consumer still owns that meaning.
-
-Two extensions make those bounded questions easier to carry into real
-products.
-
-## 22. Captures become APIs; embedded languages become child trees — 18:50–20:05
-
-String capture names are pleasant until several packages depend on `@name` and
-`@body`.
-
-The `tsquery` generator keeps the query readable while turning its expected
-captures into typed Go results. That moves many spelling and shape failures
-into normal compilation.
-
-Embedded documents need another boundary. An injection query selects included
-ranges in a parent tree and chooses child grammars for HTML script, style, or
-Markdown fence regions. The parent still owns the document; each child parser
-sees only its range.
-
-If the query misses a region, the runtime refuses to guess the author’s intent.
-
-Structural questions become a loop when they can produce safe,
-coordinate-aware edits.
-
-## 23. Rewrites close the loop; ordinary Go changes deployment — 20:05–21:20
-
-The rewriter collects replacements, insertions, and deletions against source
-ranges. It rejects overlaps, applies the accepted set atomically, and emits the
-`InputEdit` records that prepare the tree for the next parse.
-
-That closes the mechanical loop. It does not turn a text replacement into a
-safe rename; scope, workspace resolution, comments, formatting, and policy
-still belong above it.
-
-Because the runtime, queries, and edit machinery are Go, the same substrate can
-ship in a CLI, beside server handlers, in Go or TinyGo WebAssembly, or on
-`wasip1`.
-
-Zero CGo is a deployment claim, not a speed claim.
-
-The strongest proof of that boundary is a consumer that starts above it.
-
-## 24. Downstream tools prove the boundary by starting higher — 21:20–22:35
-
-An independent consumer is better evidence than another parser demo.
-
-`qml-language-server` embeds a QML grammar, reparses changed documents, and
-builds symbols, references, completion, diagnostics, semantic tokens, and
-rename above the syntax layer. Its workspace index supplies QML and Qt meaning;
-GoTreeSitter supplies trees and ranges.
-
-Canopy adds symbol search, call graphs, impact analysis, and architecture
-checks. Graft uses structure for entity-level diff and merge.
-
-Each product owns the semantics it adds. The shared substrate lets each one
-begin from structure instead of reconstructing it.
-
-That gives us the boundary I wanted the whole trilogy to earn.
-
-## 25. The substrate is useful because it stops — 22:35–24:10
-
-GoTreeSitter can identify languages, produce full and incrementally reusable
-trees, execute queries, drive highlights and tags, parse injected regions,
-generate typed query consumers, apply structural edits, and deploy as ordinary
-Go.
-
-It cannot make every grammar equally complete. It cannot certify scanner state
-a scanner does not expose. It cannot turn a capture into a resolved symbol or a
-rewrite into a safe refactor.
-
-[Pause.]
-
-That is not an apology. It is what makes the substrate composable.
-
-The runtime defends structure. The grammar owns a durable tree contract. The
-product owns the meaning above it. Correctness witnesses form the ratchet;
-measurements can then improve cost without making the claim broader than the
-evidence.
-
-If your tools are rebuilding structure at every boundary—or if a language is
-hiding inside conventions, strings, or files—I would love to compare notes.
-The repository and contact link are here.
+That is how an ambitious project stops being one enormous leap and becomes a
+sequence of claims the system can actually earn.
 
 Thank you.
 

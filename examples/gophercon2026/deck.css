@@ -39,9 +39,12 @@ main.deck > .deck-scene3d canvas {
 }
 
 /* The live field is intentionally present across the whole canvas, but its
-   luminance yields to the reading plane so the stars never compete with copy. */
+   luminance yields to the reading plane so the stars never compete with copy.
+   0.38 with a mild brightness lift keeps individual stars readable from the
+   room without pulling focus from the type. */
 main.deck > .starfield-surface {
-  opacity: 0.24;
+  opacity: 0.38;
+  filter: brightness(1.15);
 }
 
 main.deck > .deck-galaxy3d {
@@ -231,6 +234,31 @@ main.deck > section.slide .mdpp-col > pre.code-block {
   padding: 0.8rem 1rem;
   font-size: clamp(0.72rem, 0.82vw, 0.82rem);
   line-height: 1.28;
+}
+
+/* Code is the argument on the query-operations slides, so it gets
+   room-readable type. Their snippets are hand-wrapped under 45 columns, which
+   is what keeps this size safe inside a half-canvas column with overflow-x
+   hidden. */
+main.deck > section.slide.query-operations .mdpp-col > pre.code-block {
+  font-size: clamp(0.95rem, 1.15vw, 1.2rem);
+  line-height: 1.34;
+  padding: 0.6rem 0.9rem;
+}
+
+/* The grammargen slide pairs the tall DSL snippet with a four-row pipeline
+   list; both fit above the caption band only with a compact list rhythm. */
+main.deck > section.slide.query-operations .mdpp-col dl {
+  margin-block: 0.2rem;
+  line-height: 1.28;
+}
+
+main.deck > section.slide.query-operations .mdpp-col dd {
+  margin-bottom: 0.2rem;
+}
+
+main.deck > section.slide.mdpp-two.method-slide .mdpp-col > p:not(.mdpp-container-title) {
+  margin-block: 0.45rem;
 }
 
 main.deck > section.slide.query-operations .mdpp-container-columns {

@@ -1,5 +1,5 @@
 ---
-title: "GoTreeSitter: building an ambitious parser substrate with AI"
+title: "GoTreeSitter: building an ambitious parser foundation with AI"
 theme: aurora
 aspect-ratio: 16:9
 caption-safe-bottom: 20%
@@ -15,7 +15,7 @@ class: copy-tight
 
 # GoTreeSitter
 
-How we built an ambitious parser substrate with AI—and kept it honest
+How we built an ambitious parser foundation with AI—and kept it honest
 
 Oscar Villavicencio · M31 Labs · GopherCon 2026
 
@@ -40,6 +40,67 @@ possible: decomposition, oracles, reduction, ratchets, and owned boundaries.
 - “Inside a Pure-Go Tree-sitter Runtime.”
 - “Programmable Grammars Are Infrastructure.”
 - “GoTreeSitter: The Product Starts One Layer Above the Parser.”
+-->
+
+---
+
+``` yaml
+layout: center
+class: copy-tight
+```
+
+# Hi, I’m Oscar
+
+I build developer tools at M31 Labs. GoTreeSitter, GoSX, Markdown++, Canopy, and Graft all ship from one bet: **own the syntax layer once, in pure Go, and let every product start above it.**
+
+This deck is one of those products. Let’s look at the layer underneath it.
+
+<!--
+[TIME 0:50–1:15]
+
+Twenty-five seconds, no life story. I make developer tools at M31 Labs, and
+the products share one syntax foundation. The deck itself runs on that stack,
+which the audience will see proven on the demo slide.
+
+Land the bolded bet sentence slowly; it is the thesis the whole talk keeps
+returning to. Then preview the route.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-three
+```
+
+# The next twenty-five minutes
+
+:::columns
+:::col "I · WHAT IT IS"
+
+An application-ready parsing layer in pure Go—and the C reference implementation it answers to.
+:::
+
+:::col "II · HOW WE BUILT IT"
+
+An AI-assisted loop where evidence, not the model, decides what merges.
+:::
+
+:::col "III · HOW IT’S USED"
+
+Products above the boundary, running live on this deck—and a playbook you can steal.
+:::
+:::
+
+<!--
+[TIME 1:15–1:45]
+
+One breath per act. What it is: the capability layer and the oracle that
+keeps it honest. How we built it: the method—decomposition, reduction,
+ratchets—with AI proposing and evidence deciding. How it's used: real
+products, a live demo of this deck, and the playbook to take home.
+
+Do not preview any numbers here; the receipts land later where they can be
+defended. Move.
 -->
 
 ---
@@ -76,14 +137,15 @@ Apply atomic rewrites; emit the next `InputEdit` records.
 > Application-ready Go APIs: 206 embedded grammars, 119 hand-written Go scanners, 156 highlight and 69 tags query packs—not a checklist to rebuild.
 
 <!--
-[TIME 0:50–2:15]
+[TIME 1:45–3:05]
 
 A parser that prints a tree has completed the tutorial. Applications need the
 loop around it. They start with a file, retain an edited tree, ask bounded
 structural questions, render classified ranges, parse embedded languages, and
 often change the source again.
 
-GoTreeSitter packages those transitions as one coordinate-preserving layer.
+GoTreeSitter packages those transitions as one layer that keeps every byte
+position accurate across edits.
 An editor, document system, compiler, code browser, or refactoring tool can
 drop in the capabilities it needs and spend its complexity on product meaning.
 
@@ -141,7 +203,7 @@ Runtime facts
 > GoTreeSitter is more than a parser—and deliberately less than a language server.
 
 <!--
-[TIME 2:15–3:35]
+[TIME 3:05–4:20]
 
 The application begins with the file, not a hard-coded parser constructor.
 Detection returns a capability entry: the grammar plus the optional highlight
@@ -163,55 +225,63 @@ surface was an ambitious systems project rather than a parser port.
 ---
 
 ``` yaml
-class: copy-tight mdpp-four
+class: copy-tight query-operations mdpp-two
 ```
 
-# The bet was much larger than “rewrite C in Go”
+# Queries and rewrites are ordinary Go
 
 :::columns
-:::col "REPLACE A RUNTIME"
+:::col "ASK A STRUCTURAL QUESTION"
 
-Own lexing, LR/GLR parsing, recovery, scanners, queries, and incremental reuse in Go.
+``` go
+q, _ := gotreesitter.NewQuery(
+    `(function_declaration
+        name: (identifier) @fn)`, lang)
+cur := q.Exec(tree.RootNode(), lang, src)
+for {
+    m, ok := cur.NextMatch()
+    if !ok { break }
+    fmt.Println(m.Captures[0].Node.Text(src))
+}
+```
 :::
 
-:::col "KEEP THE ECOSYSTEM"
+:::col "REWRITE, THEN REPARSE INCREMENTALLY"
 
-Load mature Tree-sitter grammars instead of asking every language to start over.
+``` go
+rw := gotreesitter.NewRewriter(src)
+rw.Replace(fnName, []byte("newName"))
+rw.Delete(unusedNode)
+
+newSrc, _ := rw.ApplyToTree(tree)
+newTree, _ := parser.ParseIncremental(
+    newSrc, tree)
+```
+
+A no-edit reparse returns in single-digit nanoseconds, with zero allocations.
 :::
-
-:::col "PRESERVE BEHAVIOR"
-
-Match observable trees, fields, ranges, errors, and scanner-dependent results.
 :::
-
-:::col "SHIP THE NEXT LAYER"
-
-Expose the application capabilities those structures make possible.
-:::
-:::
-
-> [!IMPORTANT]
-> The project was too large to “vibe-check.” Every boundary needed a witness.
 
 <!--
-[TIME 3:35–5:05]
+[TIME 4:20–5:45]
 
-The naive framing is a C-to-Go rewrite. The real scope was a chain of ownership
-claims: the lexer recognized the correct token, the parser attached the right
-children and fields, recovery localized damage, a scanner restored its exact
-state, and incremental parsing reused only structure it still owned.
+Both halves of the loop are plain Go. A query is the full Tree-sitter
+S-expression pattern language—quantifiers, alternation, field constraints,
+predicates—and each capture keeps its node and exact source range. The
+`tsquery` generator can turn a query’s captures into typed Go structs, so a
+misspelled capture name becomes a compile error instead of a runtime surprise.
 
-Any mistake in that chain can produce a plausible-looking tree. That made
-ordinary code review insufficient and made unrestricted AI generation actively
-dangerous. We needed a way for a fast implementation loop to collide with
-independent evidence on every change.
+The rewriter closes the loop. It collects replacements, insertions, and
+deletions, rejects overlaps, applies the accepted set atomically, and emits
+the `InputEdit` records that let the next parse reuse everything the edit did
+not touch.
 
-The project became tractable when we stopped asking “is the parser done?” and
-started asking “which observable contract can we prove next?”
+That is what GoTreeSitter is: parse, ask, change, reparse—as ordinary Go.
+The next question is why anyone should trust those trees. The answer is that
+we never asked you to take our word for it.
 
 [Sources]
-- “Inside a Pure-Go Tree-sitter Runtime,” runtime boundary and constrained decisions.
-- “Programmable Grammars Are Infrastructure,” maintained tree contract.
+- GoTreeSitter README, query execution, `tsquery` codegen, and source rewriting.
 -->
 
 ---
@@ -246,11 +316,11 @@ Normalized structural result
 :::
 :::
 
-> [!IMPORTANT] The oracle was the unlock
+> [!IMPORTANT] The oracle was the breakthrough
 > Compare node types, child shape, fields, byte ranges, missing nodes, and error placement.
 
 <!--
-[TIME 5:05–6:45]
+[TIME 5:45–7:15]
 
 A parser runtime has a rare advantage: there is a reference implementation.
 We could run the same source and grammar through both systems, normalize their
@@ -264,9 +334,66 @@ This reframed every large unknown as a measurable difference. Instead of
 arguing whether a tree “looked right,” we could name the first type, field,
 range, error, or child-shape divergence.
 
+That is what GoTreeSitter is, and the reference it answers to. Act two is how
+we actually built it.
+
 [Sources]
 - “Inside a Pure-Go Tree-sitter Runtime,” evidence loop.
 - “Part 2 — Oracles and Bench Gates,” oracle workflow.
+-->
+
+---
+
+``` yaml
+class: copy-tight mdpp-four
+```
+
+# The bet was much larger than “rewrite C in Go”
+
+:::columns
+:::col "REPLACE A RUNTIME"
+
+Own lexing, parsing, error recovery, scanners, queries, and incremental reuse in Go.
+:::
+
+:::col "KEEP THE ECOSYSTEM"
+
+Load mature Tree-sitter grammars instead of asking every language to start over.
+:::
+
+:::col "PRESERVE BEHAVIOR"
+
+Match observable trees, fields, ranges, errors, and scanner-dependent results.
+:::
+
+:::col "SHIP THE NEXT LAYER"
+
+Expose the application capabilities those structures make possible.
+:::
+:::
+
+> [!IMPORTANT]
+> The project was too large to “vibe-check.” Every boundary needed a witness.
+
+<!--
+[TIME 7:15–8:30]
+
+The naive framing is a C-to-Go rewrite. The real scope was a chain of ownership
+claims: the lexer recognized the correct token, the parser attached the right
+children and fields, recovery localized damage, a scanner restored its exact
+state, and incremental parsing reused only structure it still owned.
+
+Any mistake in that chain can produce a plausible-looking tree. That made
+ordinary code review insufficient and made unrestricted AI generation actively
+dangerous. We needed a way for a fast implementation loop to collide with
+independent evidence on every change.
+
+The project became tractable when we stopped asking “is the parser done?” and
+started asking “which observable contract can we prove next?”
+
+[Sources]
+- “Inside a Pure-Go Tree-sitter Runtime,” runtime boundary and constrained decisions.
+- “Programmable Grammars Are Infrastructure,” maintained tree contract.
 -->
 
 ---
@@ -304,7 +431,7 @@ The witness becomes a permanent regression test.
 > The model accelerated the search. It was never the evidence.
 
 <!--
-[TIME 6:45–8:25]
+[TIME 8:30–9:45]
 
 AI was useful because it could search a wide solution space quickly. It could
 trace unfamiliar mechanisms, propose an implementation, generate test
@@ -360,10 +487,10 @@ Keep the minimal case and move the floor forward.
 :::
 
 > [!TIP]
-> Ask AI to solve a falsifiable boundary—not “make the whole parser correct.”
+> Give AI one small, checkable problem—not “make the whole parser correct.”
 
 <!--
-[TIME 8:25–9:50]
+[TIME 9:45–11:00]
 
 Large failures create vague prompts and vague patches. Reduction changed the
 unit of work. We started from a real corpus divergence, located the first
@@ -410,7 +537,7 @@ Old tree → edit → incremental candidate → fresh parse comparison → admit
 > A component is not done when its unit test passes; it is done when one real path crosses the system.
 
 <!--
-[TIME 9:50–11:25]
+[TIME 11:00–12:10]
 
 Horizontal implementation plans are seductive: finish the lexer, then the
 parser, then the loader, then queries. They delay integration evidence until
@@ -436,7 +563,7 @@ ends in evidence at the boundary users will actually cross.
 class: copy-tight mdpp-four method-slide
 ```
 
-# Treat every optimization as an admission protocol
+# Every optimization had to earn its way in
 
 :::columns
 :::col "CANDIDATE"
@@ -464,7 +591,7 @@ Bench gates verify the safe path is still useful.
 > A slower honest result is better than a fast structural lie.
 
 <!--
-[TIME 11:25–12:55]
+[TIME 12:10–13:25]
 
 Incremental parsing taught the most general systems lesson in the project.
 Reuse is not an entitlement. It is a candidate that must prove it still belongs
@@ -486,51 +613,60 @@ result has earned admission.
 ---
 
 ``` yaml
-class: copy-tight mdpp-four
+class: copy-tight query-operations mdpp-two
 ```
 
-# grammargen turned language work into a reproducible pipeline
+# grammargen made language work reproducible
 
 :::columns
-:::col "AUTHOR"
+:::col "A GRAMMAR IS REVIEWABLE GO"
 
-Import resolved `grammar.json` or maintain a reviewable Go grammar DSL.
+``` go
+g := NewGrammar("mini_expr")
+g.Define("expression", Choice(
+    PrecLeft(1, Seq(
+        Field("left", Sym("expression")),
+        Field("operator", Str("+")),
+        Field("right", Sym("expression")))),
+    Sym("number")))
+g.Test("precedence", "1 + 2 * 3", "")
+```
 :::
 
-:::col "NORMALIZE"
+:::col "ONE PIPELINE, ONE ARTIFACT"
 
-Converge both inputs on one grammar intermediate representation.
+Author
+: Go DSL or resolved upstream `grammar.json`
+
+Normalize
+: both inputs merge into one internal grammar format
+
+Generate
+: lexer tables, parser tables, fields, conflicts, scanner metadata
+
+Ship
+: one portable grammar blob beside optional query packs
+
+**Applications load the artifact—never the generator or its toolchain.**
 :::
-
-:::col "GENERATE"
-
-Build lexer tables, parser tables, fields, conflicts, and scanner metadata.
 :::
-
-:::col "SHIP"
-
-Embed a portable grammar blob beside optional query packs.
-:::
-:::
-
-> [!IMPORTANT]
-> Applications load the artifact. They do not carry the generator or its toolchain.
 
 <!--
-[TIME 12:55–14:30]
+[TIME 13:25–14:50]
 
 The runtime became reusable when grammar work became reproducible. grammargen
 can import a resolved upstream grammar or accept a grammar authored as Go
-values. Both paths converge on one IR, generate the tables and metadata the
-runtime needs, and serialize a portable blob.
+values—the snippet on screen is a real grammargen grammar, and that `g.Test`
+line is an embedded corpus test that locks the parse. Both paths converge on
+one internal representation, generate the tables and metadata the runtime
+needs, and serialize a portable blob.
 
 That pipeline separated build-time complexity from the consumer. A product can
 embed or load the artifact without Node, a C compiler, or the generator. This
-is the self-hosting arc in the talk title: ts2go bootstraps the 206-grammar
-breadth from upstream tables, while grammargen is a real pure-Go grammar
-compiler that already compiles our whole in-house language family with no C
-ancestor, replacing bootstrap blobs grammar by grammar behind the parity
-ratchet. The
+is the project’s self-hosting arc: ts2go bootstraps the 206-grammar breadth
+from upstream tables, while grammargen is a real pure-Go grammar compiler that
+already compiles our whole in-house language family with no C ancestor,
+replacing bootstrap blobs grammar by grammar behind the parity ratchet. The
 same pipeline also made every failure locatable: grammar source, normalized IR,
 generated tables, blob, loader, runtime, or consumer.
 
@@ -571,7 +707,7 @@ Scope, resolution, semantics, policy, user experience, and migration intent.
 > A clear boundary lets people—and AI agents—change one layer without pretending to own the others.
 
 <!--
-[TIME 14:30–16:00]
+[TIME 14:50–16:00]
 
 The runtime cannot infer what a grammar does not encode. The grammar cannot
 turn a syntax capture into workspace meaning. The product should not quietly
@@ -621,10 +757,10 @@ Pin the grammar, corpus, capability, and version behind each claim.
 :::
 
 > [!IMPORTANT]
-> After a bug is fixed, the allowed regression surface should only shrink.
+> Once a bug is fixed, it can never quietly come back—the bar only moves up.
 
 <!--
-[TIME 16:00–17:35]
+[TIME 16:00–17:40]
 
 A test suite can stay green while the project quietly changes its definition
 of success. A ratchet prevents that. Every reduced mismatch becomes a fixture;
@@ -664,7 +800,7 @@ hard to redefine “done” after a regression.
 class: copy-tight products-slide
 ```
 
-# The substrate paid back across very different products
+# The foundation paid back across very different products
 
 GoSX
 : composes maintained Go syntax with native markup, then compiles the combined tree
@@ -678,13 +814,13 @@ qml-language-server
 Canopy and Graft
 : build structural code intelligence and entity-aware version control above shared syntax
 
-> [!IMPORTANT] This deck is recursive dogfooding
-> Markdown++ authoring → compiled GoSX slide components → a live Go application.
+> [!IMPORTANT] One of these was built outside the project
+> qml-language-server starts at trees and ranges—the strongest evidence the boundary is in the right place.
 
 <!--
-[TIME 17:35–19:15]
+[TIME 17:40–18:50]
 
-The proof of a substrate is not another substrate demo. It is the different
+The proof of a foundation is not another foundation demo. It is the different
 products that can begin above it. GoSX composes a language and builds a compiler.
 Markdown++ shares one tree across editing, diagnostics, formatting, rendering,
 and this deck. qml-language-server is the one I did not build: someone else
@@ -697,11 +833,71 @@ None receives semantics for free. They share grammar artifacts, trees, ranges,
 queries, and edits, then deliberately diverge at the product boundary.
 
 Dogfooding made that boundary concrete. When a downstream product hurt, it
-exposed missing substrate behavior more honestly than another synthetic test.
+exposed missing foundation behavior more honestly than another synthetic test.
 
 [Sources]
 - “Programmable Grammars Are Infrastructure,” downstream product boundaries.
 - “GoTreeSitter: The Product Starts One Layer Above the Parser,” downstream consumers.
+- This deck’s mdpp → GoSX rendering path.
+-->
+
+---
+
+``` yaml
+class: copy-tight query-operations mdpp-two
+fallback: "If the tree does not respond, point at the rendered node names and continue; the static structure carries the beat."
+```
+
+# This deck is the demo
+
+:::columns
+:::col "THE ISLAND SOURCE (GoSX, TRIMMED)"
+
+``` go
+type ParseTreeProps struct {
+    Expr string
+}
+
+//gosx:island
+func ParseTree(props ParseTreeProps) Node {
+    open := signal.New(true)
+    toggle := func() { open.Set(!open.Get()) }
+    return <button onClick={toggle}>
+        {open.Get() ? "▾" : "▸"}
+        function_declaration
+    </button>
+}
+```
+:::
+
+:::col "THE SAME ISLAND, RUNNING HERE"
+
+<ParseTree/>
+:::
+:::
+
+<!--
+[TIME 18:50–19:50]
+
+Nothing on this screen is a screenshot. These slides are Markdown++, parsed by
+GoTreeSitter grammars, lowered into compiled GoSX components, and running as a
+Go application in front of you.
+
+The tree on the right is the concrete syntax tree for `total := price *
+(count + 1)`—a faithful rendering of the verified GoTreeSitter parse, and the
+collapse toggles are Go signals compiled to WebAssembly.
+
+[Click `function_declaration` to collapse and restore it. If the click does
+not respond, point at the node names and move on. Do not troubleshoot.]
+
+The code on the left is that island’s source, trimmed to the mechanism: props
+are a typed Go struct—a misspelled prop is a compile error—state is a Go
+signal, and markup literals are ordinary Go, compiled by the GoSX compiler
+that starts from a GoTreeSitter tree. The stack on stage is the stack in the
+talk.
+
+[Sources]
+- This deck’s `ParseTree.gsx` island.
 - This deck’s mdpp → GoSX rendering path.
 -->
 
@@ -714,7 +910,7 @@ class: copy-tight mdpp-five lessons-slide
 # A playbook for your massive project
 
 :::columns
-:::col "1 · SUBSTRATE"
+:::col "1 · FOUNDATION"
 
 Choose the narrow foundation that several outcomes can share.
 :::
@@ -731,7 +927,7 @@ Build an independent oracle, simulator, fixture, or invariant.
 
 :::col "4 · SEARCH"
 
-Let AI explore freely inside that falsifiable boundary.
+Let AI explore freely where wrong answers get caught.
 :::
 
 :::col "5 · COMPOUND"
@@ -744,16 +940,17 @@ Reduce failures, ratchet the harness, and dogfood the result.
 > AI amplifies the system you give it. Build the evidence system before chasing velocity.
 
 <!--
-[TIME 19:15–22:15]
+[TIME 19:50–22:20]
 
 Here is the method I would carry into another massive project.
 
-First, choose a substrate narrow enough to own but valuable enough to support
+First, choose a foundation narrow enough to own but valuable enough to support
 several outcomes. Second, write its observable contracts and responsibility
 boundaries. Third, create an independent witness: a reference implementation,
 simulator, replay log, model checker, invariant sweep, or carefully curated
-fixture. Fourth, let AI search hard inside that falsifiable boundary. Finally,
-turn every discovery into a reduced regression and dogfood the substrate in a
+fixture. Fourth, let AI search hard inside that boundary, where wrong answers
+get caught. Finally,
+turn every discovery into a reduced regression and dogfood the foundation in a
 real downstream product.
 
 The goal is not to make AI cautious. The goal is to make ambitious exploration
@@ -792,7 +989,7 @@ Name the contract. Create the witness. Let AI search. Keep the proof.
 :::
 
 <!--
-[TIME 22:15–23:30]
+[TIME 22:20–23:20]
 
 GoTreeSitter is useful because consumers can start with language detection,
 trees, queries, highlights, tags, injections, and safe rewrite coordinates
