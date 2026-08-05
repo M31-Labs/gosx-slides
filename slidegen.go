@@ -139,6 +139,10 @@ type islandDef struct {
 	// body is the component source with its `package` line and import block(s)
 	// removed: comments + the `//gosx:island func Name() …` definition.
 	body string
+	// source is the component's original, unstripped .gsx source, kept so
+	// compileDeckProgram can gate the deck program on a clean per-island
+	// parse (see validateIslandDefs).
+	source string
 }
 
 // parseIslandDef splits a component .gsx source into its imports and its body

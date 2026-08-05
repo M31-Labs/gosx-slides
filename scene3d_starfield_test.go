@@ -109,26 +109,28 @@ func TestM31StarfieldMatchesHistoricalM31ContentScene(t *testing.T) {
 
 	// Every band must carry BOTH kinds of motion. Drift alone leaves the far
 	// bands — which hold most of the stars — visually frozen, because distant
-	// stars have almost no screen-space parallax along the view axis. Rotation
-	// alone was the old behaviour and gave no depth. The field only reads as
-	// alive from the back of a room when both are present.
+	// stars have almost no screen-space parallax along the view axis. The
+	// tangential motion must be shader-side pan with wraparound, NOT a rigid
+	// node rotation: the stars are authored inside the camera frustum, and
+	// rotating that pyramid swings the population out of frame over a few
+	// minutes, thinning the field and bunching the rest in one region.
 	for _, layer := range layers {
-		if layer.Spin == (scene.Euler{}) {
-			t.Fatalf("%s has no rotation; drift alone leaves the far sky static", layer.ID)
-		}
-		if layer.Spin.Y > 0.05 {
-			t.Fatalf("%s spinY = %.4f, too fast — the sky would read as a turning sheet", layer.ID, layer.Spin.Y)
+		if layer.Spin != (scene.Euler{}) {
+			t.Fatalf("%s uses rigid node spin; frustum-authored stars must pan via shader wraparound", layer.ID)
 		}
 		if layer.Position.Z != 0 {
 			t.Fatalf("%s group offset z = %.1f, want frustum-placed stars at true depth", layer.ID, layer.Position.Z)
 		}
-		for _, want := range []string{"starfieldDepthRate", "starfieldFract(time * starfieldDepthRate)", "nearBoost"} {
+		for _, want := range []string{"starfieldDepthRate", "starfieldFract(time * starfieldDepthRate)", "nearBoost", "starfieldPanX", "time * starfieldPanX"} {
 			if !strings.Contains(layer.Material.VertexGLSL, want) {
-				t.Fatalf("%s is frozen: missing depth-drift term %q", layer.ID, want)
+				t.Fatalf("%s is frozen: missing motion term %q", layer.ID, want)
 			}
 		}
 		if strings.Contains(layer.Material.VertexGLSL, "starfieldDepthRate = 0.000000000") {
 			t.Fatalf("%s depth rate is zero — the band would render as a still image", layer.ID)
+		}
+		if strings.Contains(layer.Material.VertexGLSL, "starfieldPanX = 0.000000") {
+			t.Fatalf("%s pan rate is zero — the far sky would read as frozen", layer.ID)
 		}
 	}
 
@@ -147,17 +149,17 @@ func TestM31StarfieldMatchesHistoricalM31ContentScene(t *testing.T) {
 		prev = period
 	}
 
-	// Rotation must also be differential and decrease outward, so the bands
-	// shear against each other rather than turning as one rigid sheet.
-	prevSpin := math.Inf(1)
+	// Pan must also be differential and decrease outward, so the bands shear
+	// against each other rather than sliding as one rigid sheet.
+	prevPan := math.Inf(1)
 	for _, band := range m31StarfieldBands() {
-		if band.SpinY <= 0 {
-			t.Fatalf("%s has no rotation rate", band.ID)
+		if band.PanX <= 0 {
+			t.Fatalf("%s has no pan rate", band.ID)
 		}
-		if band.SpinY >= prevSpin {
-			t.Fatalf("%s spinY = %.4f, want slower than the band inside it (%.4f)", band.ID, band.SpinY, prevSpin)
+		if band.PanX >= prevPan {
+			t.Fatalf("%s panX = %.4f, want slower than the band inside it (%.4f)", band.ID, band.PanX, prevPan)
 		}
-		prevSpin = band.SpinY
+		prevPan = band.PanX
 	}
 
 }

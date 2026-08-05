@@ -217,18 +217,26 @@ type m31StarfieldBand struct {
 	// derived from it so a band's drift stays proportional to its own depth
 	// slab rather than to the scene as a whole.
 	WrapSpeed float64
-	// SpinY is a slow rotation layered on top of the drift.
+	// PanX/PanY are slow tangential drifts layered on top of the depth wrap,
+	// in fractions of the visible width/height per second, applied in the
+	// shader with screen-space wraparound.
 	//
-	// The two do different perceptual jobs and the field needs both. Drift
-	// moves stars along the view axis, which reads strongly near the camera
-	// and almost not at all in the far bands — so drift alone leaves the bulk
-	// of the sky (the far bands hold most of the count) visually frozen.
-	// Rotation moves every star tangentially, including distant ones, so it is
-	// what makes the whole field read as alive from the back of a room.
-	// Keeping it differential per band means the layers shear against each
-	// other instead of turning as one rigid sheet.
-	SpinY float64
-	SpinX float64
+	// The two motions do different perceptual jobs and the field needs both.
+	// Depth drift moves stars along the view axis, which reads strongly near
+	// the camera and almost not at all in the far bands — so drift alone
+	// leaves the bulk of the sky (the far bands hold most of the count)
+	// visually frozen. Pan moves every star tangentially, including distant
+	// ones, so it is what makes the whole field read as alive from the back
+	// of a room. Keeping it differential per band means the layers shear
+	// against each other instead of moving as one rigid sheet.
+	//
+	// This used to be a rigid node rotation (Spin), but the stars are
+	// authored inside the camera frustum: rotating that pyramid swings the
+	// whole population out of frame over a few minutes, thinning the field
+	// and bunching the remainder in one region. Wrapping pan keeps coverage
+	// uniform forever.
+	PanX float64
+	PanY float64
 }
 
 // m31StarfieldBands runs near-to-far. Nearer bands hold fewer, larger, faster
@@ -279,11 +287,12 @@ func m31StarfieldBandLayer(seed uint64, band m31StarfieldBand) scene.Points {
 		BlendMode:    scene.BlendAdditive,
 		DepthWrite:   false,
 		Attenuation:  false,
-		// Drift (shader) carries depth; spin carries the whole field. No group
-		// offset — stars sit at their true depth.
-		Spin: scene.Euler{Y: band.SpinY, X: band.SpinX},
+		// Drift and pan both live in the shader with wraparound; no node spin,
+		// because rotating the frustum-authored cloud empties the frame over
+		// time. No group offset — stars sit at their true depth.
 		Material: m31StarfieldTwinkleMaterial(band.Shimmer, band.PulseRate,
-			(band.WrapSpeed/span)/m31StarfieldTau, band.DistMin, band.DistMax),
+			(band.WrapSpeed/span)/m31StarfieldTau, band.DistMin, band.DistMax,
+			band.PanX, band.PanY),
 	}
 }
 
@@ -293,11 +302,13 @@ func m31StarfieldBandLayer(seed uint64, band m31StarfieldBand) scene.Points {
 // light before returning each star to full brightness. That produces the
 // site's crisp, irregular scintillation without making the whole sky breathe.
 // driftRate is in cycles/second; distMin/distMax bound the depth slab a layer
-// wraps through. The shader recovers each star's normalized screen position
-// from its authored placement, then re-projects it at the drifted depth — so
-// stars travel straight toward the viewer and the field stays evenly covered
-// at every moment of the cycle.
-func m31StarfieldTwinkleMaterial(amplitude, rate, driftRate, distMin, distMax float64) *scene.CustomMaterial {
+// wraps through; panX/panY are screen-space tangential rates in fractions of
+// the visible width/height per second. The shader recovers each star's
+// normalized screen position from its authored placement, pans it with
+// wraparound, then re-projects it at the drifted depth — so stars travel
+// toward the viewer while sliding across frame, and the field stays evenly
+// covered at every moment of the cycle.
+func m31StarfieldTwinkleMaterial(amplitude, rate, driftRate, distMin, distMax, panX, panY float64) *scene.CustomMaterial {
 	span := distMax - distMin
 	if span <= 0 {
 		span = 1
@@ -356,6 +367,8 @@ const float starfieldTanHalfFOV = %.6f;
 const float starfieldAspect = %.4f;
 const float starfieldMarginX = %.4f;
 const float starfieldMarginY = %.4f;
+const float starfieldPanX = %.6f;
+const float starfieldPanY = %.6f;
 
 float starfieldFract(float v) {
 	return v - floor(v);
@@ -366,6 +379,10 @@ void main() {
 	float baseHalfH = max(starfieldTanHalfFOV * baseDist, 0.001);
 	float nx = a_position.x / max(baseHalfH * starfieldAspect * starfieldMarginX, 0.001);
 	float ny = a_position.y / max(baseHalfH * starfieldMarginY, 0.001);
+	// Tangential pan with screen-space wraparound: a star that slides off one
+	// edge re-enters on the other, so band coverage never thins over time.
+	nx = starfieldFract((nx * 0.5 + 0.5) + time * starfieldPanX) * 2.0 - 1.0;
+	ny = starfieldFract((ny * 0.5 + 0.5) + time * starfieldPanY) * 2.0 - 1.0;
 	float phase = starfieldFract((baseDist - starfieldDistMin) / starfieldSpan - starfieldFract(time * starfieldDepthRate));
 	float dist = starfieldDistMin + phase * starfieldSpan;
 	float halfH = starfieldTanHalfFOV * dist;
@@ -408,7 +425,7 @@ void main() {
 		v_fogFactor = 1.0;
 	}
 }`, amplitude, rate, driftRate, distMin, span, m31StarfieldCameraZ, tanHalfFOV,
-		m31StarfieldAspect, m31StarfieldMarginX, m31StarfieldMarginY)
+		m31StarfieldAspect, m31StarfieldMarginX, m31StarfieldMarginY, panX, panY)
 	material.FragmentGLSL = `#version 300 es
 precision highp float;
 precision highp int;
