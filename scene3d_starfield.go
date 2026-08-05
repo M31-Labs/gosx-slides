@@ -20,10 +20,10 @@ const (
 	m31StarfieldCameraZ       = 520.0
 	m31StarfieldFOV           = 52.0
 	m31StarfieldColor         = "#eff8ff"
-	m31StarfieldSkyShimmer    = 0.22
-	m31StarfieldSkyPulseRate  = 0.70
-	m31StarfieldNearShimmer   = 0.34
-	m31StarfieldNearPulseRate = 1.15
+	m31StarfieldSkyShimmer    = 0.25
+	m31StarfieldSkyPulseRate  = 0.75
+	m31StarfieldNearShimmer   = 0.38
+	m31StarfieldNearPulseRate = 1.20
 
 	// Frustum placement. The earlier layers scattered stars through a cube
 	// (spread 2000, group pushed to z -1300). From this camera that cube only
@@ -236,12 +236,12 @@ type m31StarfieldBand struct {
 // stay at the historical budget so the 30fps cap still holds on venue hardware.
 func m31StarfieldBands() []m31StarfieldBand {
 	return []m31StarfieldBand{
-		{"starfield-near", 380, 97, 430, 960, 1.70, 3.50, 2.40, 4.9, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.016, 0.006},
-		{"starfield-inner", 520, 31, 900, 1400, 1.30, 3.10, 2.20, 5.0, 0.30, 1.02, 63, 0.013, 0.004},
-		{"starfield-mid", 900, 53, 1300, 1750, 1.05, 2.90, 2.05, 5.2, 0.27, 0.92, 49, 0.010, 0.003},
-		{"starfield-outer", 1200, 71, 1650, 2000, 0.98, 2.70, 1.90, 5.3, 0.25, 0.84, 34, 0.008, 0.002},
-		{"starfield-deep", 1400, 113, 1900, 2200, 0.94, 2.55, 1.80, 5.4, 0.23, 0.76, 26, 0.006, 0.001},
-		{"starfield-stars", 1380, 11, 2100, 2300, 0.92, 3.25, 1.55, 5.5, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.004, 0.0005},
+		{"starfield-near", 380, 97, 430, 960, 1.72, 3.52, 2.40, 5.0, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.020, 0.007},
+		{"starfield-inner", 520, 31, 900, 1400, 1.32, 3.12, 2.20, 5.1, 0.29, 1.06, 63, 0.016, 0.005},
+		{"starfield-mid", 900, 53, 1300, 1750, 1.08, 2.92, 2.05, 5.3, 0.27, 0.96, 49, 0.012, 0.004},
+		{"starfield-outer", 1200, 71, 1650, 2000, 1.00, 2.72, 1.90, 5.4, 0.25, 0.88, 34, 0.009, 0.003},
+		{"starfield-deep", 1400, 113, 1900, 2200, 0.96, 2.58, 1.80, 5.5, 0.24, 0.80, 26, 0.007, 0.0015},
+		{"starfield-stars", 1380, 11, 2100, 2300, 0.94, 3.28, 1.55, 5.6, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.005, 0.0007},
 	}
 }
 
@@ -272,7 +272,7 @@ func m31StarfieldBandLayer(seed uint64, band m31StarfieldBand) scene.Points {
 		Sizes:        sizes,
 		Color:        m31StarfieldColor,
 		Style:        scene.PointStyleGlow,
-		Size:         1.65,
+		Size:         1.7,
 		MinPixelSize: 1.3,
 		MaxPixelSize: band.MaxPixel,
 		Opacity:      1,
@@ -381,7 +381,13 @@ void main() {
 	float size = u_hasPerVertexSize ? a_size : u_defaultSize;
 	float nearBoost = 1.0 + pow(1.0 - phase, 2.0) * 0.36;
 	size = size * nearBoost;
-	v_pulse = 1.0 - starfieldPulseAmp + starfieldPulseAmp * sin(time * starfieldPulseRate + size * 1.7);
+	// Mix two slow, position-seeded pulses. Using only point size as the phase
+	// made nearby stars breathe in loose cohorts; the spatial seed gives the
+	// projector a crisp, irregular twinkle without making the whole sky flash.
+	float phaseSeed = dot(a_position.xy, vec2(0.0067, 0.0091)) + a_position.z * 0.0023 + size * 1.7;
+	float primaryPulse = sin(time * starfieldPulseRate + phaseSeed);
+	float secondaryPulse = sin(time * starfieldPulseRate * 1.71 + phaseSeed * 1.37) * 0.22;
+	v_pulse = 1.0 + starfieldPulseAmp * (0.82 * primaryPulse + secondaryPulse);
 	float pixelSize;
 	if (u_sizeAttenuation) {
 		pixelSize = max(size * (u_viewportHeight * 0.5) / max(-viewPos.z, 0.001), 1.0);

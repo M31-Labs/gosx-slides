@@ -6,8 +6,11 @@ import (
 )
 
 const (
-	conferenceAspectRatio      = "16:9"
-	conferenceCaptionSafeFloor = 20
+	conferenceAspectRatio = "16:9"
+	// A two-line live-caption overlay needs a compact lower buffer, not a full
+	// fifth of a 16:9 projection. Ten percent leaves captions room while
+	// allowing audience content to use the middle and lower canvas.
+	conferenceCaptionSafeFloor = 10
 )
 
 // ConferenceConfig is the presentation-room contract declared in deck
@@ -76,6 +79,7 @@ func conferenceStyle(config ConferenceConfig) string {
 	}
 	bottom := strconv.Itoa(config.CaptionSafeBottom)
 	return `main.deck[data-caption-safe-bottom="` + bottom + `"] {
+  --caption-safe-height: ` + bottom + `vh;
   font-size: clamp(1.35rem, 2vw, 1.8rem);
   line-height: 1.45;
 }

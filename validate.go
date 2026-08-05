@@ -29,7 +29,7 @@ func validateConference(report *ValidationReport) {
 		report.Errors = append(report.Errors, "conference: deck headmatter must set aspect-ratio: 16:9")
 	}
 	if config.CaptionSafeBottom < conferenceCaptionSafeFloor {
-		report.Errors = append(report.Errors, "conference: deck headmatter must reserve caption-safe-bottom: 20% or more")
+		report.Errors = append(report.Errors, "conference: deck headmatter must reserve caption-safe-bottom: 10% or more")
 	}
 	if config.DurationMinutes <= 0 {
 		report.Errors = append(report.Errors, "conference: deck headmatter must set duration-minutes")

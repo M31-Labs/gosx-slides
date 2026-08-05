@@ -60,6 +60,8 @@ func TestM31StarfieldMatchesHistoricalM31ContentScene(t *testing.T) {
 		}
 		if !strings.Contains(points.Material.VertexGLSL, "uniform float time;") ||
 			!strings.Contains(points.Material.VertexGLSL, "size * 1.7") ||
+			!strings.Contains(points.Material.VertexGLSL, "phaseSeed") ||
+			!strings.Contains(points.Material.VertexGLSL, "secondaryPulse") ||
 			!strings.Contains(points.Material.FragmentGLSL, "v_pulse") ||
 			!strings.Contains(points.Material.FragmentGLSL, "smoothstep(0.78, 1.0, radial)") {
 			t.Fatalf("%s material is missing the July 19 authored twinkle/glow path", points.ID)

@@ -1,12 +1,16 @@
 /* GopherCon 2026 — Dark Elegance
    One atmospheric canvas, one amber signal, and a flat technical hierarchy.
-   Audience content stays above the lower 20% caption band. */
+   Audience content stays above a compact 10% caption band. */
 
 main.deck[data-theme="aurora"] {
   position: relative;
   isolation: isolate;
   background: var(--bg);
-  font-size: clamp(1rem, 1.3vw, 1.3rem);
+  /* Keep the room-sized Aurora scale. The earlier 1.3vw override made the
+     projector version materially smaller than the theme's body token. */
+  font-size: var(--fs-body);
+  --fs-6: clamp(1.2rem, 1.45vw, 1.5rem);
+  --fs-7: clamp(1rem, 1.2vw, 1.2rem);
   --deck-slide-gutter: clamp(3rem, 5vw, 6rem);
   --deck-panel-gutter: clamp(1rem, 1.5vw, 1.5rem);
   --qr-bg: #ffffff;
@@ -14,7 +18,7 @@ main.deck[data-theme="aurora"] {
 }
 
 body main.deck[data-theme="aurora"] {
-  font-size: clamp(1rem, 1.3vw, 1.3rem);
+  font-size: var(--fs-body);
 }
 
 main.deck > .deck-scene3d {
@@ -32,6 +36,12 @@ main.deck > .deck-scene3d canvas {
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* The live field is intentionally present across the whole canvas, but its
+   luminance yields to the reading plane so the stars never compete with copy. */
+main.deck > .starfield-surface {
+  opacity: 0.24;
 }
 
 main.deck > .deck-galaxy3d {
@@ -115,27 +125,27 @@ main.deck > section.slide::before {
   position: absolute;
   inset: clamp(1.75rem, 3vw, 3rem)
     calc(var(--deck-slide-gutter) - var(--deck-panel-gutter))
-    36vh;
+    calc(var(--caption-safe-height, 10vh) + clamp(1.25rem, 2.5vh, 2rem));
   z-index: 0;
   pointer-events: none;
   background: linear-gradient(
     135deg,
-    rgba(16, 20, 42, 0.3),
-    rgba(3, 4, 14, 0.16)
+    rgba(16, 20, 42, 0.2),
+    rgba(3, 4, 14, 0.08)
   );
   border: 1px solid color-mix(in srgb, #dbeafe 11%, transparent);
   border-radius: 1.5rem;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.045),
     0 1.25rem 4rem rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(3px) saturate(1.14) brightness(0.98);
+  backdrop-filter: blur(2px) saturate(1.1) brightness(0.98);
 }
 
 /* Let the closing spiral become the brand moment. The reading slides need a
    dense glass field; the finale only needs enough contrast behind the copy. */
 main.deck > section.slide.final-invitation::before {
-  bottom: calc(20vh + 1.25rem);
-  background: rgba(1, 1, 6, 0.34);
+  bottom: calc(var(--caption-safe-height, 10vh) + 1.25rem);
+  background: rgba(1, 1, 6, 0.28);
   border-color: color-mix(in srgb, var(--line) 44%, transparent);
   box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(4px) saturate(1.05) brightness(0.88);
@@ -824,11 +834,6 @@ main.deck > section.slide.final-invitation .mdpp-col code {
   color: inherit;
   font-size: clamp(0.72rem, 0.9vw, 0.9rem);
   white-space: nowrap;
-}
-
-/* The conference captions occupy the lower fifth of the projection. */
-main.deck[data-theme="aurora"][data-caption-safe-bottom="20"] > section.slide {
-  padding-bottom: calc(20vh + var(--sp-4));
 }
 
 /* Static, local first paint and reduced-motion fallback. */
