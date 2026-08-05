@@ -20,10 +20,10 @@ const (
 	m31StarfieldCameraZ       = 520.0
 	m31StarfieldFOV           = 52.0
 	m31StarfieldColor         = "#eff8ff"
-	m31StarfieldSkyShimmer    = 0.30
-	m31StarfieldSkyPulseRate  = 1.70
-	m31StarfieldNearShimmer   = 0.44
-	m31StarfieldNearPulseRate = 2.60
+	m31StarfieldSkyShimmer    = 0.32
+	m31StarfieldSkyPulseRate  = 1.95
+	m31StarfieldNearShimmer   = 0.46
+	m31StarfieldNearPulseRate = 3.00
 
 	// Frustum placement. The earlier layers scattered stars through a cube
 	// (spread 2000, group pushed to z -1300). From this camera that cube only
@@ -293,12 +293,12 @@ type m31StarfieldBand struct {
 // stay at the historical budget so the 30fps cap still holds on venue hardware.
 func m31StarfieldBands() []m31StarfieldBand {
 	return []m31StarfieldBand{
-		{"starfield-near", 380, 97, 430, 960, 1.72, 3.52, 2.40, 5.0, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.035, 0.012},
-		{"starfield-inner", 520, 31, 900, 1400, 1.32, 3.12, 2.20, 5.1, 0.33, 2.30, 63, 0.028, 0.009},
-		{"starfield-mid", 900, 53, 1300, 1750, 1.08, 2.92, 2.05, 5.3, 0.31, 2.10, 49, 0.021, 0.007},
-		{"starfield-outer", 1200, 71, 1650, 2000, 1.00, 2.72, 1.90, 5.4, 0.29, 1.90, 34, 0.016, 0.005},
-		{"starfield-deep", 1400, 113, 1900, 2200, 0.96, 2.58, 1.80, 5.5, 0.28, 1.75, 26, 0.012, 0.003},
-		{"starfield-stars", 1380, 11, 2100, 2300, 0.94, 3.28, 1.55, 5.6, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.009, 0.0015},
+		{"starfield-near", 380, 97, 430, 960, 1.72, 3.52, 2.40, 5.0, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.042, 0.014},
+		{"starfield-inner", 520, 31, 900, 1400, 1.32, 3.12, 2.20, 5.1, 0.35, 2.60, 63, 0.034, 0.011},
+		{"starfield-mid", 900, 53, 1300, 1750, 1.08, 2.92, 2.05, 5.3, 0.33, 2.40, 49, 0.025, 0.008},
+		{"starfield-outer", 1200, 71, 1650, 2000, 1.00, 2.72, 1.90, 5.4, 0.31, 2.20, 34, 0.019, 0.006},
+		{"starfield-deep", 1400, 113, 1900, 2200, 0.96, 2.58, 1.80, 5.5, 0.30, 2.00, 26, 0.014, 0.0036},
+		{"starfield-stars", 1380, 11, 2100, 2300, 0.94, 3.28, 1.55, 5.6, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.011, 0.0018},
 	}
 }
 

@@ -43,8 +43,8 @@ main.deck > .deck-scene3d canvas {
    0.38 with a mild brightness lift keeps individual stars readable from the
    room without pulling focus from the type. */
 main.deck > .starfield-surface {
-  opacity: 0.38;
-  filter: brightness(1.15);
+  opacity: 0.44;
+  filter: brightness(1.22);
 }
 
 /* No darkening veil over the closing galaxy: the M31 beat should come through
