@@ -16,7 +16,7 @@ func TestConferenceSafeAreaRenders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	app.Build().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	body := rec.Body.String()
-	for _, want := range []string{`data-aspect-ratio="16:9"`, `data-caption-safe-bottom="20"`, `data-conference-safe-area="true"`, `--caption-safe-height: 20vh`, `max(clamp(2.5rem, 5vw, 5rem), 20vh)`} {
+	for _, want := range []string{`data-aspect-ratio="16:9"`, `data-caption-safe-bottom="20"`, `data-conference-safe-area="true"`, `--caption-safe-height: 20vh`, `max(clamp(2.5rem, 5vw, 5rem), calc(20vh + 0.5rem))`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("conference rendering missing %q", want)
 		}

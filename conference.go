@@ -84,10 +84,10 @@ func conferenceStyle(config ConferenceConfig) string {
 }
 main.deck[data-caption-safe-bottom="` + bottom + `"] > .slide {
   box-sizing: border-box;
-  /* The caption reserve is the lower bound. Keep the optical margin in the
-     plate, not in another viewport-sized padding band, so the upper 80% stays
+  /* The caption reserve is the lower bound. Keep only a small optical gap in
+     the padding—not another viewport-sized band—so the upper 80% stays
      available to the talk. */
-  padding-bottom: max(clamp(2.5rem, 5vw, 5rem), ` + bottom + `vh);
+  padding-bottom: max(clamp(2.5rem, 5vw, 5rem), calc(` + bottom + `vh + 0.5rem));
 }
 main.deck[data-caption-guide="1"][data-caption-safe-bottom="` + bottom + `"]::after {
   content: "caption-safe area · bottom ` + bottom + `%";

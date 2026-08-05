@@ -291,6 +291,10 @@ main.deck > section.slide.products-slide .admonition > p {
   margin-block: 0.15rem;
 }
 
+main.deck > section.slide.mdpp-two.method-slide .admonition {
+  margin-top: 0.5rem;
+}
+
 main.deck > section.slide blockquote {
   width: min(62rem, 100%);
   margin-inline: auto;
