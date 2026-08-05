@@ -20,10 +20,10 @@ const (
 	m31StarfieldCameraZ       = 520.0
 	m31StarfieldFOV           = 52.0
 	m31StarfieldColor         = "#eff8ff"
-	m31StarfieldSkyShimmer    = 0.25
-	m31StarfieldSkyPulseRate  = 0.75
-	m31StarfieldNearShimmer   = 0.38
-	m31StarfieldNearPulseRate = 1.20
+	m31StarfieldSkyShimmer    = 0.30
+	m31StarfieldSkyPulseRate  = 1.70
+	m31StarfieldNearShimmer   = 0.44
+	m31StarfieldNearPulseRate = 2.60
 
 	// Frustum placement. The earlier layers scattered stars through a cube
 	// (spread 2000, group pushed to z -1300). From this camera that cube only
@@ -293,12 +293,12 @@ type m31StarfieldBand struct {
 // stay at the historical budget so the 30fps cap still holds on venue hardware.
 func m31StarfieldBands() []m31StarfieldBand {
 	return []m31StarfieldBand{
-		{"starfield-near", 380, 97, 430, 960, 1.72, 3.52, 2.40, 5.0, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.020, 0.007},
-		{"starfield-inner", 520, 31, 900, 1400, 1.32, 3.12, 2.20, 5.1, 0.29, 1.06, 63, 0.016, 0.005},
-		{"starfield-mid", 900, 53, 1300, 1750, 1.08, 2.92, 2.05, 5.3, 0.27, 0.96, 49, 0.012, 0.004},
-		{"starfield-outer", 1200, 71, 1650, 2000, 1.00, 2.72, 1.90, 5.4, 0.25, 0.88, 34, 0.009, 0.003},
-		{"starfield-deep", 1400, 113, 1900, 2200, 0.96, 2.58, 1.80, 5.5, 0.24, 0.80, 26, 0.007, 0.0015},
-		{"starfield-stars", 1380, 11, 2100, 2300, 0.94, 3.28, 1.55, 5.6, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.005, 0.0007},
+		{"starfield-near", 380, 97, 430, 960, 1.72, 3.52, 2.40, 5.0, m31StarfieldNearShimmer, m31StarfieldNearPulseRate, 83, 0.035, 0.012},
+		{"starfield-inner", 520, 31, 900, 1400, 1.32, 3.12, 2.20, 5.1, 0.33, 2.30, 63, 0.028, 0.009},
+		{"starfield-mid", 900, 53, 1300, 1750, 1.08, 2.92, 2.05, 5.3, 0.31, 2.10, 49, 0.021, 0.007},
+		{"starfield-outer", 1200, 71, 1650, 2000, 1.00, 2.72, 1.90, 5.4, 0.29, 1.90, 34, 0.016, 0.005},
+		{"starfield-deep", 1400, 113, 1900, 2200, 0.96, 2.58, 1.80, 5.5, 0.28, 1.75, 26, 0.012, 0.003},
+		{"starfield-stars", 1380, 11, 2100, 2300, 0.94, 3.28, 1.55, 5.6, m31StarfieldSkyShimmer, m31StarfieldSkyPulseRate, 15.7, 0.009, 0.0015},
 	}
 }
 
@@ -435,8 +435,14 @@ void main() {
 	float ny = a_position.y / max(baseHalfH * starfieldMarginY, 0.001);
 	// Tangential pan with screen-space wraparound: a star that slides off one
 	// edge re-enters on the other, so band coverage never thins over time.
-	nx = starfieldFract((nx * 0.5 + 0.5) + time * starfieldPanX) * 2.0 - 1.0;
-	ny = starfieldFract((ny * 0.5 + 0.5) + time * starfieldPanY) * 2.0 - 1.0;
+	// Each star pans at its own speed — nearer stars stream faster, farther
+	// ones slower (real parallax inside the band), with a small hash jitter
+	// so the band never slides as one coherent sheet.
+	float panDepthNorm = (baseDist - starfieldDistMin) / starfieldSpan;
+	float panJitter = 0.85 + 0.3 * starfieldFract(sin(dot(a_position.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	float panSpeed = mix(1.35, 0.65, panDepthNorm) * panJitter;
+	nx = starfieldFract((nx * 0.5 + 0.5) + time * starfieldPanX * panSpeed) * 2.0 - 1.0;
+	ny = starfieldFract((ny * 0.5 + 0.5) + time * starfieldPanY * panSpeed) * 2.0 - 1.0;
 	float phase = starfieldFract((baseDist - starfieldDistMin) / starfieldSpan - starfieldFract(time * starfieldDepthRate));
 	float dist = starfieldDistMin + phase * starfieldSpan;
 	float halfH = starfieldTanHalfFOV * dist;
