@@ -120,6 +120,16 @@ main.deck[data-theme="aurora"] > section.slide {
   background: transparent !important;
 }
 
+/* The content plate owns the usable 90% of the projection. Center ordinary
+   reading slides inside that space so the audience does not get a top-heavy
+   composition with an unused middle; title, section, quote, center, and finale
+   slides keep their purpose-built layout rules. */
+main.deck[data-theme="aurora"] > section.slide:not(.layout-title):not(.layout-center):not(.layout-section):not(.layout-quote):not(.final-invitation) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 main.deck > section.slide::before {
   content: "";
   position: absolute;

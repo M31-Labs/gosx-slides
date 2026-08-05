@@ -58,5 +58,7 @@ Implementation rules:
 - Dense reference slides use ruled panels, not generic floating card grids.
 - Headings and the amber signal remain the strongest visual elements on every
   slide.
+- Reading slides center their composition inside the full usable canvas; only
+  the compact lower caption band stays intentionally clear.
 - The 10% caption-safe lower band remains free of essential content; the glass
   plate ends just above it so the live starfield can occupy the full canvas.

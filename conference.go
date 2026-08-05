@@ -85,7 +85,9 @@ func conferenceStyle(config ConferenceConfig) string {
 }
 main.deck[data-caption-safe-bottom="` + bottom + `"] > .slide {
   box-sizing: border-box;
-  padding-bottom: max(clamp(2.5rem, 7vw, 7rem), calc(` + bottom + `vh + 1.5rem));
+  /* The caption reserve is the lower bound. A 7vw floor duplicated that
+     space on wide projectors and forced otherwise-fitting slides to scale. */
+  padding-bottom: max(clamp(2.5rem, 5vw, 5rem), calc(` + bottom + `vh + 1.5rem));
 }
 main.deck[data-caption-guide="1"][data-caption-safe-bottom="` + bottom + `"]::after {
   content: "caption-safe area · bottom ` + bottom + `%";
