@@ -109,8 +109,9 @@ main.deck .deck-progress-fill { height: 100%; width: 0; background: var(--accent
 @media (prefers-reduced-motion: no-preference) { main.deck .deck-progress-fill { transition: width 260ms cubic-bezier(0.25,1,0.5,1); } }
 main.deck .deck-counter { position: fixed; right: 1rem; bottom: 0.85rem; z-index: 40; font: 600 0.8rem/1 var(--font-mono, ui-monospace, monospace); color: var(--fg-muted, #888); opacity: 0.7; pointer-events: none; }
 main.deck.` + navOverviewClass + ` .deck-progress, main.deck.` + navOverviewClass + ` .deck-counter { display: none; }
-/* Dev-only overflow cue: navScript shows this when the active slide's content
-   exceeds the viewport (it is auto-scaled to fit, but the badge says "split me"). */
+/* Diagnostic overflow cue, presenter window only (dev serve): navScript shows
+   this when the active slide's content exceeds the viewport or intrudes into
+   the caption-safe band (the audience view auto-scales silently). */
 main.deck .deck-overflow-badge { position: fixed; left: 1rem; bottom: 0.8rem; z-index: 41; display: none; font: 700 0.78rem/1 var(--font-mono, ui-monospace, monospace); color: #ff6b6b; background: rgba(255,107,107,0.12); border: 1px solid #ff6b6b; border-radius: 999px; padding: 0.35rem 0.7rem; }
 /* Print / PDF: lay every slide out one-per-page (overriding the viewport lock and
    the one-slide visibility), drop the on-screen chrome, and undo any fit-scale so
@@ -410,7 +411,8 @@ func navScript() string {
   var dev = deck.getAttribute('data-dev') === '1';
 
   // --- Audience chrome + fit-to-viewport ----------------------------------
-  // A thin progress bar, a slide counter, and (dev only) an overflow badge are
+  // A thin progress bar, a slide counter, and (presenter-window, dev serve
+  // only) an overflow badge are
   // fixed to the viewport (they escape the deck's overflow:hidden). updateChrome
   // and fitSlide run on every show() and on resize.
   function mkChrome(cls) { var e = document.createElement('div'); e.className = cls; deck.appendChild(e); return e; }
@@ -429,9 +431,29 @@ func navScript() string {
     s.style.transform = 'none';
     var avail = window.innerHeight;
     var natural = s.scrollHeight; // forces reflow -> accurate
+    // Content that intrudes into the slide's own bottom padding (the
+    // caption-safe band) never grows scrollHeight, so also measure the real
+    // bottom edge of the last content child and add the reserved space back.
+    // The reserve is the LARGER of the slide's padding-bottom and the themed
+    // card frame's (::before) bottom inset plus breathing room — otherwise an
+    // admonition can sit inside the caption band or visually cross the card
+    // border undetected.
+    var last = s.lastElementChild;
+    if (last) {
+      var reserve = parseFloat(getComputedStyle(s).paddingBottom) || 0;
+      var frame = getComputedStyle(s, '::before');
+      if (frame && frame.content !== 'none') {
+        var frameB = parseFloat(frame.bottom);
+        if (!isNaN(frameB) && frameB > 0) reserve = Math.max(reserve, frameB + 12);
+      }
+      var needed = Math.ceil(last.getBoundingClientRect().bottom - s.getBoundingClientRect().top + reserve);
+      if (needed > natural) natural = needed;
+    }
     var overflows = natural > avail + 1;
     if (overflows) s.style.transform = 'scale(' + (avail / natural).toFixed(4) + ')';
-    overflowBadge.style.display = (dev && overflows) ? 'block' : 'none';
+    // The badge is diagnostic chrome: presenter window only (and only in dev
+    // serve). The audience deck auto-scales silently.
+    overflowBadge.style.display = (dev && present && overflows) ? 'block' : 'none';
   }
   function updateChrome() {
     var pct = slides.length > 1 ? ((index + 1) / slides.length) * 100 : 100;

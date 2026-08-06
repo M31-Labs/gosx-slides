@@ -73,7 +73,7 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	case "single":
 		return exportSingleSnapshot(deck, doc, out)
 	case "pdf":
-		return exportPDF(doc, out)
+		return exportPDF(dir, doc, out)
 	default:
 		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
 	}
@@ -95,7 +95,7 @@ const pdfPageStyle = `<style>@page { size: 1920px 1080px; margin: 0; }</style>`
 // the PDF needs no server and no wasm. out may be a .pdf file path or a
 // directory (then <out>/deck.pdf). Chrome is an OPTIONAL dependency: when no
 // binary is found the error says exactly what to install or set.
-func exportPDF(doc, out string) error {
+func exportPDF(dir, doc, out string) error {
 	chrome := os.Getenv("SLIDES_CHROME")
 	if chrome == "" {
 		for _, candidate := range pdfChromeCandidates {
@@ -134,8 +134,13 @@ func exportPDF(doc, out string) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	page := stripIslandRuntime(doc)
+	page := relativizePublicPaths(stripIslandRuntime(doc))
 	page = strings.Replace(page, "</head>", pdfPageStyle+"</head>", 1)
+	if src := filepath.Join(dir, "public"); isDir(src) {
+		if err := copyTree(src, filepath.Join(tmp, "public")); err != nil {
+			return fmt.Errorf("stage pdf public assets: %w", err)
+		}
+	}
 	pagePath := filepath.Join(tmp, "deck.html")
 	if err := os.WriteFile(pagePath, []byte(page), 0o644); err != nil {
 		return err
@@ -161,7 +166,10 @@ func exportPDF(doc, out string) error {
 // or JSON string). A leading quote can only precede /gosx/ in machine-generated
 // markup (attrs, the manifest/document-contract JSON) — never in rendered prose —
 // so rewriting these is safe.
-var gosxAbsRefRe = regexp.MustCompile(`(["'])/gosx/`)
+var (
+	gosxAbsRefRe   = regexp.MustCompile(`(["'])/gosx/`)
+	publicAbsRefRe = regexp.MustCompile(`(["'])/public/`)
+)
 
 // requestIDRe matches the per-request requestID gosx stamps into the document
 // contract; normalized at export so static builds are reproducible.
@@ -175,11 +183,19 @@ func relativizeGosxPaths(doc string) string {
 	return gosxAbsRefRe.ReplaceAllString(doc, `${1}gosx/`)
 }
 
+// relativizePublicPaths rewrites deck asset references for file:// exports.
+// The exporter copies <deck>/public to the same directory as the generated
+// HTML, so a relative public/... URL works in SPA and PDF output.
+func relativizePublicPaths(doc string) string {
+	return publicAbsRefRe.ReplaceAllString(doc, `${1}public/`)
+}
+
 func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(relativizeGosxPaths(doc)), 0o644); err != nil {
+	staticDoc := relativizePublicPaths(relativizeGosxPaths(doc))
+	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(staticDoc), 0o644); err != nil {
 		return err
 	}
 	// Copy the staged client runtime + island JSON into <out>/gosx, mapping the

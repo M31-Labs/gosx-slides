@@ -14,6 +14,7 @@ package slides
 // real.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -51,11 +52,39 @@ type compiledDeck struct {
 func compileDeckProgram(deck *IslandDeck) (*compiledDeck, error) {
 	defs := loadIslandDefs(deck)
 	source := generateDeckSource(deck, defs)
+	// gosx.Compile's parser error-recovers hard around damaged input, so a
+	// syntactically broken island can slip through as garbage definitions
+	// instead of a compile error. Gate the program on a clean per-island
+	// parse: one bad island must poison the whole program — that error is
+	// the callers' degrade trigger — never compile into nonsense.
+	if err := validateIslandDefs(defs); err != nil {
+		return &compiledDeck{slideCount: len(deck.Slides), source: source}, err
+	}
 	prog, err := gosx.Compile([]byte(source))
 	if err != nil {
 		return &compiledDeck{slideCount: len(deck.Slides), source: source}, err
 	}
 	return &compiledDeck{prog: prog, slideCount: len(deck.Slides), source: source}, nil
+}
+
+// validateIslandDefs rejects any island whose original .gsx source does not
+// parse cleanly under the GoSX grammar. Missing or empty components stay
+// fail-soft (loadIslandDefs already omitted them); this catches the present
+// but syntactically broken file.
+func validateIslandDefs(defs map[string]islandDef) error {
+	for name, def := range defs {
+		if strings.TrimSpace(def.source) == "" {
+			continue
+		}
+		tree, _, err := gosx.Parse([]byte(def.source))
+		if err != nil {
+			return fmt.Errorf("island %s: %w", name, err)
+		}
+		if tree.RootNode().HasError() {
+			return fmt.Errorf("island %s: syntax error in %s.gsx", name, name)
+		}
+	}
+	return nil
 }
 
 // loadIslandDefs reads and parses the <Name>.gsx definition for every distinct
@@ -77,6 +106,7 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 			if def.body == "" {
 				continue
 			}
+			def.source = source
 			defs[ref.Name] = def
 		}
 	}
@@ -92,6 +122,7 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 			continue
 		}
 		if def := parseIslandDef(source); def.body != "" {
+			def.source = source
 			defs[name] = def
 		}
 	}
@@ -191,8 +222,12 @@ func exprFuncs(diagramTheme, deckDir string) map[string]any {
 		// the file at render time (sandboxed to the deck dir) and renders through
 		// the same codeBlockNode, so dev-mode refreshes always show current source.
 		codeNamespace: map[string]any{
-			codeBlockFunc: codeBlockNode,
-			codeFileFunc:  slidesCodeFile{deckDir: deckDir}.Render,
+			// Bound as a closure so ```lang fences can resolve deck-local grammar
+			// blobs (grammars/<lang>.bin + .scm) before the built-in highlighter.
+			codeBlockFunc: func(lang, source, highlights string) gosx.Node {
+				return deckCodeBlockNode(deckDir, lang, source, highlights)
+			},
+			codeFileFunc: slidesCodeFile{deckDir: deckDir}.Render,
 		},
 		// diagramNS backs the generated `{__slidesDiagram.Render(src, theme, view)}`
 		// call that slidegen lowers a sirena fence to. renderSirenaDiagram calls

@@ -1,0 +1,991 @@
+/* GopherCon 2026 — Dark Elegance
+   One atmospheric canvas, one amber signal, and a flat technical hierarchy.
+   Audience content stays above the 20% caption-safe band. */
+
+main.deck[data-theme="aurora"] {
+  position: relative;
+  isolation: isolate;
+  background: var(--bg);
+  /* Keep the room-sized Aurora scale. The earlier 1.3vw override made the
+     projector version materially smaller than the theme's body token. */
+  font-size: var(--fs-body);
+  --fs-6: clamp(1.2rem, 1.45vw, 1.5rem);
+  --fs-7: clamp(1rem, 1.2vw, 1.2rem);
+  --deck-slide-gutter: clamp(3rem, 5vw, 6rem);
+  --deck-panel-gutter: clamp(1rem, 1.5vw, 1.5rem);
+  --qr-bg: #ffffff;
+  --qr-fg: #0a0812;
+}
+
+body main.deck[data-theme="aurora"] {
+  font-size: var(--fs-body);
+}
+
+main.deck > .deck-scene3d {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden;
+}
+
+main.deck > .deck-scene3d canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* The live field is intentionally present across the whole canvas, but its
+   luminance yields to the reading plane so the stars never compete with copy.
+   0.38 with a mild brightness lift keeps individual stars readable from the
+   room without pulling focus from the type. */
+main.deck > .starfield-surface {
+  opacity: 0.44;
+  filter: brightness(1.22);
+}
+
+/* No darkening veil over the closing galaxy: the M31 beat should come through
+   at full luminance. The slide's own copy sits on the card surface, so the
+   background does not need to yield to it. */
+main.deck > .deck-galaxy3d {
+  visibility: hidden;
+  opacity: 0;
+  background: url("/public/m31labs-og.png") center / cover no-repeat;
+  transition: opacity 420ms ease, visibility 0s linear 420ms;
+}
+
+main.deck:has(> section.slide.final-invitation.deck-active) > .deck-galaxy3d {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 620ms ease, visibility 0s;
+}
+
+main.deck:has(> section.slide.final-invitation.deck-active) > .deck-galaxy3d canvas {
+  transform: scale(1.26);
+  transform-origin: 56% 48%;
+  filter: saturate(1.35) contrast(1.08);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  main.deck:has(> section.slide.final-invitation.deck-active) > .deck-galaxy3d::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgba(255, 176, 58, 0.12);
+    mix-blend-mode: color;
+    pointer-events: none;
+    animation: closing-galaxy-palette 42s ease-in-out infinite;
+  }
+}
+
+/* The closing scene is intentionally unlike the reading background: one
+   cropped galaxy, pushed through a slow spectrum for the replayable M31 beat. */
+@keyframes closing-galaxy-palette {
+  0% {
+    background-color: rgba(255, 176, 58, 0.12);
+  }
+  16.667% {
+    background-color: rgba(255, 24, 132, 0.48);
+  }
+  33.333% {
+    background-color: rgba(139, 72, 255, 0.52);
+  }
+  50% {
+    background-color: rgba(24, 112, 255, 0.48);
+  }
+  66.667% {
+    background-color: rgba(12, 222, 224, 0.42);
+  }
+  83.333% {
+    background-color: rgba(36, 220, 112, 0.38);
+  }
+  100% {
+    background-color: rgba(255, 176, 58, 0.12);
+  }
+}
+
+main.deck:has(> section.slide.final-invitation.deck-active) > .starfield-surface {
+  opacity: 0;
+}
+
+main.deck[data-theme="aurora"] > section.slide {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  margin-inline: 0;
+  padding-inline: var(--deck-slide-gutter);
+  background: transparent !important;
+}
+
+/* The content plate owns the usable 80% of the projection. Center ordinary
+   reading slides inside that space so the audience does not get a top-heavy
+   composition with an unused middle; title, section, quote, center, and finale
+   slides keep their purpose-built layout rules. */
+main.deck[data-theme="aurora"] > section.slide:not(.layout-title):not(.layout-center):not(.layout-section):not(.layout-quote):not(.final-invitation) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* The deck's glass card sits deeper than the framework's caption reserve
+   (20vh + 0.5rem), so slides must pad past their OWN frame line plus inner
+   breathing—otherwise in-flow content can legally sit on the card border. */
+main.deck[data-caption-safe-bottom="20"] > section.slide {
+  padding-bottom: calc(
+    var(--caption-safe-height, 20vh) + clamp(1.25rem, 2.5vh, 2rem) + 1.25rem
+  );
+}
+
+main.deck > section.slide::before {
+  content: "";
+  position: absolute;
+  inset: clamp(1.75rem, 3vw, 3rem)
+    calc(var(--deck-slide-gutter) - var(--deck-panel-gutter))
+    calc(var(--caption-safe-height, 20vh) + clamp(1.25rem, 2.5vh, 2rem));
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(16, 20, 42, 0.2),
+    rgba(3, 4, 14, 0.08)
+  );
+  border: 1px solid color-mix(in srgb, #dbeafe 11%, transparent);
+  border-radius: 1.5rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1.25rem 4rem rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(2px) saturate(1.1) brightness(0.98);
+}
+
+/* Let the closing spiral become the brand moment. The reading slides need a
+   dense glass field; the finale only needs enough contrast behind the copy. */
+main.deck > section.slide.final-invitation::before {
+  bottom: calc(var(--caption-safe-height, 20vh) + 1.25rem);
+  background: rgba(1, 1, 6, 0.28);
+  border-color: color-mix(in srgb, var(--line) 44%, transparent);
+  box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(4px) saturate(1.05) brightness(0.88);
+}
+
+main.deck > section.slide > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Presenter chrome is injected beside the Scene3D surfaces. Keep its notes,
+   preview cards, and controls in the same foreground plane as audience copy. */
+main.deck.deck-presenter .pv-stage,
+main.deck.deck-presenter .pv-side,
+main.deck.deck-presenter .pv-notes,
+main.deck.deck-presenter .pv-footer {
+  position: relative;
+  z-index: 2;
+}
+
+main.deck > section.slide > h1 {
+  max-width: 28ch;
+  text-wrap: balance;
+  background: none;
+  color: #f2f4ff;
+  -webkit-text-fill-color: currentColor;
+  text-shadow: 0 0 2rem rgba(162, 175, 255, 0.12);
+}
+
+main.deck[data-theme="aurora"] > section.slide:not(.layout-title):not(.final-invitation) > h1 {
+  margin-bottom: var(--sp-2);
+  font-size: clamp(2.35rem, 3.2vw, 3.2rem);
+  line-height: 1.08;
+}
+
+main.deck[data-theme="aurora"] > section.slide.layout-title {
+  font-size: var(--fs-body);
+}
+
+main.deck[data-theme="aurora"] > section.slide.layout-title > p {
+  max-width: 64ch;
+}
+
+main.deck[data-theme="aurora"] > section.slide.layout-title > p:last-of-type {
+  font-size: 1.1em;
+}
+
+main.deck[data-theme="aurora"] > section.slide.copy-tight {
+  padding-top: 2rem;
+}
+
+/* Markdown++ is the deck's native composition language. Container directives
+   choose semantic groupings in deck.md; these classes only tune column count
+   for the conference canvas. */
+main.deck > section.slide.mdpp-two .mdpp-container-columns { --mdpp-columns: 2; }
+main.deck > section.slide.mdpp-three .mdpp-container-columns { --mdpp-columns: 3; }
+main.deck > section.slide.mdpp-four .mdpp-container-columns { --mdpp-columns: 4; }
+main.deck > section.slide.mdpp-five .mdpp-container-columns { --mdpp-columns: 5; gap: var(--sp-2); }
+
+main.deck > section.slide .mdpp-container-columns {
+  align-items: stretch;
+  margin-block: var(--sp-2);
+}
+
+main.deck > section.slide .mdpp-col > p:not(.mdpp-container-title) {
+  color: var(--fg-muted);
+  font-size: var(--fs-6);
+  line-height: 1.35;
+}
+
+main.deck > section.slide .mdpp-col > pre.code-block {
+  overflow-x: hidden;
+  padding: 0.8rem 1rem;
+  font-size: clamp(0.72rem, 0.82vw, 0.82rem);
+  line-height: 1.28;
+}
+
+/* Code is the argument on the query-operations slides, so it gets
+   room-readable type. Their snippets are hand-wrapped under 45 columns, which
+   is what keeps this size safe inside a half-canvas column with overflow-x
+   hidden. */
+main.deck > section.slide.query-operations .mdpp-col > pre.code-block {
+  font-size: clamp(0.95rem, 1.15vw, 1.2rem);
+  line-height: 1.34;
+  padding: 0.6rem 0.9rem;
+}
+
+/* The DSL-to-Go pair slides carry ~15-line columns; step the type down one
+   notch from the flagship code slides so both columns clear the caption band
+   without auto-scaling. */
+main.deck > section.slide.query-operations.code-dense .mdpp-col > pre.code-block {
+  font-size: clamp(0.82rem, 0.98vw, 1.02rem);
+  line-height: 1.26;
+  padding: 0.5rem 0.8rem;
+}
+
+/* The grammargen slide pairs the tall DSL snippet with a four-row pipeline
+   list; both fit above the caption band only with a compact list rhythm. */
+main.deck > section.slide.query-operations .mdpp-col dl {
+  margin-block: 0.2rem;
+  line-height: 1.28;
+}
+
+main.deck > section.slide.query-operations .mdpp-col dd {
+  margin-bottom: 0.2rem;
+}
+
+main.deck > section.slide.mdpp-two.method-slide .mdpp-col > p:not(.mdpp-container-title) {
+  margin-block: 0.45rem;
+}
+
+main.deck > section.slide.query-operations .mdpp-container-columns {
+  margin-block: 0;
+}
+
+main.deck > section.slide.query-operations .admonition {
+  margin-top: 0;
+  padding-block: 0.35rem;
+}
+
+main.deck > section.slide.mdpp-five .mdpp-col > .mdpp-container-title {
+  font-size: var(--fs-7);
+}
+
+main.deck > section.slide.mdpp-five .mdpp-col > p:not(.mdpp-container-title) {
+  font-size: var(--fs-7);
+}
+
+main.deck > section.slide .admonition {
+  width: fit-content;
+  max-width: min(66rem, 100%);
+  box-sizing: border-box;
+  margin: var(--sp-2) 0 0;
+  padding-block: 0.7rem;
+}
+
+main.deck > section.slide .admonition > p {
+  margin-block: 0.2rem;
+}
+
+main.deck > section.slide.responsibility-slide dl,
+main.deck > section.slide.products-slide dl,
+main.deck > section.slide.lessons-slide dl,
+main.deck > section.slide.query-operations dl {
+  width: min(84rem, 100%);
+  margin-inline: auto;
+}
+
+/* The product receipt has four definition rows plus a recursive-dogfooding
+   witness. Keep its room-readable type, but use a tighter rhythm so the whole
+   argument fits inside the 80% content canvas above live captions. */
+main.deck > section.slide.products-slide > h1 {
+  margin-bottom: var(--sp-1);
+}
+
+main.deck > section.slide.products-slide dl {
+  margin-block: var(--sp-1);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.products-slide .admonition {
+  margin-top: var(--sp-1);
+  padding-block: 0.5rem;
+}
+
+main.deck > section.slide.products-slide .admonition > p {
+  margin-block: 0.15rem;
+}
+
+main.deck > section.slide.mdpp-two.method-slide .admonition {
+  margin-top: 0.5rem;
+}
+
+main.deck > section.slide blockquote {
+  width: min(62rem, 100%);
+  margin-inline: auto;
+}
+
+/* Shared split composition. */
+main.deck > section.slide.article-split .article-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  width: min(84rem, 100%);
+  margin: var(--sp-2) auto;
+  align-items: start;
+}
+
+main.deck > section.slide.article-split .article-grid > div {
+  min-width: 0;
+  padding-top: var(--sp-1);
+  border-top: 1px solid var(--line);
+}
+
+main.deck > section.slide.article-split .article-grid pre.code-block {
+  margin: 0 0 var(--sp-2);
+  font-size: clamp(0.8rem, 1.1vw, 1rem);
+}
+
+main.deck > section.slide.article-split .article-kicker {
+  display: block;
+  margin-bottom: var(--sp-1);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.article-split .article-grid p,
+main.deck > section.slide.article-split .article-grid li {
+  color: var(--fg-muted);
+}
+
+main.deck > section.slide.article-split .article-grid code {
+  color: var(--fg);
+}
+
+main.deck > section.slide.article-split .article-verdict {
+  width: min(80rem, 100%);
+  margin: var(--sp-2) auto 0;
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border-left: 2px solid var(--accent);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+/* Keep the recovery witness above the conference caption-safe band without
+   flattening its two-column comparison. */
+main.deck > section.slide.scanner-witness .article-verdict {
+  margin-top: 0.35rem;
+  padding: 0.65rem 1rem;
+  font-size: var(--fs-6);
+  line-height: 1.2;
+}
+
+/* The embedded-loader sample needs enough measure to remain readable without
+   presenting a horizontal scrollbar as part of the talk. */
+main.deck > section.slide.artifact-contract .article-grid {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+}
+
+main.deck > section.slide.artifact-contract .article-verdict {
+  margin-top: 0.3rem;
+  padding: 0.75rem 1rem;
+  font-size: var(--fs-6);
+  line-height: 1.2;
+  transform: translateY(-0.4rem);
+}
+
+main.deck > section.slide.query-operations > pre.code-block {
+  overflow-x: hidden;
+  padding: 0.9rem;
+  font-size: clamp(0.76rem, 0.9vw, 0.86rem);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.capture-api .article-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+main.deck > section.slide.capture-api .article-grid pre.code-block {
+  overflow-x: hidden;
+  font-size: clamp(0.76rem, 0.9vw, 0.86rem);
+  line-height: 1.3;
+}
+
+/* Six runtime verbs — a 3×2 field, not a dashboard. */
+main.deck > section.slide.glossary-slide .glossary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(84rem, 100%);
+  margin: var(--sp-2) auto;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+main.deck > section.slide.glossary-slide .glossary-grid > div {
+  display: flex;
+  min-width: 0;
+  min-height: 6.5rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.glossary-slide .glossary-grid strong {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.glossary-slide .glossary-grid span {
+  color: var(--fg-muted);
+  font-size: var(--fs-6);
+  line-height: 1.35;
+}
+
+main.deck > section.slide.glossary-slide .glossary-thesis {
+  width: min(84rem, 100%);
+  margin: var(--sp-2) auto 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  text-align: center;
+}
+
+/* Cumulative pipelines. Flex allows three- and four-stage versions to share
+   one rhythm without bespoke dimensions. */
+main.deck > section.slide.anatomy-slide .anatomy-flow {
+  display: flex;
+  width: min(84rem, 100%);
+  margin: var(--sp-3) auto;
+  align-items: stretch;
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow > div {
+  display: flex;
+  min-width: 0;
+  min-height: 8.25rem;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  justify-content: center;
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow > div:first-child {
+  border-left: 1px solid var(--line);
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow > div:last-child {
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow > i {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0 var(--sp-1);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-style: normal;
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow small {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  letter-spacing: 0.12em;
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow strong {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.anatomy-slide .anatomy-flow span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  line-height: 1.3;
+}
+
+/* Exact article-derived CST. */
+main.deck > section.slide .ptree {
+  margin: var(--sp-1) auto var(--sp-2);
+  box-shadow: 0 1.2rem 4rem rgba(0, 0, 0, 0.24);
+}
+
+main.deck > section.slide .ptree button {
+  border-radius: calc(var(--radius) / 2);
+  color: var(--fg);
+  transition:
+    color 180ms cubic-bezier(0.25, 1, 0.5, 1),
+    transform 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+main.deck > section.slide .ptree button:hover {
+  color: var(--accent);
+  transform: translateX(0.15rem);
+}
+
+main.deck > section.slide .ptree button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+main.deck > section.slide .tree-legend {
+  width: min(84rem, 100%);
+  margin: 0 auto;
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  line-height: 1.35;
+  text-align: center;
+}
+
+/* GoSX example: code and compiler boundary should read as one argument. */
+main.deck > section.slide.gosx-inline {
+  padding-top: var(--sp-2);
+}
+
+main.deck > section.slide.gosx-inline > h1 {
+  margin-bottom: var(--sp-1);
+}
+
+main.deck > section.slide.gosx-inline > pre.code-block {
+  width: min(60rem, 100%);
+  margin: 0 auto var(--sp-2);
+  padding: var(--sp-2);
+  font-size: clamp(0.78rem, 1vw, 0.95rem);
+  line-height: 1.25;
+}
+
+main.deck > section.slide.gosx-inline > p:last-of-type {
+  max-width: 60rem;
+  margin: var(--sp-1) auto 0;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Runtime/rewrite admission maps. */
+main.deck > section.slide.execution-map .execution-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0;
+}
+
+main.deck > section.slide.execution-map .execution-grid > div {
+  display: flex;
+  min-height: 7.5rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+main.deck > section.slide.execution-map .execution-grid strong {
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+}
+
+main.deck > section.slide.execution-map .execution-grid span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-6);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.execution-map .execution-targets,
+main.deck > section.slide.execution-map .execution-verdict {
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+  font-weight: 700;
+  text-align: center;
+}
+
+main.deck > section.slide.execution-map .execution-targets span,
+main.deck > section.slide.execution-map .execution-verdict code {
+  color: var(--accent);
+}
+
+/* Registry receipts. */
+main.deck > section.slide .capability-numbers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(84rem, 100%);
+  margin: var(--sp-2) 0 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide .capability-numbers > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+}
+
+main.deck > section.slide .capability-numbers > div:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide .capability-numbers strong {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-3);
+  line-height: 1;
+}
+
+main.deck > section.slide .capability-numbers span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  line-height: 1.3;
+}
+
+/* Consumer proof: left-hand substrate, right-hand product steps, then the
+   ownership boundary. */
+main.deck > section.slide.deck-loop > h1,
+main.deck > section.slide.deck-loop > p {
+  max-width: none;
+  text-align: center;
+}
+
+main.deck > section.slide.deck-loop .deck-proof {
+  display: grid;
+  grid-template-columns: 0.78fr 1.35fr;
+  grid-template-rows: auto auto;
+  width: min(80rem, 100%);
+  margin: var(--sp-3) auto var(--sp-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source {
+  display: grid;
+  grid-row: 1 / 3;
+  align-content: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source span {
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  letter-spacing: 0.12em;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-source code {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-3);
+  font-weight: 800;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline,
+main.deck > section.slide.deck-loop .deck-proof-outputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline {
+  border-bottom: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline span,
+main.deck > section.slide.deck-loop .deck-proof-outputs span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+  justify-content: center;
+  padding: var(--sp-2);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-7);
+  line-height: 1.3;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-pipeline span:not(:last-child),
+main.deck > section.slide.deck-loop .deck-proof-outputs span:not(:last-child) {
+  border-right: 1px solid var(--line);
+}
+
+main.deck > section.slide.deck-loop .deck-proof strong {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+}
+
+main.deck > section.slide.deck-loop .deck-proof-outputs strong {
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+main.deck > section.slide.deck-loop .deck-proof-verdict {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+  font-weight: 800;
+  text-align: center;
+}
+
+/* Resolve the talk in one composition: thesis on the left, scannable follow-up
+   on the right. */
+main.deck[data-theme="aurora"] > section.slide.final-invitation.deck-active,
+main.deck[data-theme="aurora"] > section.slide.final-invitation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: repeat(5, auto);
+  gap: var(--sp-2) var(--sp-4);
+  align-content: center;
+  align-items: center;
+  padding-right: var(--sp-5);
+  text-align: left;
+}
+
+main.deck > section.slide.final-invitation > h1,
+main.deck > section.slide.final-invitation > p {
+  grid-column: 1;
+  margin: 0;
+  text-align: left;
+}
+
+main.deck > section.slide.final-invitation > h1 {
+  max-width: 13ch;
+  font-size: var(--fs-2);
+}
+
+main.deck > section.slide.final-invitation > p {
+  max-width: 44rem;
+  color: var(--fg-muted);
+  font-size: var(--fs-6);
+}
+
+main.deck > section.slide.final-invitation > p:nth-of-type(3) {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-5);
+  font-weight: 700;
+}
+
+main.deck > section.slide.final-invitation > p:nth-of-type(4) {
+  color: var(--fg);
+  font-family: var(--font-mono);
+}
+
+main.deck > section.slide.final-invitation .closing-contact {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  display: grid;
+  width: 20rem;
+  min-width: 0;
+  box-sizing: border-box;
+  gap: var(--sp-1);
+  justify-items: center;
+  padding: var(--sp-2);
+  background: var(--qr-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--qr-fg);
+  overflow: hidden;
+  text-align: center;
+}
+
+main.deck > section.slide.final-invitation .closing-contact img {
+  width: 11rem;
+  max-width: 100%;
+  max-height: none;
+  margin: 0;
+}
+
+main.deck > section.slide.final-invitation .closing-contact span {
+  font-family: var(--font-display);
+  font-size: var(--fs-6);
+  font-weight: 700;
+}
+
+main.deck > section.slide.final-invitation .closing-contact code {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: clamp(0.78rem, 1vw, 0.95rem);
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/* The final slide also stays in Markdown++: its :::columns region replaces the
+   historical raw-HTML contact wrapper while preserving the two-part finish. */
+main.deck[data-theme="aurora"] > section.slide.final-invitation > .mdpp-container-columns {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+  --mdpp-columns: 1;
+  width: 20rem;
+  margin: 0;
+  box-sizing: border-box;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--qr-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--qr-fg);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
+}
+
+main.deck > section.slide.final-invitation .mdpp-col {
+  padding: 0;
+  border: 0;
+  text-align: center;
+}
+
+main.deck > section.slide.final-invitation .mdpp-col > .mdpp-container-title,
+main.deck > section.slide.final-invitation .mdpp-col > p {
+  color: var(--qr-fg);
+}
+
+main.deck > section.slide.final-invitation .mdpp-col img {
+  width: 8rem;
+  max-height: 8rem;
+  margin: 0.2rem auto;
+  border-radius: 0;
+}
+
+main.deck > section.slide.final-invitation .mdpp-col code {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: clamp(0.72rem, 0.9vw, 0.9rem);
+  white-space: nowrap;
+}
+
+/* Static, local first paint and reduced-motion fallback. */
+.deck-starfield-fallback,
+main.deck::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 17% 21%, rgba(244, 251, 255, 0.52) 0 0.065rem, transparent 0.12rem),
+    radial-gradient(circle at 78% 28%, rgba(191, 219, 254, 0.44) 0 0.07rem, transparent 0.13rem),
+    radial-gradient(circle at 42% 63%, rgba(244, 251, 255, 0.42) 0 0.06rem, transparent 0.115rem),
+    radial-gradient(circle at 64% 72%, rgba(255, 255, 255, 0.38) 0 0.055rem, transparent 0.105rem),
+    linear-gradient(180deg, #080914 0%, #05050c 58%, #030309 100%);
+  background-size: 19rem 17rem, 23rem 20rem, 29rem 24rem, 37rem 31rem, 100% 100%;
+}
+
+@keyframes starfield-first-paint-drift {
+  from {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position: 2.4rem 1.2rem, -1.8rem 2.1rem, 1.1rem -1.7rem, -2.2rem -1.3rem, 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .deck-starfield-fallback,
+  main.deck::before {
+    animation: starfield-first-paint-drift 18s linear infinite alternate;
+  }
+
+  .starfield-surface:has(canvas) > .deck-starfield-fallback,
+  main.deck:has(> .starfield-surface canvas)::before {
+    opacity: 0;
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.deck > .deck-scene3d {
+    display: none !important;
+  }
+
+  main.deck[data-theme="aurora"] > section.slide.final-invitation {
+    background:
+      linear-gradient(rgba(1, 1, 6, 0.36), rgba(1, 1, 6, 0.36)),
+      url("/public/m31labs-og.png") center / cover no-repeat !important;
+  }
+}
+
+@media print {
+  main.deck > .deck-scene3d {
+    display: none !important;
+  }
+
+  main.deck::before {
+    position: fixed;
+  }
+
+  main.deck > section.slide pre.code-block {
+    overflow: hidden !important;
+  }
+
+  main.deck[data-theme="aurora"] > section.slide.final-invitation {
+    display: grid !important;
+    background:
+      linear-gradient(rgba(1, 1, 6, 0.36), rgba(1, 1, 6, 0.36)),
+      url("/public/m31labs-og.png") center / cover no-repeat !important;
+  }
+}

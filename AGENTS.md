@@ -252,6 +252,56 @@ markdown still works **inside**
   words) — matching how browsers treat unrecognized elements.
 - `<Component/>` tags inside raw HTML still mount as islands.
 
+### Markdown++ structures (native GoSX lowering)
+
+Prefer mdpp's semantic authoring forms over raw HTML for slide composition.
+gosx-slides preserves these nodes and lowers them directly into the compiled
+GoSX slide component; the fail-soft renderer preserves the same structure if a
+deck compile fails.
+
+**Admonitions:**
+
+```md
+> [!IMPORTANT] Evidence gate
+> AI can propose; an independent witness decides.
+```
+
+**Container directives:** use `:::columns` with nested `:::col` regions for
+parallel concepts, `:::details "Title"` for disclosure, or any named container
+as a stable `.mdpp-container-<name>` styling hook. Titles and Markdown inside a
+container stay structured.
+
+```md
+:::columns
+:::col "RUNTIME"
+Trust the tree.
+:::
+:::col "GRAMMAR"
+Own the contract.
+:::
+:::
+```
+
+**Definition lists** are useful for term/responsibility slides:
+
+```md
+Runtime
+: recovery, ranges, safe reuse
+
+Grammar
+: portable artifact, maintained tree API
+```
+
+The native lane also preserves task-list checkboxes, footnote references and
+definitions, superscript/subscript, emoji, table-of-contents nodes, math nodes,
+and auto-embed placeholders. Math stays visibly source-shaped (`math-inline` /
+`math-block`) unless a deck supplies its own math presentation CSS.
+
+This is intentionally a GoSX node path, not an mdpp-render-to-HTML round trip:
+expressions still evaluate through `gosx.Compile`, static structure stays
+server-rendered, and `<Component/>` islands hydrate through the same compiled
+slide component.
+
 ### Persistent layers: `header:` / `footer:`
 
 Deck-level headmatter rendered on EVERY slide as `.slide-header` /

@@ -68,9 +68,12 @@ func TestNewServerRendersIslandPage(t *testing.T) {
 // placeholder — one bad edit must never blank the page. (The compile error is
 // now also logged; see logCompileFailures / renderPageBody.)
 func TestNewServerDegradesOnBrokenIsland(t *testing.T) {
+	// The fixture must be broken under the GoSX GRAMMAR, not merely odd Go:
+	// current grammars accept bare top-level identifier prose (it parses as
+	// expressions), so the reliable poison is unclosed markup.
 	deck := loadDeckFromSource(t,
 		"# Resilient\n\nThis prose must survive a broken island.\n\n<Broken/>\n",
-		map[string]string{"Broken": "package main\n\nthis is not valid go at all\n"},
+		map[string]string{"Broken": "package main\n\nfunc Broken() Node { return <div }\n"},
 	)
 
 	// The broken island must make the whole-deck program fail to compile — that is

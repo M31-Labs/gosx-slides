@@ -11,19 +11,20 @@ import (
 
 // DeckAnalysis is a structured authoring report for one deck.
 type DeckAnalysis struct {
-	Title            string          `json:"title"`
-	Theme            string          `json:"theme"`
-	SourceFiles      []string        `json:"sourceFiles"`
-	SlideCount       int             `json:"slideCount"`
-	TotalClicks      int             `json:"totalClicks"`
-	WordCount        int             `json:"wordCount"`
-	EstimatedSeconds int             `json:"estimatedSeconds"`
-	Layouts          map[string]int  `json:"layouts"`
-	Components       map[string]int  `json:"components"`
-	Citations        []CitationRef   `json:"citations"`
-	Checkpoints      []CheckpointRef `json:"checkpoints"`
-	Warnings         []string        `json:"warnings"`
-	Slides           []SlideAnalysis `json:"slides"`
+	Title            string           `json:"title"`
+	Theme            string           `json:"theme"`
+	SourceFiles      []string         `json:"sourceFiles"`
+	SlideCount       int              `json:"slideCount"`
+	TotalClicks      int              `json:"totalClicks"`
+	WordCount        int              `json:"wordCount"`
+	EstimatedSeconds int              `json:"estimatedSeconds"`
+	Conference       ConferenceConfig `json:"conference"`
+	Layouts          map[string]int   `json:"layouts"`
+	Components       map[string]int   `json:"components"`
+	Citations        []CitationRef    `json:"citations"`
+	Checkpoints      []CheckpointRef  `json:"checkpoints"`
+	Warnings         []string         `json:"warnings"`
+	Slides           []SlideAnalysis  `json:"slides"`
 }
 
 // CitationRef is one source reference found in a deck.
@@ -52,6 +53,7 @@ type SlideAnalysis struct {
 	Citations        []CitationRef   `json:"citations"`
 	Checkpoints      []CheckpointRef `json:"checkpoints"`
 	HasNotes         bool            `json:"hasNotes"`
+	Fallback         string          `json:"fallback,omitempty"`
 }
 
 // Summary is the concise per-deck report returned by Check.

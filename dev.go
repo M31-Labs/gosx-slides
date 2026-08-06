@@ -201,9 +201,15 @@ func StartDevLoop(deckDir string, cfg DevLoopConfig) (*DevLoop, error) {
 	app, err := deck.NewServer(ServeOptions{
 		Title: cfg.Title,
 		Dev:   true,
-		// Runtime is staged above and served by the dev proxy front from
-		// BuildDir; the internal deck server does not need to serve /gosx/* (the
-		// proxy shadows those paths), so leave StageRuntime off here.
+		// The dev proxy front serves the classic /gosx/* set (runtime.wasm,
+		// wasm_exec.js, bootstrap.js, patch.js, islands/) from BuildDir, but
+		// newer gosx clients also request the split bootstraps
+		// (bootstrap-runtime.js, bootstrap-feature-islands.js, …) that
+		// dev.Server does not route. Those fall through the proxy to THIS
+		// server, so it must own a runtime root too or islands never hydrate
+		// under --watch (the fall-through 404s / serves the inert stub).
+		// Staging is existence-cached, so this reuses the assets staged above.
+		StageRuntime: true,
 	})
 	if err != nil {
 		return nil, err

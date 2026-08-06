@@ -93,6 +93,40 @@ func TestMarkdownTableRenders(t *testing.T) {
 	}
 }
 
+// TestMarkdownPlusPlusStructuresRenderThroughGoSX proves the compiled lane
+// preserves mdpp's semantic nodes as native GoSX elements instead of flattening
+// them to text or sending them through RawHTML.
+func TestMarkdownPlusPlusStructuresRenderThroughGoSX(t *testing.T) {
+	src := `# Native mdpp
+
+:::columns
+:::col "Runtime"
+Trust the tree.
+:::
+:::col "Grammar"
+Own the contract.
+:::
+:::
+
+> [!IMPORTANT] Evidence gate
+> AI proposes; the oracle decides.
+
+Runtime
+: recovery, ranges, safe reuse
+`
+	deck := loadDeckFromSource(t, src, nil)
+	html := renderSlidesHTML(t, deck)
+	for _, want := range []string{
+		`data-mdpp-container="columns"`, `class="mdpp-container mdpp-col"`,
+		`class="admonition admonition-important"`, "Evidence gate",
+		"<dl>", "<dt>Runtime</dt>", "<dd>recovery, ranges, safe reuse</dd>",
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("native mdpp lowering missing %q:\n%s", want, html)
+		}
+	}
+}
+
 // TestLayoutAndPerSlideOverrides proves the new layouts resolve to their class and
 // that per-slide background:/accent: frontmatter emit an inline style override.
 func TestLayoutAndPerSlideOverrides(t *testing.T) {

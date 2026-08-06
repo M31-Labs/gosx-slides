@@ -27,9 +27,16 @@ func TestExportSPAStagesAssets(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	public := filepath.Join(deck.Dir, "public")
+	if err := os.MkdirAll(public, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(public, "brand.txt"), []byte("BRAND"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	out := t.TempDir()
-	doc := `<head><script defer src="/gosx/runtime.wasm"></script></head><body>x</body>`
+	doc := `<head><script defer src="/gosx/runtime.wasm"></script></head><body><img src="/public/brand.txt"></body>`
 	if err := exportSPA(deck.Dir, deck, doc, out); err != nil {
 		t.Fatalf("exportSPA: %v", err)
 	}
@@ -41,14 +48,31 @@ func TestExportSPAStagesAssets(t *testing.T) {
 	if !strings.Contains(string(idx), `src="gosx/runtime.wasm"`) {
 		t.Errorf("index.html not relativized:\n%s", idx)
 	}
+	if !strings.Contains(string(idx), `src="public/brand.txt"`) {
+		t.Errorf("public asset path not relativized:\n%s", idx)
+	}
 	for _, rel := range []string{"gosx/runtime.wasm", "gosx/wasm_exec.js", "gosx/islands/Demo.json", "notes.html"} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Errorf("export missing %s: %v", rel, err)
 		}
 	}
+	if got, err := os.ReadFile(filepath.Join(out, "public", "brand.txt")); err != nil || string(got) != "BRAND" {
+		t.Errorf("exported public asset = %q, %v", got, err)
+	}
 	// The build's gosx-runtime.wasm must be renamed to the URL name, not copied verbatim.
 	if _, err := os.Stat(filepath.Join(out, "gosx", "gosx-runtime.wasm")); err == nil {
 		t.Error("gosx-runtime.wasm should be renamed to runtime.wasm, not copied verbatim")
+	}
+}
+
+func TestRelativizePublicPaths(t *testing.T) {
+	in := `<img src="/public/m31labs-og.png"><p>visit /public/ for assets</p>`
+	got := relativizePublicPaths(in)
+	if !strings.Contains(got, `src="public/m31labs-og.png"`) {
+		t.Fatalf("public asset path not relativized:\n%s", got)
+	}
+	if !strings.Contains(got, `visit /public/ for assets`) {
+		t.Fatalf("prose mention of /public/ was rewritten:\n%s", got)
 	}
 }
 

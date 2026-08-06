@@ -4,22 +4,22 @@ go 1.26
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/odvcencio/gotreesitter v0.48.1
 	golang.org/x/net v0.52.0
-	m31labs.dev/gosx v0.25.8
+	m31labs.dev/gosx v0.36.0
 	m31labs.dev/mdpp v0.4.7
-	m31labs.dev/sirena v0.0.2-internal.0.20260624175147-81500579801f
+	m31labs.dev/sirena v0.1.0
 )
 
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
-	github.com/odvcencio/gotreesitter v0.20.1 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
@@ -28,7 +28,7 @@ require (
 	lukechampine.com/blake3 v1.4.1 // indirect
 	m31labs.dev/eos v0.1.4 // indirect
 	m31labs.dev/mll v0.1.0 // indirect
-	m31labs.dev/prism v0.1.2 // indirect
-	m31labs.dev/selena v0.1.1 // indirect
+	m31labs.dev/prism v0.1.3 // indirect
+	m31labs.dev/selena v0.4.0 // indirect
 	m31labs.dev/turboquant v0.2.0 // indirect
 )

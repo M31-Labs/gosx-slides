@@ -139,6 +139,92 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 			gosx.Attr("alt", n.Attr("alt")),
 		))}
 
+	case mdpp.NodeCodeBlock:
+		return []gosx.Node{gosx.El("pre", gosx.El("code", gosx.Text(n.Literal)))}
+
+	case mdpp.NodeBlockquote:
+		return []gosx.Node{gosx.El("blockquote", gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...))}
+
+	case mdpp.NodeThematicBreak:
+		return []gosx.Node{gosx.El("hr")}
+
+	case mdpp.NodeList:
+		tag := "ul"
+		if n.Attr("ordered") == "true" {
+			tag = "ol"
+		}
+		return []gosx.Node{gosx.El(tag, gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...))}
+
+	case mdpp.NodeListItem:
+		return []gosx.Node{gosx.El("li", gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...))}
+
+	case mdpp.NodeTaskListItem:
+		attrs := []any{gosx.Attr("type", "checkbox"), gosx.Attr("disabled", true)}
+		if n.Attr("checked") == "true" {
+			attrs = append(attrs, gosx.Attr("checked", true))
+		}
+		return []gosx.Node{gosx.El("li",
+			gosx.Attrs(gosx.Attr("class", "task-list-item")),
+			gosx.El("input", gosx.Attrs(attrs...)),
+			gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...),
+		)}
+
+	case mdpp.NodeAdmonition:
+		kind := mdppSafeToken(strings.ToLower(n.Attr("type")), "note")
+		title := strings.TrimSpace(n.Attr("title"))
+		if title == "" {
+			title = strings.ToUpper(kind)
+		}
+		return []gosx.Node{gosx.El("aside",
+			gosx.Attrs(gosx.Attr("class", "admonition admonition-"+kind)),
+			gosx.El("p", gosx.Attrs(gosx.Attr("class", "admonition-title")), gosx.Text(title)),
+			gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...),
+		)}
+
+	case mdpp.NodeContainerDirective:
+		return []gosx.Node{lowerContainerNode(r, n, components, diagramTheme)}
+
+	case mdpp.NodeDefinitionList:
+		return []gosx.Node{gosx.El("dl", gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...))}
+
+	case mdpp.NodeDefinitionTerm:
+		return []gosx.Node{gosx.El("dt", gosx.Fragment(lowerInline(r, n, components)...))}
+
+	case mdpp.NodeDefinitionDesc:
+		return []gosx.Node{gosx.El("dd", gosx.Fragment(lowerInline(r, n, components)...))}
+
+	case mdpp.NodeTableOfContents:
+		return []gosx.Node{gosx.El("nav",
+			gosx.Attrs(gosx.Attr("class", "mdpp-toc"), gosx.Attr("aria-label", "Table of contents")),
+			gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...),
+		)}
+
+	case mdpp.NodeFootnoteDef:
+		id := mdppSafeToken(n.Attr("id"), "note")
+		return []gosx.Node{gosx.El("section",
+			gosx.Attrs(gosx.Attr("class", "footnotes")),
+			gosx.El("ol", gosx.El("li",
+				gosx.Attrs(gosx.Attr("id", "fn-"+id)),
+				gosx.Fragment(lowerBlockChildren(r, n, components, diagramTheme)...),
+				gosx.Text(" "),
+				gosx.El("a", gosx.Attrs(gosx.Attr("href", "#fnref-"+id)), gosx.Text("↩")),
+			)),
+		)}
+
+	case mdpp.NodeMathInline:
+		return []gosx.Node{gosx.El("span", gosx.Attrs(gosx.Attr("class", "math-inline")), gosx.El("code", gosx.Text(n.Literal)))}
+
+	case mdpp.NodeMathBlock:
+		return []gosx.Node{gosx.El("div", gosx.Attrs(gosx.Attr("class", "math-block")), gosx.El("code", gosx.Text(n.Literal)))}
+
+	case mdpp.NodeAutoEmbed:
+		provider := mdppSafeToken(strings.ToLower(n.Attr("provider")), "generic")
+		src := n.Attr("src")
+		return []gosx.Node{gosx.El("div",
+			gosx.Attrs(gosx.Attr("class", "mdpp-embed mdpp-embed-"+provider), gosx.Attr("data-src", src)),
+			gosx.El("a", gosx.Attrs(gosx.Attr("href", src)), gosx.Text(src)),
+		)}
+
 	case mdpp.NodeTable:
 		return []gosx.Node{lowerTableNode(r, n, components)}
 
@@ -151,6 +237,62 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		}
 		return out
 	}
+}
+
+func lowerBlockChildren(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent, diagramTheme string) []gosx.Node {
+	var out []gosx.Node
+	for _, child := range n.Children {
+		out = append(out, lowerNode(r, child, components, diagramTheme)...)
+	}
+	return out
+}
+
+func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent, diagramTheme string) gosx.Node {
+	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	title := strings.TrimSpace(n.Attr("title"))
+	children := lowerBlockChildren(r, n, components, diagramTheme)
+	if name == "details" {
+		var args []any
+		args = append(args, gosx.Attrs(
+			gosx.Attr("class", "mdpp-container mdpp-container-details"),
+			gosx.Attr("data-mdpp-container", "details"),
+		))
+		if title != "" {
+			args = append(args, gosx.El("summary", gosx.Text(title)))
+		}
+		args = append(args, gosx.Fragment(children...))
+		return gosx.El("details", args...)
+	}
+	if name == "note" || name == "tip" || name == "warning" || name == "caution" || name == "important" {
+		if title == "" {
+			title = strings.ToUpper(name)
+		}
+		return gosx.El("aside",
+			gosx.Attrs(gosx.Attr("class", "admonition admonition-"+name)),
+			gosx.El("p", gosx.Attrs(gosx.Attr("class", "admonition-title")), gosx.Text(title)),
+			gosx.Fragment(children...),
+		)
+	}
+	className := "mdpp-container mdpp-container-" + name
+	if name == "column" || name == "col" {
+		className = "mdpp-container mdpp-col"
+	}
+	for _, tok := range strings.Fields(n.Attr("class")) {
+		if slideClassTokenRe.MatchString(tok) {
+			className += " " + tok
+		}
+	}
+	attrs := []any{gosx.Attr("class", className), gosx.Attr("data-mdpp-container", name)}
+	if id := n.Attr("id"); slideClassTokenRe.MatchString(id) {
+		attrs = append(attrs, gosx.Attr("id", id))
+	}
+	var args []any
+	args = append(args, gosx.Attrs(attrs...))
+	if title != "" {
+		args = append(args, gosx.El("p", gosx.Attrs(gosx.Attr("class", "mdpp-container-title")), gosx.Text(title)))
+	}
+	args = append(args, gosx.Fragment(children...))
+	return gosx.El("div", args...)
 }
 
 // lowerTableNode builds a <table> from a NodeTable (first row -> <th>, rest -> <td>),
@@ -200,9 +342,36 @@ func lowerInline(r islandMounter, parent *mdpp.Node, components map[string]*comp
 			for _, ref := range scanLiteralComponents(child.Literal) {
 				out = append(out, renderComponentRef(r, ref, components))
 			}
+		case mdpp.NodeStrong:
+			out = append(out, gosx.El("strong", gosx.Fragment(lowerInline(r, child, components)...)))
+		case mdpp.NodeEmphasis:
+			out = append(out, gosx.El("em", gosx.Fragment(lowerInline(r, child, components)...)))
+		case mdpp.NodeStrikethrough:
+			out = append(out, gosx.El("del", gosx.Fragment(lowerInline(r, child, components)...)))
+		case mdpp.NodeCodeSpan:
+			out = append(out, gosx.El("code", gosx.Text(child.Literal)))
+		case mdpp.NodeLink:
+			out = append(out, gosx.El("a", gosx.Attrs(gosx.Attr("href", child.Attr("href"))), gosx.Fragment(lowerInline(r, child, components)...)))
+		case mdpp.NodeHardBreak:
+			out = append(out, gosx.El("br"))
+		case mdpp.NodeSoftBreak:
+			out = append(out, gosx.Text(" "))
+		case mdpp.NodeSuperscript:
+			out = append(out, gosx.El("sup", gosx.Text(child.Literal)))
+		case mdpp.NodeSubscript:
+			out = append(out, gosx.El("sub", gosx.Text(child.Literal)))
+		case mdpp.NodeEmoji:
+			out = append(out, gosx.Text(child.Literal))
+		case mdpp.NodeFootnoteRef:
+			id := mdppSafeToken(child.Attr("id"), "note")
+			out = append(out, gosx.El("sup", gosx.El("a",
+				gosx.Attrs(gosx.Attr("class", "footnote-ref"), gosx.Attr("href", "#fn-"+id), gosx.Attr("id", "fnref-"+id)),
+				gosx.Text("["+id+"]"),
+			)))
 		default:
-			// Strong/emphasis/links/etc: lower as their plain text for Slice 2.
-			if t := child.Text(); t != "" {
+			if len(child.Children) > 0 {
+				out = append(out, lowerInline(r, child, components)...)
+			} else if t := child.Text(); t != "" {
 				out = append(out, gosx.Text(t))
 			}
 		}

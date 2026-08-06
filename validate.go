@@ -24,6 +24,19 @@ func (report ValidationReport) Passed(strict bool) bool {
 }
 
 func validateConference(report *ValidationReport) {
+	config := report.Analysis.Conference
+	if config.AspectRatio != conferenceAspectRatio {
+		report.Errors = append(report.Errors, "conference: deck headmatter must set aspect-ratio: 16:9")
+	}
+	if config.CaptionSafeBottom < conferenceCaptionSafeFloor {
+		report.Errors = append(report.Errors, "conference: deck headmatter must reserve caption-safe-bottom: 20% or more")
+	}
+	if config.DurationMinutes <= 0 {
+		report.Errors = append(report.Errors, "conference: deck headmatter must set duration-minutes")
+	}
+	if !config.OfflineRequired {
+		report.Errors = append(report.Errors, "conference: deck headmatter must set offline-required: true")
+	}
 	if report.Analysis.EstimatedSeconds > 45*60 {
 		report.Errors = append(report.Errors, "conference: estimated runtime exceeds 45 minutes")
 	}
@@ -36,6 +49,9 @@ func validateConference(report *ValidationReport) {
 		}
 		if hasAny(slide.Components, []string{"Benchmark", "ProfileBuckets", "CorpusRun", "ParityMatrix"}) && !hasComponent(slide.Components, "Citation") {
 			report.Errors = append(report.Errors, "conference: slide "+strconv.Itoa(slide.Index+1)+" has evidence without a Citation")
+		}
+		if hasAny(slide.Components, conferenceInteractiveComponents()) && slide.Fallback == "" {
+			report.Errors = append(report.Errors, "conference: slide "+strconv.Itoa(slide.Index+1)+" has an interactive surface without fallback metadata")
 		}
 	}
 }

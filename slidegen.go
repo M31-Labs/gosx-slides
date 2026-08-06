@@ -139,6 +139,10 @@ type islandDef struct {
 	// body is the component source with its `package` line and import block(s)
 	// removed: comments + the `//gosx:island func Name() …` definition.
 	body string
+	// source is the component's original, unstripped .gsx source, kept so
+	// compileDeckProgram can gate the deck program on a clean per-island
+	// parse (see validateIslandDefs).
+	source string
 }
 
 // parseIslandDef splits a component .gsx source into its imports and its body
@@ -499,6 +503,15 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 	case mdpp.NodeBlockquote:
 		return wrapChildrenGSX("blockquote", n)
 
+	case mdpp.NodeThematicBreak:
+		return "<hr/>"
+
+	case mdpp.NodeAdmonition:
+		return lowerAdmonitionGSX(n)
+
+	case mdpp.NodeContainerDirective:
+		return lowerContainerDirectiveGSX(n)
+
 	case mdpp.NodeList:
 		// ordered vs unordered: mdpp records an "ordered" attr when applicable.
 		tag := "ul"
@@ -507,8 +520,15 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		}
 		return wrapChildrenGSX(tag, n)
 
-	case mdpp.NodeListItem, mdpp.NodeTaskListItem:
+	case mdpp.NodeListItem:
 		return wrapChildrenGSX("li", n)
+
+	case mdpp.NodeTaskListItem:
+		checked := ""
+		if n.Attr("checked") == "true" {
+			checked = " checked={true}"
+		}
+		return `<li class="task-list-item"><input type="checkbox" disabled={true}` + checked + `/>` + lowerChildrenGSX(n) + `</li>`
 
 	case mdpp.NodeImage:
 		// `![alt](src)` — mdpp carries alt/src as attrs (no children). Emit an
@@ -519,6 +539,48 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 
 	case mdpp.NodeTable:
 		return lowerTableGSX(n)
+
+	case mdpp.NodeDefinitionList:
+		return wrapChildrenGSX("dl", n)
+
+	case mdpp.NodeDefinitionTerm:
+		return wrapChildrenGSX("dt", n)
+
+	case mdpp.NodeDefinitionDesc:
+		return wrapChildrenGSX("dd", n)
+
+	case mdpp.NodeTableOfContents:
+		return `<nav class="mdpp-toc" aria-label="Table of contents">` + lowerChildrenGSX(n) + `</nav>`
+
+	case mdpp.NodeFootnoteRef:
+		id := mdppSafeToken(n.Attr("id"), "note")
+		return `<sup><a class="footnote-ref" href={"#fn-` + id + `"} id={"fnref-` + id + `"}>` + quoteTextExpr("["+id+"]") + `</a></sup>`
+
+	case mdpp.NodeFootnoteDef:
+		id := mdppSafeToken(n.Attr("id"), "note")
+		return `<section class="footnotes"><ol><li id={"fn-` + id + `"}>` + lowerChildrenGSX(n) +
+			` <a href={"#fnref-` + id + `"}>` + quoteTextExpr("↩") + `</a></li></ol></section>`
+
+	case mdpp.NodeSuperscript:
+		return "<sup>" + quoteTextExpr(n.Literal) + "</sup>"
+
+	case mdpp.NodeSubscript:
+		return "<sub>" + quoteTextExpr(n.Literal) + "</sub>"
+
+	case mdpp.NodeEmoji:
+		return quoteTextExpr(n.Literal)
+
+	case mdpp.NodeMathInline:
+		return `<span class="math-inline"><code>` + quoteTextExpr(n.Literal) + `</code></span>`
+
+	case mdpp.NodeMathBlock:
+		return `<div class="math-block"><code>` + quoteTextExpr(n.Literal) + `</code></div>`
+
+	case mdpp.NodeAutoEmbed:
+		src := n.Attr("src")
+		provider := mdppSafeToken(strings.ToLower(n.Attr("provider")), "generic")
+		return `<div class=` + strconv.Quote("mdpp-embed mdpp-embed-"+provider) + ` data-src=` + strconv.Quote(src) + `>` +
+			`<a href={` + strconv.Quote(src) + `}>` + quoteTextExpr(src) + `</a></div>`
 
 	case mdpp.NodeDiagram:
 		// A sirena diagram fence: emit a call to the bound __slidesDiagram.Render
@@ -609,6 +671,66 @@ func lowerNodeToGSXReveal(n *mdpp.Node, reveal bool, fragIdx *int) string {
 // wrapChildrenGSX lowers n's children and wraps them in <tag>…</tag>.
 func wrapChildrenGSX(tag string, n *mdpp.Node) string {
 	return "<" + tag + ">" + lowerChildrenGSX(n) + "</" + tag + ">"
+}
+
+// lowerAdmonitionGSX maps mdpp's semantic admonition node directly to GoSX
+// elements. This keeps Markdown++ structure in the compiled component tree;
+// it does not round-trip through rendered HTML or the RawHTML escape hatch.
+func lowerAdmonitionGSX(n *mdpp.Node) string {
+	kind := mdppSafeToken(strings.ToLower(n.Attr("type")), "note")
+	title := strings.TrimSpace(n.Attr("title"))
+	if title == "" {
+		title = strings.ToUpper(kind)
+	}
+	className := "admonition admonition-" + kind
+	return `<aside class=` + strconv.Quote(className) + `>` +
+		`<p class="admonition-title">` + quoteTextExpr(title) + `</p>` +
+		lowerChildrenGSX(n) + `</aside>`
+}
+
+// lowerContainerDirectiveGSX turns :::name blocks into native GoSX structure.
+// mdpp owns parsing/nesting; gosx-slides only assigns stable semantic classes
+// so themes and deck CSS can compose columns, callouts, and titled regions.
+func lowerContainerDirectiveGSX(n *mdpp.Node) string {
+	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	title := strings.TrimSpace(n.Attr("title"))
+	if name == "details" {
+		var summary string
+		if title != "" {
+			summary = "<summary>" + quoteTextExpr(title) + "</summary>"
+		}
+		return `<details class="mdpp-container mdpp-container-details" data-mdpp-container="details">` + summary + lowerChildrenGSX(n) + `</details>`
+	}
+	if name == "note" || name == "tip" || name == "warning" || name == "caution" || name == "important" {
+		clone := *n
+		clone.Attrs = map[string]string{"type": name, "title": title}
+		return lowerAdmonitionGSX(&clone)
+	}
+	className := "mdpp-container mdpp-container-" + name
+	if name == "column" || name == "col" {
+		className = "mdpp-container mdpp-col"
+	}
+	for _, tok := range strings.Fields(n.Attr("class")) {
+		if slideClassTokenRe.MatchString(tok) {
+			className += " " + tok
+		}
+	}
+	var titleNode string
+	if title != "" {
+		titleNode = `<p class="mdpp-container-title">` + quoteTextExpr(title) + `</p>`
+	}
+	idAttr := ""
+	if id := n.Attr("id"); slideClassTokenRe.MatchString(id) {
+		idAttr = ` id=` + strconv.Quote(id)
+	}
+	return `<div class=` + strconv.Quote(className) + ` data-mdpp-container=` + strconv.Quote(name) + idAttr + `>` + titleNode + lowerChildrenGSX(n) + `</div>`
+}
+
+func mdppSafeToken(value, fallback string) string {
+	if slideClassTokenRe.MatchString(value) {
+		return value
+	}
+	return fallback
 }
 
 // lowerTableGSX lowers a GFM table (NodeTable -> NodeTableRow -> NodeTableCell).
