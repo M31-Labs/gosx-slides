@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -74,12 +75,29 @@ func fileFaviconLink(dir, rel string) (string, error) {
 	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("favicon: %q must be a path inside the deck directory", rel)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, clean))
+	// Resolve symlinks on both sides so a link inside the deck cannot point out of it.
+	root, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", fmt.Errorf("favicon: cannot resolve deck directory: %w", err)
+	}
+	path, err := filepath.EvalSymlinks(filepath.Join(root, clean))
+	if err != nil {
+		return "", fmt.Errorf("favicon: cannot read %q: %w", rel, err)
+	}
+	if path != root && !strings.HasPrefix(path, root+string(filepath.Separator)) {
+		return "", fmt.Errorf("favicon: %q resolves outside the deck directory", rel)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("favicon: cannot read %q: %w", rel, err)
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxFaviconBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("favicon: cannot read %q: %w", rel, err)
 	}
 	if len(data) > maxFaviconBytes {
-		return "", fmt.Errorf("favicon: %q is %d bytes; the limit is %d", rel, len(data), maxFaviconBytes)
+		return "", fmt.Errorf("favicon: %q is larger than the %d byte limit", rel, maxFaviconBytes)
 	}
 	return iconLink(faviconMimeByEx[strings.ToLower(filepath.Ext(clean))], data), nil
 }

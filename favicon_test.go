@@ -2,6 +2,8 @@ package slides
 
 import (
 	"encoding/base64"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -117,5 +119,26 @@ func TestFaviconErrors(t *testing.T) {
 		if !failed {
 			t.Errorf("%s: doctor did not report a favicon failure", name)
 		}
+	}
+}
+
+func TestFaviconRejectsSymlinkEscapeAndOversize(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.png")
+	if err := os.WriteFile(outside, []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(dir, "link.png")); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+	if _, err := fileFaviconLink(dir, "link.png"); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Fatalf("symlink escape accepted: %v", err)
+	}
+	big := filepath.Join(dir, "big.png")
+	if err := os.WriteFile(big, make([]byte, maxFaviconBytes+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fileFaviconLink(dir, "big.png"); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("oversize accepted: %v", err)
 	}
 }
