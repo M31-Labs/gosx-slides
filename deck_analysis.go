@@ -405,6 +405,13 @@ func Doctor(dir string) (DoctorReport, error) {
 		}
 	}
 
+	// Favicon: a bad path or malformed value fails here with a clear message.
+	if _, err := faviconLink(d); err != nil {
+		report.Items = append(report.Items, DoctorItem{Name: "favicon", Status: "fail", Detail: err.Error()})
+	} else if v := deckFrontmatterString(d, "favicon"); v != "" {
+		report.Items = append(report.Items, DoctorItem{Name: "favicon", Status: "ok", Detail: v})
+	}
+
 	return report, nil
 }
 

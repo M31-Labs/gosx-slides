@@ -92,6 +92,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	compiled, failures := d.compileComponents()
 	logCompileFailures(d.Dir, failures)
 
+	// A bad `favicon:` fails the build (and `slides doctor`) instead of silently
+	// shipping the wrong icon.
+	if _, err := faviconLink(d); err != nil {
+		return nil, err
+	}
+
 	app := server.New()
 	app.SetPublicDir(d.Dir)
 
@@ -273,8 +279,15 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// never collide with the island bootstrap. The theme CSS is scoped under
 	// main.deck[data-theme="<name>"] (themes.go) and the nav rule under the bare
 	// main.deck, so they layer cleanly: themes never override slide visibility.
+	icon, err := faviconLink(d)
+	if err != nil {
+		// NewServer already rejected a bad favicon; this covers a file removed mid-watch.
+		log.Printf("slides: %v; using the default icon", err)
+		icon = iconLink("image/svg+xml", []byte(defaultFaviconSVG))
+	}
 	ctx.AddHead(
 		gosx.RawHTML(`<meta name="viewport" content="width=device-width, initial-scale=1">`),
+		gosx.RawHTML(icon),
 		// Load ONLY the selected theme's designer webfonts (preconnect + one css2
 		// stylesheet). The theme CSS keeps a system fallback at the end of every
 		// --font-* stack, so an offline deck still looks intentional; this link makes

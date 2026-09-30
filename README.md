@@ -114,6 +114,19 @@ need blank lines around them, and a slide with many trailing blocks can absorb
 its separator. All of these are spelled out in
 [AGENTS.md](AGENTS.md#gotchas--non-obvious).
 
+### Favicon
+
+Every deck gets a default favicon (two stacked slide cards in amber). Set
+`favicon:` in `deck.md` headmatter to give a deck its own. The icon is inlined
+into the page, so it also works offline and in exports. `slides doctor` and
+`slides build` fail with a clear message on a bad value.
+
+```yaml
+favicon: brand/icon.svg                      # your own .svg, .png or .ico, relative to deck.md
+favicon: "🎤"                                # one emoji, centred in an SVG
+favicon: {text: "GT", color: "#10b981"}      # 1-2 letter monogram; color defaults to the theme accent
+```
+
 ### Example decks
 
 | Deck | Demonstrates |
