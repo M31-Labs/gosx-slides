@@ -1,16 +1,17 @@
 # gosx-slides
 
-GoSX Slides v0.4.0 adds named motion cues, a timing studio, shared-element and
+GoSX Slides v0.4 adds named motion cues, a timing studio, shared-element and
 code morphs, deferred island hydration, and live-rendered graphics exports.
 Sirena diagrams include state, class, ER, swimlane, and timeline layouts, with
 Scene3D focus, reveal, and trace steps.
 
+The v0.4.1 patch resumes deferred widgets when a slow runtime finishes loading.
 Download a binary for Linux, macOS, or Windows from the
-[v0.4.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.4.0),
+[v0.4.1 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.4.1),
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.4.0 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.4.1 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -241,7 +242,7 @@ slide timing and staggered text.
 ### Upgrade and performance inventory
 
 The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
-gotreesitter **v0.55.1**, and Sirena **v0.1.0**. Existing Sirena/Mermaid diagrams,
+gotreesitter **v0.55.1**, and Sirena **v0.4.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
 without a separate renderer or frontend build system.

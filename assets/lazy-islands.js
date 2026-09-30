@@ -51,6 +51,8 @@
     });
   }
   deck.addEventListener('slides:change', () => { attempts = 0; schedule(); });
+  // The runtime may finish downloading after the bounded startup polling ends.
+  document.addEventListener('gosx:ready', () => { attempts = 0; schedule(); });
   window.addEventListener('pagehide', () => { stopped = true; clearTimeout(timer); });
   window.SlidesRuntime = { stats: () => ({ total: all.length, deferred: pending.size,
     hydrated: window.__gosx && window.__gosx.islands ? window.__gosx.islands.size : 0 }) };
