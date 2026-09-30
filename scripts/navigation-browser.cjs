@@ -77,6 +77,7 @@ async function check() {
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('?');
     assert.equal(await page.locator('.deck-overview-help').evaluate(node => node.open), true);
+    assert.ok((await page.locator('.deck-overview-help').textContent()).includes('close search with Esc to use these'));
     await page.locator('.deck-overview-search').fill('PRIVATE PRESENTER NOTE');
     assert.equal(await page.locator('.deck-overview-card:visible').count(), 0);
     await page.locator('.deck-overview-search').fill('creme brings');
@@ -116,6 +117,19 @@ async function check() {
     await page.locator('.deck-controls button').first().focus();
     await page.waitForFunction(() => !document.querySelector('.deck-controls').classList.contains('deck-controls-visible'), undefined, { timeout: 5000 });
     assert.equal(await page.locator('.deck-controls').evaluate(node => getComputedStyle(node).opacity), '1');
+    await page.close();
+
+    // A touch lift emits pointerleave; retain controls until the idle timer
+    // expires, rather than applying the immediate mouse-exit behavior.
+    const touch = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    touch.on('pageerror', error => errors.push(error.message));
+    url.hash = '1';
+    await touch.goto(url.href, { waitUntil: 'domcontentloaded' });
+    await touch.waitForFunction(() => window.SlidesNav);
+    await touch.touchscreen.tap(120, 120);
+    assert.equal(await touch.locator('.deck-controls').evaluate(node => node.classList.contains('deck-controls-visible')), true);
+    await touch.waitForFunction(() => getComputedStyle(document.querySelector('.deck-controls')).opacity === '0', undefined, { timeout: 5000 });
+    await touch.close();
     assert.deepEqual(errors, []);
     console.log('Navigation browser checks passed: widget state, nested input keys, search, step links, focus, idle controls.');
   } finally {

@@ -18,7 +18,7 @@ func controlsActivityScript() string {
   }
   deck.addEventListener('pointermove', revealControls, { passive: true });
   deck.addEventListener('pointerdown', revealControls, { passive: true });
-  deck.addEventListener('pointerleave', function () { controls.classList.remove('deck-controls-visible'); }, { passive: true });
+  deck.addEventListener('pointerleave', function (event) { if (event.pointerType === 'mouse') controls.classList.remove('deck-controls-visible'); }, { passive: true });
   revealControls();
 `
 }

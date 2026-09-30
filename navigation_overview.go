@@ -94,8 +94,10 @@ func overviewScript() string {
     resultGrid = pickerElement('div', 'deck-overview-grid'); resultGrid.id = 'slides-picker-grid'; results.appendChild(resultGrid);
     emptyResult = pickerElement('p', 'deck-overview-empty', 'No matching slides. Try another topic or slide number.'); results.appendChild(emptyResult); picker.appendChild(results);
     help = pickerElement('details', 'deck-overview-help'); help.appendChild(pickerElement('summary', '', 'Keyboard shortcuts'));
+    help.appendChild(pickerElement('p', '', 'In search, with a result focused: arrows and Home/End choose results; Enter or Space opens it. Tab moves focus; Esc closes search. While typing, search keeps its usual editing keys; Enter opens the first match.'));
+    help.appendChild(pickerElement('p', '', 'Presentation shortcuts — close search with Esc to use these:'));
     var shortcuts = pickerElement('dl', 'deck-overview-shortcuts');
-    [ ['→ / Space', 'Next step or slide'], ['←', 'Previous step or slide'], ['Home / End', 'First / last slide'], ['PageUp / PageDown', 'Previous / next step'], ['O / /', 'Search slides'], ['?', 'Keyboard shortcuts'], ['F', 'Fullscreen'], ['B / Esc', 'Blank / restore screen'], ['P', 'Open presenter'], ['Arrows · Enter', 'Choose a search result'] ].forEach(function (pair) {
+    [ ['→ / Space', 'Next step or slide'], ['←', 'Previous step or slide'], ['Home / End', 'First / last slide'], ['PageUp / PageDown', 'Previous / next step'], ['O / /', 'Search slides'], ['?', 'Keyboard shortcuts'], ['F', 'Fullscreen'], ['B / Esc', 'Blank / restore screen'], ['P', 'Open presenter'] ].forEach(function (pair) {
       var row = pickerElement('div', ''); row.appendChild(pickerElement('dt', '', pair[0])); row.appendChild(pickerElement('dd', '', pair[1])); shortcuts.appendChild(row);
     });
     help.appendChild(shortcuts); picker.appendChild(help);
