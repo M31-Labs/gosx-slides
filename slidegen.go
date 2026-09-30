@@ -376,6 +376,7 @@ func slideOverrideStyle(slide IslandSlide) string {
 			style.WriteString(";")
 		}
 	}
+	style.WriteString(transitionTimingStyle(fm))
 	return style.String()
 }
 
@@ -696,6 +697,9 @@ func lowerAdmonitionGSX(n *mdpp.Node) string {
 // so themes and deck CSS can compose columns, callouts, and titled regions.
 func lowerContainerDirectiveGSX(n *mdpp.Node) string {
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	if name == "motion" {
+		return lowerMotionDirectiveGSX(n)
+	}
 	title := strings.TrimSpace(n.Attr("title"))
 	if name == "details" {
 		var summary string

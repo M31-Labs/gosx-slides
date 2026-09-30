@@ -254,6 +254,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	r := runtimeMounter{rt: ctx.Runtime()}
 	if cd != nil {
 		r.graphics = cd.graphics
+		if cd.motion {
+			ctx.Runtime().EnableBootstrap()
+		}
 	}
 	if err != nil {
 		// The deck failed to compile as one program: every slide will degrade to
@@ -339,6 +342,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			// slide enter animation (fade | none) — both read by navScript.
 			gosx.Attr("data-dev", boolAttr(dev)),
 			gosx.Attr("data-transition", deckTransition(d)),
+			gosx.Attr("style", transitionTimingStyle(deckFrontmatterValues(d))),
 			// data-line-numbers="1" (deck headmatter `line-numbers: true`) turns on
 			// the code-block line-number gutter (a CSS ::before; see baseContentStyle).
 			gosx.Attr("data-line-numbers", boolAttr(deckLineNumbers(d))),

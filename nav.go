@@ -92,13 +92,13 @@ main.deck > .slide.` + navActiveClass + ` { transform-origin: center top; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes slidesDeckEnter { from { opacity: 0; } to { opacity: 1; } }
   main.deck:not([data-transition="none"]) > .slide.` + navActiveClass + ` {
-    animation: slidesDeckEnter 220ms ease both;
+    animation: slidesDeckEnter var(--slides-transition-duration, 220ms) var(--slides-transition-easing, ease) var(--slides-transition-delay, 0ms) both;
   }
   /* Per-slide overrides: a slide's own data-transition (from its transition:
      frontmatter) beats the deck-level setting in both directions. */
   main.deck > .slide.` + navActiveClass + `[data-transition="none"] { animation: none; }
   main.deck[data-transition="none"] > .slide.` + navActiveClass + `[data-transition="fade"] {
-    animation: slidesDeckEnter 220ms ease both;
+    animation: slidesDeckEnter var(--slides-transition-duration, 220ms) var(--slides-transition-easing, ease) var(--slides-transition-delay, 0ms) both;
   }
 }
 

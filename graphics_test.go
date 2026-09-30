@@ -102,6 +102,18 @@ func TestSceneShaderTargets(t *testing.T) {
 		t.Fatal("shader backend contract missing")
 	}
 }
+
+func TestSceneShaderRejectsMalformedTargetIDs(t *testing.T) {
+	for _, id := range []string{`[]`, `{}`, `17`, `null`} {
+		t.Run(id, func(t *testing.T) {
+			deck := graphicsDeck(t, "# Invalid\n", map[string]string{"ink.sel": testShader, "graph.json": `{"scene":{"objects":[{"id":` + id + `,"kind":"sphere","radius":1}]}}`})
+			_, err := compileGraphic(deck.Dir, ComponentRef{Name: "Scene3D", Props: `Src="graph.json" Shader="ink.sel" Targets="a"`})
+			if err == nil || !strings.Contains(err.Error(), "object id must be a string") {
+				t.Fatalf("malformed target id %s: %v", id, err)
+			}
+		})
+	}
+}
 func TestGraphicFailuresAndPathBoundary(t *testing.T) {
 	for _, files := range []map[string]string{{"bad.sel": "material Broken {"}, {"bad.sel": testShader}} {
 		source := "# Bad\n\n<Shader Src=\"bad.sel\" Shape=\"unknown\" />\n"

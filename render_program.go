@@ -32,6 +32,7 @@ import (
 // renders an individual slide from it.
 type compiledDeck struct {
 	graphics map[string]deckGraphic
+	motion   bool
 	// prog is the compiled program for the generated deck source (all Slide_N
 	// funcs + merged island defs). nil if compilation failed.
 	prog *ir.Program
@@ -60,13 +61,13 @@ func compileDeckProgram(deck *IslandDeck) (*compiledDeck, error) {
 	// parse: one bad island must poison the whole program — that error is
 	// the callers' degrade trigger — never compile into nonsense.
 	if err := validateIslandDefs(defs); err != nil {
-		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics}, err
+		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, err
 	}
 	prog, err := gosx.Compile([]byte(source))
 	if err != nil {
-		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics}, err
+		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, err
 	}
-	return &compiledDeck{prog: prog, slideCount: len(deck.Slides), source: source, graphics: graphics}, nil
+	return &compiledDeck{prog: prog, slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, nil
 }
 
 // validateIslandDefs rejects any island whose original .gsx source does not

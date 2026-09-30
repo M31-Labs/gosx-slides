@@ -186,9 +186,13 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 				if !ok {
 					continue
 				}
+				objectID, validID := object["id"].(string)
+				if _, exists := object["id"]; exists && !validID {
+					return engine.Config{}, fmt.Errorf("scene %s: object id must be a string", src)
+				}
 				selected := targets[0] == ""
 				for _, id := range targets {
-					if strings.TrimSpace(id) == object["id"] {
+					if strings.TrimSpace(id) == objectID {
 						selected = true
 					}
 				}

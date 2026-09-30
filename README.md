@@ -74,6 +74,37 @@ Navigation also includes a hover/focus toolbar, touch swipes, Home/End,
 PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing
 media and emits `slides:change` with zero-based `index` and `step` values.
 
+### Element motion and slide timing
+
+Wrap Markdown in `:::motion` to use GoSX's managed DOM motion, including
+headings, lists, code, and native graphics inside the animated region:
+
+```md
+:::motion {preset=slide-up duration=450 delay=80 easing=ease-out distance=24}
+## Arrive with intent
+
+Your content stays readable before the bootstrap loads.
+:::
+```
+
+Presets are `fade`, `slide-up`, `slide-down`, `slide-left`, `slide-right`, and
+`zoom-in`. Durations and delays are milliseconds. `trigger=view` is the slide
+default: play on first visibility; `trigger=load` starts on page load. Use
+`split=word`, `split=char`, or `split=line` with `stagger=60` for text-only
+entrances (the native splitter replaces the region's markup with text units). Motion
+respects reduced-motion preferences by default. This uses GoSX's shared
+bootstrap and needs no WASM island runtime; the native `<Motion>` builtin is
+also available inside your `.gsx` components.
+
+Set `transition: fade` or `none`, `transition-duration: 450`,
+`transition-delay: 80`, and `transition-easing: ease-out` in deck headmatter.
+A slide's YAML fence overrides any timing independently. Times accept numeric
+milliseconds, `ms`, or `s`; easing accepts CSS keywords, `cubic-bezier(...)`,
+or `steps(...)`. Slide fades preserve viewport fitting and respect reduced
+motion. SPA exports retain element motion; snapshots retain the content.
+Try `slides serve examples/motion-lab` for a motion-only deck with independent
+slide timing and staggered text.
+
 ### Upgrade and performance inventory
 
 The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
@@ -183,6 +214,9 @@ its separator. All of these are spelled out in
 | Deck | Demonstrates |
 |---|---|
 | `examples/showcase` | Full feature set — best starting point. |
+| `examples/motion-lab` | Native element motion, text stagger, and slide timings. |
+| `examples/shader-lab` | Selena materials, native shapes, diagrams, and backgrounds. |
+| `examples/sirena-scene` | Native Sirena diagram with forward/backward click frames. |
 | `examples/real-deck` | The minimum: one slide, a propless `<Counter/>`. |
 | `examples/theme-{neon,paper,swiss}` | The same deck under each theme. |
 | `examples/gotreesitter` | Real-lane example deck for a conference talk. |

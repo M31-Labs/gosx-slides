@@ -3,6 +3,8 @@ title: GoSX · Shader lab
 theme: aurora
 scene: shaders/aurora.sel
 footer: GoSX SLIDES · SHADER LAB
+transition-duration: 420
+transition-easing: ease-out
 ---
 
 ```yaml
@@ -59,9 +61,11 @@ layout: center
 
 <p class="eyebrow">03 / COMPOSITION</p>
 
+:::motion {preset=slide-up duration=650 delay=80 distance=32}
 # Your renderer.<br>Your language.
 
 Shapes, GLB models, particles, lights, animation, and post effects use the GoSX Scene3D contract.
+:::
 
 <!-- Bring native GoSX scene JSON into a deck. No CDN or alternate renderer. -->
 

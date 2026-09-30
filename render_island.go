@@ -251,6 +251,9 @@ func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*co
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
 	title := strings.TrimSpace(n.Attr("title"))
 	children := lowerBlockChildren(r, n, components, diagramTheme)
+	if name == "motion" {
+		return lowerMotionDirectiveNode(n, children)
+	}
 	if name == "details" {
 		var args []any
 		args = append(args, gosx.Attrs(

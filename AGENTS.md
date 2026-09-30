@@ -271,6 +271,19 @@ parallel concepts, `:::details "Title"` for disclosure, or any named container
 as a stable `.mdpp-container-<name>` styling hook. Titles and Markdown inside a
 container stay structured.
 
+`:::motion {preset=slide-up duration=450 delay=80 easing=ease-out distance=24}`
+wraps Markdown content in the GoSX managed Motion builtin. Trigger defaults to
+`view` (first visibility), and `load` is also supported. Presets: fade, slide-up,
+slide-down, slide-left, slide-right, zoom-in. Times are milliseconds. Text-only
+regions can use `split=word|char|line` with `stagger=60`; splitting replaces inner
+markup with native text units. Reduced motion is respected by default. Both the
+compiled and fail-soft lanes preserve the region. No WASM is required.
+
+Deck headmatter and a slide's leading YAML fence accept `transition-duration`,
+`transition-delay`, and `transition-easing`; the slide overrides each independently.
+Times accept numeric milliseconds or `ms`/`s` suffixes; supported easing forms
+are CSS keywords, cubic-bezier, and steps. Fade/none keep the fit transform intact.
+
 ```md
 :::columns
 :::col "RUNTIME"
