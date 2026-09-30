@@ -1,5 +1,9 @@
 # gosx-slides
 
+The v0.2.0 release adds native Selena shaders and Scene3D diagrams, configurable
+element and slide motion with replay, faster deck serving, and GoSX v0.57.1.
+Install the tagged release with `go install m31labs.dev/gosx-slides/cmd/slides@v0.2.0`.
+
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
 your `{expr}` is evaluated by the GoSX compiler — no JavaScript toolchain.
@@ -28,6 +32,105 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 ```
 
 ## A deck
+
+### Native shaders and Scene3D
+
+GoSX v0.57.1's native graphics engine is available directly in Markdown:
+
+```md
+<Shader Src="shaders/ink.sel" Shape="torus" Label="Shader illustration" />
+<Scene3D Src="scenes/network.json" Shader="shaders/ink.sel" Targets="processor" />
+```
+
+`Shader` accepts Selena `.sel` source, optional `Material` selection, a `Uniforms`
+JSON file, and `Shape="plane|sphere|box|torus"`. `Scene3D` accepts a GoSX SceneIR
+document or full Scene3D props, including models, labels, particles, lights,
+animation, and post effects. Optional `Shader` and comma-separated `Targets`
+apply a Selena material to selected objects. All sources are relative to the deck.
+Shader compilation produces both GLSL and WGSL before serving the page.
+
+Set headmatter `scene: shaders/aurora.sel` or `scene: scenes/network.json` for a
+background. A slide's YAML fence can replace it or set `scene: false`. Each
+distinct background mounts once per page; GoSX pauses hidden surfaces. Defaults
+cap native graphics at 30 FPS, 1.5 device pixel ratio, and two million pixels,
+with adaptive quality. Scene JSON can override these budgets.
+
+Try `slides serve examples/shader-lab`. This native graphics deck needs no WASM
+island runtime. SPA exports retain live graphics; single-file and PDF exports
+retain their accessible fallback labels. `slides doctor` reports invalid sources
+and shader compilation failures; deck analysis includes a graphics inventory.
+
+Sirena's `render --scene3d --shader material.sel --steps steps.json` output can
+be used directly as `<Scene3D Src="request.scene.json" />`. Try
+`slides serve examples/sirena-scene`: arrow keys focus the API, then the worker,
+then restore the whole diagram before advancing to the next slide. Backward
+navigation and direct seeks apply absolute frames, and hidden surfaces pause.
+The click budget appears in `check`, `inspect`, and the presenter run sheet.
+
+Custom Scene3D props can include `slideSteps: {"version":1,"frames":[...]}`,
+where each frame has a `label` and an array of native GoSX `commands`. Frame zero
+is the initial state. Author complete poses for each touched object in every
+frame so reverse navigation restores the expected state. The transport accepts
+up to 128 frames and 4 MiB of commands; it is supported on inline surfaces.
+SPA exports keep the timeline live; snapshot exports show the fallback label.
+
+Navigation also includes a hover/focus toolbar, touch swipes, Home/End,
+PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing
+media and emits `slides:change` with zero-based `index` and `step` values.
+
+### Element motion and slide timing
+
+Wrap Markdown in `:::motion` to use GoSX's managed DOM motion, including
+headings, lists, code, and native graphics inside the animated region:
+
+```md
+:::motion {preset=slide-up duration=450 delay=80 easing=ease-out distance=24}
+## Arrive with intent
+
+Your content stays readable before the bootstrap loads.
+:::
+```
+
+Presets are `fade`, `slide-up`, `slide-down`, `slide-left`, `slide-right`, and
+`zoom-in`. Durations and delays are milliseconds. `trigger=view` is the slide
+default: start when visible; `trigger=load` starts on page load. Motion replays
+on each slide entry by default (`replay=slide`). Set `replay=once` for a single
+entrance, or `replay=step` to repeat on each presentation step as well. Use
+`split=word`, `split=char`, or `split=line` with `stagger=60` for text-only
+entrances (the native splitter replaces the region's markup with text units). Motion
+respects reduced-motion preferences by default. This uses GoSX's shared
+bootstrap and needs no WASM island runtime; the native `<Motion>` builtin is
+also available inside your `.gsx` components.
+
+Set `transition: fade` or `none`, `transition-duration: 450`,
+`transition-delay: 80`, and `transition-easing: ease-out` in deck headmatter.
+A slide's YAML fence overrides any timing independently. Times accept numeric
+milliseconds, `ms`, or `s`; easing accepts CSS keywords, `cubic-bezier(...)`,
+or `steps(...)`. Slide fades preserve viewport fitting and respect reduced
+motion. SPA exports retain element motion; snapshots retain the content.
+Try `slides serve examples/motion-lab` for a motion-only deck with independent
+slide timing and staggered text.
+
+### Upgrade and performance inventory
+
+The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
+gotreesitter **v0.55.1**, and Sirena **v0.1.0**. Existing Sirena/Mermaid diagrams,
+live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
+available. The native graphics components add the current GoSX scene engine
+without a separate renderer or frontend build system.
+
+Production servers now compile the deck once at startup. A 20-slide server
+benchmark improved from **11.06 ms to 0.29–1.00 ms per request**, with allocated bytes
+falling from **11.36 MB to 1.36 MB**. These are local synthetic measurements;
+graphics performance depends on the device and authored scene.
+
+Runtime caches track the resolved dependency graph and selected Go toolchain,
+publish WASM builds atomically, and stage every current bootstrap feature chunk.
+Static snapshots skip runtime builds, and exported decks disable live SSE sync.
+Images use lazy loading and asynchronous decoding. The dev watcher includes
+shader and scene JSON sources in nested directories.
+Watch mode stages the cached WASM bridge so islands added during an editing
+session hydrate without restarting. Native-only pages still load only bootstrap JS.
 
 A deck is a **directory** with `deck.md` plus one `<Name>.gsx` per island:
 
@@ -119,6 +222,9 @@ its separator. All of these are spelled out in
 | Deck | Demonstrates |
 |---|---|
 | `examples/showcase` | Full feature set — best starting point. |
+| `examples/motion-lab` | Native element motion, text stagger, and slide timings. |
+| `examples/shader-lab` | Selena materials, native shapes, diagrams, and backgrounds. |
+| `examples/sirena-scene` | Native Sirena diagram with forward/backward click frames. |
 | `examples/real-deck` | The minimum: one slide, a propless `<Counter/>`. |
 | `examples/theme-{neon,paper,swiss}` | The same deck under each theme. |
 | `examples/gotreesitter` | Real-lane example deck for a conference talk. |

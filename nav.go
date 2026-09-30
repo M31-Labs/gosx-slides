@@ -92,13 +92,13 @@ main.deck > .slide.` + navActiveClass + ` { transform-origin: center top; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes slidesDeckEnter { from { opacity: 0; } to { opacity: 1; } }
   main.deck:not([data-transition="none"]) > .slide.` + navActiveClass + ` {
-    animation: slidesDeckEnter 220ms ease both;
+    animation: slidesDeckEnter var(--slides-transition-duration, 220ms) var(--slides-transition-easing, ease) var(--slides-transition-delay, 0ms) both;
   }
   /* Per-slide overrides: a slide's own data-transition (from its transition:
      frontmatter) beats the deck-level setting in both directions. */
   main.deck > .slide.` + navActiveClass + `[data-transition="none"] { animation: none; }
   main.deck[data-transition="none"] > .slide.` + navActiveClass + `[data-transition="fade"] {
-    animation: slidesDeckEnter 220ms ease both;
+    animation: slidesDeckEnter var(--slides-transition-duration, 220ms) var(--slides-transition-easing, ease) var(--slides-transition-delay, 0ms) both;
   }
 }
 
@@ -464,6 +464,33 @@ func navScript() string {
   window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 120); });
   window.addEventListener('load', fitSlide); // re-fit once webfonts settle
 
+  var controls = document.createElement('nav'); controls.className = 'deck-controls'; controls.setAttribute('aria-label', 'Presentation controls');
+  function control(label, text, action) {
+    var button = document.createElement('button'); button.type = 'button'; button.textContent = text;
+    button.title = label; button.setAttribute('aria-label', label); button.addEventListener('click', action); controls.appendChild(button); return button;
+  }
+  control('Previous slide (Left arrow)', '←', prev);
+  control('Slide overview (O)', '▦', toggleOverview);
+  control('Fullscreen (F)', '⛶', toggleFullscreen);
+  control('Blank screen (B)', '◐', toggleBlank);
+  control('Next slide (Right arrow)', '→', next);
+  deck.appendChild(controls);
+  var curtain = mkChrome('deck-curtain'); curtain.setAttribute('aria-hidden', 'true');
+  curtain.addEventListener('click', toggleBlank);
+  function toggleBlank() { blank = !blank; deck.classList.toggle('deck-blank', blank); }
+  var touchStart = null;
+  deck.addEventListener('touchstart', function (event) {
+    if (overview || event.touches.length !== 1 || event.target.closest('button, a, input, textarea, select, [contenteditable], [data-gosx-engine], [data-gosx-island]')) { touchStart = null; return; }
+    touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  }, { passive: true });
+  deck.addEventListener('touchcancel', function () { touchStart = null; }, { passive: true });
+  deck.addEventListener('touchend', function (event) {
+    if (!touchStart || !event.changedTouches.length) return;
+    var dx = event.changedTouches[0].clientX - touchStart.x, dy = event.changedTouches[0].clientY - touchStart.y;
+    touchStart = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (dx < 0) next(); else prev(); }
+  }, { passive: true });
+
   // stepCountFor returns how many click steps slide i has. For a code-only slide
   // it is the MAX data-steps over its code blocks (0 when none). For a reveal slide
   // (containing [data-fragment] items) the budget is fragmentCount-1 (fragment 0 is
@@ -471,11 +498,14 @@ func navScript() string {
   // When both code steps and fragments are present, the budget is max(codeSteps, N-1)
   // so neither walkthrough is skipped. Cached lazily per slide.
   var stepCounts = [];
+  var fragmentCounts = [];
+  var backgroundSurfaces = Array.prototype.slice.call(deck.querySelectorAll(':scope > .deck-graphics-background'));
+  var blank = false;
   function stepCountFor(i) {
     if (i < 0 || i >= slides.length) return 0;
     if (stepCounts[i] != null) return stepCounts[i];
     var max = 0;
-    var pres = slides[i].querySelectorAll('pre[data-steps]');
+    var pres = slides[i].querySelectorAll('pre[data-steps], .slide-graphic[data-steps]');
     for (var p = 0; p < pres.length; p++) {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
       if (n > max) max = n;
@@ -491,7 +521,8 @@ func navScript() string {
   // fragCountFor returns the total number of [data-fragment] items in slide i.
   function fragCountFor(i) {
     if (i < 0 || i >= slides.length) return 0;
-    return slides[i].querySelectorAll('[data-fragment]').length;
+    if (fragmentCounts[i] == null) fragmentCounts[i] = slides[i].querySelectorAll('[data-fragment]').length;
+    return fragmentCounts[i];
   }
 
   // Subscribers notified after every committed slide change (local, hash, or a
@@ -538,7 +569,7 @@ func navScript() string {
   // show() the channel uses (so no echo loop), and on a static export (no server)
   // it simply fails quietly and the local BroadcastChannel still works.
   try {
-    if (typeof EventSource !== 'undefined') {
+    if (typeof EventSource !== 'undefined' && deck.getAttribute('data-live-sync') === '1') {
       var sse = new EventSource('presenter/events');
       sse.addEventListener('state', function (event) {
         var data; try { data = JSON.parse(event.data); } catch (e) { return; }
@@ -579,7 +610,9 @@ func navScript() string {
     var budget = stepCountFor(index);
     if (nextStep == null) nextStep = 0;
     step = Math.max(0, Math.min(budget, nextStep));
-    for (var i = 0; i < slides.length; i++) {
+    var changed = prevIndex === index ? [index] : [prevIndex, index];
+    for (var c = 0; c < changed.length; c++) {
+      var i = changed[c];
       var on = i === index;
       slides[i].classList.toggle(ACTIVE, on);
       // Only the active slide carries data-active-step; remove it everywhere else so
@@ -600,6 +633,19 @@ func navScript() string {
     }
     if (!overview) fitSlide(); // scale the now-active slide to fit; skip in the grid
     updateChrome();
+    var source = slides[index].getAttribute('data-scene-source');
+    for (var bg = 0; bg < backgroundSurfaces.length; bg++) {
+      backgroundSurfaces[bg].classList.toggle('deck-background-active', backgroundSurfaces[bg].getAttribute('data-scene-source') === source && !overview);
+    }
+    if (prevIndex !== index) {
+      var oldMedia = slides[prevIndex].querySelectorAll('video, audio');
+      for (var m = 0; m < oldMedia.length; m++) oldMedia[m].pause();
+    }
+    if (prevIndex !== index || push) {
+      var media = slides[index].querySelectorAll('video[autoplay], audio[autoplay]');
+      for (var m = 0; m < media.length; m++) { var play = media[m].play(); if (play && play.catch) play.catch(function () {}); }
+    }
+    deck.dispatchEvent(new CustomEvent('slides:change', { detail: { index: index, step: step } }));
     if (push) history.replaceState(null, '', '#' + (index + 1) + (present ? 'present' : ''));
     broadcast();
     if (index !== prevIndex || step !== prevStep || push) notifyChange();
@@ -647,6 +693,7 @@ func navScript() string {
     if (overview) return;
     overview = true;
     deck.classList.add(OVERVIEW);
+    backgroundSurfaces.forEach(function (surface) { surface.classList.remove('deck-background-active'); });
     for (var i = 0; i < slides.length; i++) {
       var s = slides[i];
       s.style.transform = ''; // drop the fit-scale; the grid uses its own zoom
@@ -667,7 +714,7 @@ func navScript() string {
       slides[i].removeAttribute('role');
       slides[i].removeAttribute('aria-label');
     }
-    fitSlide(); // re-scale the active slide now that the grid is closed
+    show(index, step, false); // restore fitting and the selected background
   }
 
   function toggleOverview() { overview ? closeOverview() : openOverview(); }
@@ -702,7 +749,13 @@ func navScript() string {
 
   document.addEventListener('keydown', function (event) {
     var tag = event.target && event.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (event.target && event.target.closest('[contenteditable]'))) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === 'b' || event.key === 'B' || (event.key === 'Escape' && blank)) { event.preventDefault(); toggleBlank(); return; }
+    if (!overview && event.key === 'Home') { event.preventDefault(); show(0, 0, true); return; }
+    if (!overview && event.key === 'End') { event.preventDefault(); show(slides.length - 1, 0, true); return; }
+    if (!overview && event.key === 'PageDown') { event.preventDefault(); next(); return; }
+    if (!overview && event.key === 'PageUp') { event.preventDefault(); prev(); return; }
 
     // o toggles the overview grid from either state.
     if (event.key === 'o' || event.key === 'O') { event.preventDefault(); toggleOverview(); return; }

@@ -185,7 +185,13 @@ func StartDevLoop(deckDir string, cfg DevLoopConfig) (*DevLoop, error) {
 	// and the island programs into <deck>/build/islands so the dev proxy can
 	// serve /gosx/* (it shadows the proxied deck server for those paths).
 	buildDir := filepath.Join(absDir, "build")
-	if _, err := StageRuntimeAssets(absDir, cfg.RebuildRuntime); err != nil {
+	deck, err := LoadIslandDeck(absDir)
+	if err != nil {
+		return nil, err
+	}
+	// Watch sessions can gain their first island at any time. Prepare the cached
+	// WASM bridge up front; native-only pages still emit no WASM runtime manifest.
+	if _, err := stageRuntimeAssets(absDir, cfg.RebuildRuntime, true); err != nil {
 		return nil, fmt.Errorf("stage runtime assets: %w", err)
 	}
 	if err := StageIslandPrograms(absDir); err != nil {
@@ -194,10 +200,6 @@ func StartDevLoop(deckDir string, cfg DevLoopConfig) (*DevLoop, error) {
 
 	// 2. Build the dev-mode deck App (re-loads the deck per request so a deck.md
 	// edit shows new content after a reload) and run it on a free internal port.
-	deck, err := LoadIslandDeck(absDir)
-	if err != nil {
-		return nil, err
-	}
 	app, err := deck.NewServer(ServeOptions{
 		Title: cfg.Title,
 		Dev:   true,
@@ -319,10 +321,22 @@ func (l *DevLoop) startMarkdownReloadBridge() error {
 	if err != nil {
 		return err
 	}
-	if err := watcher.Add(l.deckDir); err != nil {
+	if err := filepath.WalkDir(l.deckDir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() {
+			return nil
+		}
+		if path != l.deckDir && (strings.HasPrefix(entry.Name(), ".") || entry.Name() == "build" || entry.Name() == "dist" || entry.Name() == "node_modules") {
+			return filepath.SkipDir
+		}
+		return watcher.Add(path)
+	}); err != nil {
 		_ = watcher.Close()
 		return err
 	}
+
 	l.mdWatcher = watcher
 	l.stopMD = make(chan struct{})
 
@@ -392,7 +406,11 @@ func isMarkdownWriteEvent(event fsnotify.Event) bool {
 	if event.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Rename) == 0 {
 		return false
 	}
-	return strings.EqualFold(filepath.Ext(event.Name), ".md")
+	switch strings.ToLower(filepath.Ext(event.Name)) {
+	case ".md", ".sel", ".json":
+		return true
+	}
+	return false
 }
 
 // pickFreePort asks the OS for an unused TCP port on the loopback interface and

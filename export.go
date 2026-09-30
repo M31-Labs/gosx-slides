@@ -43,12 +43,18 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// the App's runtime root there; StageIslandPrograms writes each island's JSON to
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
-	app, err := deck.NewServer(ServeOptions{StageRuntime: true})
+	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if format != "" && format != "spa" && format != "single" && format != "pdf" {
+		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
+	}
+	app, err := deck.NewServer(ServeOptions{StageRuntime: format == "" || format == "spa", Static: true})
 	if err != nil {
 		return fmt.Errorf("build deck app: %w", err)
 	}
-	if err := StageIslandPrograms(dir); err != nil {
-		return fmt.Errorf("stage island programs: %w", err)
+	if format == "" || format == "spa" {
+		if err := StageIslandPrograms(dir); err != nil {
+			return fmt.Errorf("stage island programs: %w", err)
+		}
 	}
 
 	rec := httptest.NewRecorder()
@@ -253,6 +259,9 @@ func copyBuildToGosx(buildDir, destGosx string) error {
 			return err
 		}
 		if info.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(info.Name(), ".") {
 			return nil
 		}
 		rel, err := filepath.Rel(buildDir, path)
