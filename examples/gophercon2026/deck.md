@@ -6,6 +6,7 @@ caption-safe-bottom: 20%
 duration-minutes: 25
 offline-required: true
 scene: m31-starfield
+favicon: {text: "GT", color: "#10b981"}
 ---
 
 ``` yaml
