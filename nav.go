@@ -345,7 +345,9 @@ func navScript() string {
   function stepCountFor(i) {
     if (i < 0 || i >= slides.length) return 0;
     if (stepCounts[i] != null) return stepCounts[i];
-    var max = 0;
+    var max = Math.max(0, (JSON.parse(slides[i].getAttribute("data-slide-cues") || "[]")).length - 1);
+    var motions = slides[i].querySelectorAll("[data-slides-motion-step]");
+    for (var q = 0; q < motions.length; q++) max = Math.max(max, Number(motions[q].getAttribute("data-slides-motion-step")) || 0);
     var pres = slides[i].querySelectorAll('pre[data-steps], .slide-graphic[data-steps]');
     for (var p = 0; p < pres.length; p++) {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
@@ -445,6 +447,7 @@ func navScript() string {
   // (#n/k for a click step), broadcasts {index, step}, and notifies subscribers.
   function show(nextIndex, nextStep, push) {
     var prevIndex = index, prevStep = step;
+    if (nextIndex !== index) deck.dispatchEvent(new CustomEvent("slides:before-change", { detail: { from: prevIndex, to: Math.max(0, Math.min(slides.length - 1, nextIndex)) } }));
     index = Math.max(0, Math.min(slides.length - 1, nextIndex));
     var budget = stepCountFor(index);
     if (nextStep == null) nextStep = 0;

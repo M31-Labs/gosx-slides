@@ -256,6 +256,11 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString(cls)
 	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	for _, key := range []string{"data-slide-id", "data-slide-cues"} {
+		if value := slideIdentityAttrs(slide)[key]; value != "" {
+			b.WriteString(" " + key + "={" + strconv.Quote(value) + "}")
+		}
+	}
 	if source := resolveSlideLayer(slide, "scene", layers.Scene); graphicsSceneSource(source) {
 		b.WriteString(" data-scene-source={" + strconv.Quote(source) + "}")
 	}

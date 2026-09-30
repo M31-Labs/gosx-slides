@@ -185,7 +185,7 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 	for _, slide := range d.Slides {
 		layoutName, layoutKnown := slideLayoutInfo(slide)
 		words := slideWordCount(slide)
-		clicks := max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets))
+		clicks := max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets), slideMotionClicks(slide))
 		notes := extractSlideNotes(slide)
 		components := slideComponentNames(slide)
 		citations := slideCitations(slide)
@@ -241,7 +241,7 @@ func Check(dir string) (*Summary, error) {
 	for _, slide := range d.Slides {
 		name, _ := slideLayoutInfo(slide)
 		summary.Layouts[name]++
-		summary.TotalClicks += max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets))
+		summary.TotalClicks += max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets), slideMotionClicks(slide))
 		if extractSlideNotes(slide) != "" {
 			summary.Notes++
 		}

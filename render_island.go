@@ -52,11 +52,14 @@ func renderIslandSlide(r islandMounter, slide IslandSlide, components map[string
 			children = append(children, lowerNode(r, child, components, diagramTheme)...)
 		}
 	}
-	return gosx.El("section",
-		gosx.Attrs(
-			gosx.Attr("class", "slide"),
-			gosx.Attr("data-slide", slide.Index),
-		),
+	attrs := gosx.Attrs(
+		gosx.Attr("class", "slide"),
+		gosx.Attr("data-slide", slide.Index),
+	)
+	for key, value := range slideIdentityAttrs(slide) {
+		attrs = append(attrs, gosx.Attr(key, value))
+	}
+	return gosx.El("section", attrs,
 		gosx.Fragment(children...),
 	)
 }
