@@ -1,12 +1,13 @@
 # gosx-slides
 
-The v0.2.0 release adds native Selena shaders and Scene3D diagrams, configurable
-element and slide motion with replay, faster deck serving, and GoSX v0.57.1.
-Install from the [v0.2.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.2.0),
+The v0.3.0 release adds a searchable slide picker, lighter overview rendering,
+full-length click walkthroughs, and better keyboard controls. Native Selena
+shaders, Scene3D diagrams, and configurable GoSX motion are included.
+Install from the [v0.3.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.3.0),
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.2.0 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.3.0 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -81,9 +82,40 @@ frame so reverse navigation restores the expected state. The transport accepts
 up to 128 frames and 4 MiB of commands; it is supported on inline surfaces.
 SPA exports keep the timeline live; snapshot exports show the fallback label.
 
-Navigation also includes a hover/focus toolbar, touch swipes, Home/End,
+Navigation also includes a toolbar, touch swipes, Home/End,
 PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing
 media and emits `slides:change` with zero-based `index` and `step` values.
+The toolbar hides after 2.2 seconds of inactivity and reappears on pointer
+movement, touch, or local navigation. Keyboard focus keeps it visible.
+
+### Search and navigation
+
+Press **O** or **/** to open the slide picker. Search title and body text, enter
+a slide number, or combine words to narrow the results. Search ignores case and
+accents; speaker notes, scripts, and style content are excluded. Slide text is
+indexed when the picker first opens. Use arrows to choose a card, Enter or Space
+to jump, and Esc to return to your current step. **?** opens the shortcuts.
+
+Link directly to a click step with **`#3/2`** (slide 3, step 2). Plain **`#3`**
+starts slide 3 at step zero. These anchors restore code highlights, list reveals,
+and absolute Scene3D frames; `replay=step` motion responds to the step change.
+For example, `[Focus the worker](#3/2)` links within your deck. Navigation updates
+the URL, so copy the browser address to share your current position. Reload and
+back/forward navigation restore it, with steps clamped to the slide's budget.
+Timed entrance animations still start on arrival; a click-step anchor does not
+seek to a timestamp inside an animation.
+
+The picker uses readable text cards and hides the original slides. It preserves
+live island state, pauses playing media, and lets hidden native graphics sleep
+instead of drawing every slide at once. It also works in the presenter window
+and in SPA and single-file exports. Printing includes all slides and fragments.
+Code/reveal styles shrink from about 32 KB of generated rules to under 1 KB.
+Code highlights and list reveals support the entire authored click budget;
+hidden fragment links and controls are excluded from the tab order until shown.
+Focused inputs and interactive controls keep their normal keyboard behavior.
+
+Try `slides serve examples/navigation-lab` for search, a persistent live counter,
+code steps, list reveals, and repeatable motion in one deck.
 
 ### Element motion and slide timing
 
@@ -203,8 +235,7 @@ What you get:
   ` {1-3|7} ` click-step highlights.
 - **PDF handouts.** `slides export --format pdf` prints one slide per page
   through a system Chrome/Chromium.
-- **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen, `o` overview
-  grid, `p` presenter view; `#N` deep-links to slide N.
+- **Navigation.** `→` / `Space` next, `←` prev, `f` fullscreen, `o` / `/` searchable overview, `?` shortcuts, `p` presenter view; `#N` deep-links to slide N.
 - **Audience chrome.** A themed progress bar and a slide counter (`3 / 11`)
   appear on every deck. Overflowing slides are auto-scaled to fit the viewport
   instead of clipping.

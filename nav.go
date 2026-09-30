@@ -1,10 +1,5 @@
 package slides
 
-import (
-	"strconv"
-	"strings"
-)
-
 // nav.go is the real lane's slide-navigation layer (Phase 1, Slice 6). The real
 // lane (serve.go's renderPage) lowers every slide to a
 // `<section class="slide" data-slide="N">…</section>` and stacks them in
@@ -41,17 +36,11 @@ import (
 // style and the script are guaranteed to agree.
 const navActiveClass = "deck-active"
 
-// navOverviewClass is the CSS class navScript toggles onto `main.deck` when the
-// OVERVIEW grid (the `o` key) is open. While set, navStyle's overview rules
-// override the one-slide-at-a-time visibility so EVERY slide shows as a scaled
-// thumbnail card. Kept as a const so the style and the script agree.
+// navOverviewClass hides live slides while the searchable text picker is open.
 const navOverviewClass = "deck-overview"
 
-// navActiveStepAttr is the data-attribute navScript sets on the ACTIVE slide to
-// record which click STEP is currently lit (1-based; "0" / absent = no step yet,
-// every emphasized line shown). The theme CSS keys its code-block spotlight off
-// `.slide[data-active-step="K"] pre[data-steps] .ts-line[data-step~="K"]`. Kept as
-// a const so the style and the script can never drift on the attribute name.
+// navActiveStepAttr records the active click step; the controller marks matching
+// code lines without generating a stylesheet rule for every possible step.
 const navActiveStepAttr = "data-active-step"
 
 // navStyle is the slide-visibility stylesheet for the real lane: inside
@@ -129,186 +118,37 @@ main.deck .deck-overflow-badge { position: fixed; left: 1rem; bottom: 0.8rem; z-
   main.deck .deck-progress, main.deck .deck-counter, main.deck .deck-overflow-badge, main.deck .code-copy, main.deck .slide-notes { display: none !important; }
 }
 
-/* ── Overview grid (the 'o' key) ────────────────────────────────────────────
-   navScript toggles main.deck.` + navOverviewClass + ` on. While set, the
-   one-slide-at-a-time visibility above is overridden so EVERY slide shows as a
-   scaled thumbnail card laid out in a responsive grid. The selectors below all
-   include .` + navOverviewClass + ` so they have higher specificity than the
-   single-class visibility/layout rules (and use !important where they must beat
-   the !important display:none above) — overview only takes effect when the class
-   is present, and the deck snaps back to the single-slide view when it is removed.
-
-   Scaling: each card uses CSS zoom to shrink a full slide (min-height:100vh +
-   room-sized padding and type) proportionally into a readable thumbnail without
-   restructuring the DOM. The card clips overflow so a long slide degrades to a
-   cropped preview. Theme-agnostic on purpose: it reads the slide's own themed
-   colors, so a thumbnail looks like a miniature of the real slide in every theme. */
-main.deck.` + navOverviewClass + ` {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: clamp(1rem, 2.4vw, 2rem);
-  align-content: start;
-  align-items: start;
-  padding: clamp(1.25rem, 4vw, 3rem) !important;
-  max-width: 1600px;
-  margin: 0 auto;
-  /* The deck body is overflow:hidden, so a big deck's grid scrolls HERE, not the
-     page — height-bound to the viewport with its own scroll. */
-  height: 100vh;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-/* Every slide becomes a visible card — beat the :not(.deck-active) display:none
-   !important above and any layout-* flex/centering with an equally-specific
-   !important. The card itself is the clip frame; CSS zoom scales its content. */
-main.deck.` + navOverviewClass + ` > .slide {
-  display: block !important;
-  zoom: 0.26;
-  min-height: 132vh;
-  max-height: 132vh;
-  overflow: hidden;
-  cursor: pointer;
-  border: 2px solid rgba(128,128,128,0.28);
-  border-radius: 14px;
-  margin: 0;
-  position: relative;
-  -webkit-user-select: none; user-select: none;
-  /* No slide-enter animation in overview (it would flash every card on open). */
-  animation: none !important;
-}
-/* The active slide's card is highlighted so the current position reads at a glance.
-   currentColor picks up the slide's themed foreground, so the ring matches the
-   theme without this rule knowing the palette. */
-main.deck.` + navOverviewClass + ` > .slide.` + navActiveClass + ` {
-  border-color: currentColor;
-  box-shadow: 0 0 0 4px rgba(128,128,128,0.18);
-}
-/* Hover / keyboard-focus affordance on a card. focus-visible covers Tab + the
-   roving focus navScript sets when arrowing through the grid. */
-main.deck.` + navOverviewClass + ` > .slide:hover,
-main.deck.` + navOverviewClass + ` > .slide:focus-visible {
-  border-color: currentColor;
-  outline: none;
-}
-@media (prefers-reduced-motion: no-preference) {
-  main.deck.` + navOverviewClass + ` > .slide {
-    transition: border-color 160ms cubic-bezier(0.25,1,0.5,1),
-                transform 160ms cubic-bezier(0.25,1,0.5,1);
-  }
-  main.deck.` + navOverviewClass + ` > .slide:hover {
-    transform: translateY(-4px);
-  }
-}
-` + stepSpotlightCSS() + fragmentRevealCSS()
+` + overviewStyle() + stepSpotlightCSS() + fragmentRevealCSS()
 }
 
-// navStepMax is the largest click-step index the generated spotlight CSS
-// enumerates. CSS cannot compare a slide's data-active-step value against a line's
-// data-step value (no attribute-to-attribute matching), so stepSpotlightCSS emits
-// one rule per step index 1..navStepMax. A real walkthrough rarely exceeds a
-// handful of `|`-groups; 16 is a generous ceiling. A fence with MORE steps than
-// this still steps correctly (navScript has no cap) — only the later steps fall
-// back to the no-spotlight look (every emphasized line lit) for those rare slides.
-const navStepMax = 16
-
-// stepSpotlightCSS returns the theme-agnostic click-through spotlight stylesheet
-// for code blocks: when the active slide carries data-active-step="K" (navScript
-// sets it once stepping begins), the lines tagged data-step~="K" stay fully lit
-// while the OTHER emphasized lines drop back to the dim level — so a `{2-3|6}`
-// fence lights 2-3 on the first ArrowRight, then 6 on the next, the rest dimmed.
-//
-// It is intentionally written ONCE here rather than per theme: it only refines the
-// per-theme [data-emphasized] .ts-line rules (themes_css.go) using the SAME
-// inherited tokens (--accent / --accent-soft / --fg), so it inherits each theme's
-// palette without knowing it. Specificity is higher than the per-theme
-// .ts-line.emphasis lit rule (it adds .slide, [data-active-step], [data-steps]), so
-// the dim-the-rest rule wins; the per-K re-light rule adds [data-step~="K"] on top
-// so the active step's lines win again. When NO step is active (data-active-step
-// absent — step 0, a reload, or a slide with no stepped block) none of these match,
-// so every emphasized line shows lit exactly as the static-emphasis feature did.
+// Step selectors have constant size regardless of the authored click budget.
 func stepSpotlightCSS() string {
-	var b strings.Builder
-	b.WriteString(`/* ── Click-through code stepping (the marquee nicey) ─────────────────────────
-   navScript advances a STEP within a slide before moving to the next slide, and
-   writes data-active-step="K" on the active slide. While a step is active, the
-   active step's code lines stay lit and the rest dim. Theme-agnostic: uses the
-   inherited --accent / --accent-soft / --fg tokens, so it looks native per theme.
-   No active step (absent attr) => no match => every emphasized line lit (static). */
-main.deck > .slide[` + navActiveStepAttr + `] pre.code-block[data-steps] .ts-line.emphasis {
+	return `
+main.deck .slide[data-active-step] pre.code-block[data-steps] .ts-line.emphasis {
   opacity: 0.4;
   background: transparent;
   border-left-color: transparent;
 }
-`)
-	// Per-step re-light rules: enumerate K so CSS can match a line's data-step word
-	// against the slide's active step value (CSS can't compare two attributes).
-	for k := 1; k <= navStepMax; k++ {
-		ks := strconv.Itoa(k)
-		b.WriteString(`main.deck > .slide[` + navActiveStepAttr + `="` + ks + `"] pre.code-block[data-steps] .ts-line.emphasis[data-step~="` + ks + `"] {
+main.deck .slide[data-active-step] pre.code-block[data-steps] .ts-line.emphasis.slides-step-active {
   opacity: 1;
   background: var(--accent-soft, rgba(128,128,128,0.16));
   border-left-color: var(--accent, currentColor);
 }
-`)
-	}
-	return b.String()
+`
 }
 
-// navFragmentMax is the largest fragment index the generated reveal CSS enumerates.
-// Like navStepMax for code steps, this bounds the per-K CSS rules.  A reveal slide
-// with more than this many items still functions (navScript has no cap) — the CSS
-// just falls back to the "show all fragments" look for indices beyond this ceiling.
-// 24 is a generous limit; a slide with >24 bullets is a content smell anyway.
-const navFragmentMax = 24
-
-// fragmentRevealCSS returns the theme-agnostic prose fragment-reveal stylesheet.
-// It is appended to stepSpotlightCSS and lives inside navStyle, sharing the same
-// motion / overview / print guards.
-//
-// UX semantics:
-//   - [data-fragment] items default to opacity 0 (hidden).
-//   - When the containing section has NO data-active-fragment attribute (i.e. the
-//     slide was just entered at step 0), fragment index 0 is shown at full opacity.
-//     This keeps the slide non-empty on arrival — the first bullet is always visible.
-//   - When data-active-fragment="K" is set, fragments 0..K are visible.
-//   - Overview / print: all fragments are forced fully visible so the thumbnail
-//     grid and print handout never hide content.
-//
-// Step-count integration (navScript stepCountFor):
-//   - A reveal slide with N fragments has a step budget of N-1. Fragment 0 is
-//     visible on entry; each subsequent step reveals one more. After N-1 steps all
-//     N are visible. A slide with both M code steps and N fragments uses
-//     max(M, N-1) as its budget.
+// Fragment zero is visible on entry; the controller reveals later fragments and
+// removes hidden items from keyboard navigation. Print shows the full content.
 func fragmentRevealCSS() string {
-	var b strings.Builder
-	b.WriteString(`
-/* ── Prose fragment reveal ────────────────────────────────────────────────────
-   [data-fragment] list items are hidden by default and revealed one per step.
-   First fragment (index 0) is always visible on slide entry (step 0 / no
-   data-active-fragment) so the slide never looks empty on arrival.
-   Overview / print forces all fragments visible.
-   Transition gated behind prefers-reduced-motion like the slide-enter animation. */
-main.deck > .slide [data-fragment] { opacity: 0; }
-main.deck > .slide:not([data-active-fragment]) [data-fragment="0"] { opacity: 1; }
+	return `
+main.deck .slide [data-fragment] { opacity: 0; }
+main.deck .slide:not([data-active-fragment]) [data-fragment="0"],
+main.deck .slide [data-fragment].slides-fragment-visible { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
-  main.deck > .slide [data-fragment] { transition: opacity 220ms ease; }
+  main.deck .slide [data-fragment] { transition: opacity 220ms ease; }
 }
-`)
-	// Per-K: section[data-active-fragment="K"] makes fragments 0..K visible.
-	// CSS cannot express "data-fragment <= K", so enumerate all visible indices per
-	// active-fragment value up to navFragmentMax (same technique as stepSpotlightCSS).
-	for k := 0; k <= navFragmentMax; k++ {
-		ks := strconv.Itoa(k)
-		for j := 0; j <= k; j++ {
-			b.WriteString(`main.deck > .slide[data-active-fragment="` + ks + `"] [data-fragment="` + strconv.Itoa(j) + `"] { opacity: 1; }
-`)
-		}
-	}
-	// Overview grid and print: all fragments visible regardless of step.
-	b.WriteString(`main.deck.` + navOverviewClass + ` > .slide [data-fragment] { opacity: 1 !important; }
-@media print { main.deck > .slide [data-fragment] { opacity: 1 !important; } }
-`)
-	return b.String()
+@media print { main.deck .slide [data-fragment] { opacity: 1 !important; } }
+`
 }
 
 // navScript is the real lane's self-contained navigation controller, returned as
@@ -334,18 +174,16 @@ main.deck > .slide:not([data-active-fragment]) [data-fragment="0"] { opacity: 1;
 //     slide once the steps are exhausted; ArrowLeft reverses (step down, then to
 //     the previous slide's LAST step). The active step is written as
 //     data-active-step on the active slide so the theme CSS spotlights that step's
-//     lines. Steps are EPHEMERAL: the URL hash stays slide-only (#n), so a reload
-//     lands on the slide with no step applied. A slide with no stepped block is a
-//     plain one-press-per-slide slide exactly as before. This mirrors the fallback
+//     lines. The URL records click steps (#n/k), so links and reloads restore
+//     that absolute position. A slide-only link (#n) starts at step zero. A slide
+//     with no stepped block is a plain one-press-per-slide slide. This mirrors the fallback
 //     lane's runtime_script.go step-then-slide model, applied to real-lane code
 //     blocks. The active {index, step} syncs over the BroadcastChannel so the
 //     presenter and audience step together.
-//   - OVERVIEW GRID (`o`): toggles navOverviewClass on `main.deck`, so navStyle's
-//     overview rules lay every slide out as a scaled thumbnail card. While open,
-//     cards become keyboard-operable (role=button + tabindex); ArrowLeft/Right (and
-//     Up/Down by row) move a roving focus, Enter/Space (or a CLICK) jumps to that
-//     slide and closes the grid, and `o`/Esc close it. Closing restores the cards'
-//     attributes and the single-slide view. Island state is untouched throughout.
+//   - OVERVIEW (`o` or `/`): a searchable, focus-trapped text-card picker. The
+//     original slides stay hidden; DOM attributes and widget state are preserved.
+//     Arrow keys select cards, Enter/Space jumps, Esc restores the current step.
+//     `?` expands the shortcut reference. Hidden native surfaces pause rendering.
 //   - On every change, `history.replaceState(null, ”, '#'+n)` keeps the URL in
 //     sync without polluting history; `#N` deep-links on reload.
 //   - Zero slides is a no-op (every guard short-circuits), so an empty deck
@@ -392,6 +230,7 @@ func navScript() string {
   });
   if (!slides.length) return;
 
+` + navLinkScript() + `
   var ACTIVE = '` + navActiveClass + `';
   var OVERVIEW = '` + navOverviewClass + `';
   // present is true when this window was opened as the PRESENTER view: either
@@ -400,13 +239,11 @@ func navScript() string {
   // (no-?present) window stays the audience view. Both still share slide state and
   // the BroadcastChannel, so prev/next in either drives the other.
   var present = /(^|[?&])present(=|&|$)/.test(location.search) || /present/.test(location.hash);
-  var index = initialIndex();
-  // step is the ACTIVE click-step within the current slide (0 = no step lit yet;
-  // every emphasized line shows, the static-union look). It is ephemeral on
-  // purpose: the URL hash stays slide-only (#n), so a deep-link/reload lands on the
-  // slide with no step applied. A slide's step COUNT is the max data-steps among
-  // its code blocks (0 if none) — see stepCountFor.
-  var step = 0;
+  var initialPosition = readPosition(location.hash, slides.length);
+  var index = initialPosition.index;
+  // Step zero shows the static code union and the first prose fragment. Shared
+  // slide/step anchors restore an absolute position; show() clamps its budget.
+  var step = initialPosition.step;
   var overview = false;
   var dev = deck.getAttribute('data-dev') === '1';
 
@@ -426,6 +263,7 @@ func navScript() string {
   // transform, measures, and scales down only when content exceeds the viewport.
   // The enter animation is opacity-only, so this transform is never fought.
   function fitSlide() {
+    if (overview) return;
     var s = slides[index];
     if (!s) return;
     s.style.transform = 'none';
@@ -471,10 +309,12 @@ func navScript() string {
   }
   control('Previous slide (Left arrow)', '←', prev);
   control('Slide overview (O)', '▦', toggleOverview);
+  control('Keyboard shortcuts (?)', '?', function () { openOverview(true); });
   control('Fullscreen (F)', '⛶', toggleFullscreen);
   control('Blank screen (B)', '◐', toggleBlank);
   control('Next slide (Right arrow)', '→', next);
   deck.appendChild(controls);
+` + controlsActivityScript() + `
   var curtain = mkChrome('deck-curtain'); curtain.setAttribute('aria-hidden', 'true');
   curtain.addEventListener('click', toggleBlank);
   function toggleBlank() { blank = !blank; deck.classList.toggle('deck-blank', blank); }
@@ -524,6 +364,8 @@ func navScript() string {
     if (fragmentCounts[i] == null) fragmentCounts[i] = slides[i].querySelectorAll('[data-fragment]').length;
     return fragmentCounts[i];
   }
+
+` + navStepScript() + `
 
   // Subscribers notified after every committed slide change (local, hash, or a
   // change applied from the peer window). The presenter chrome uses this to keep
@@ -588,13 +430,9 @@ func navScript() string {
     if (channel) { try { channel.postMessage({ index: index, step: step }); } catch (e) {} }
     // Publish to the server so other machines (and the phone remote) follow. Relative
     // URL resolves against the deck page, so it works behind the --watch dev proxy.
-    try { fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: index, step: step }), keepalive: true }); } catch (e) {}
-  }
-
-  function initialIndex() {
-    var fromHash = parseInt((location.hash || '').replace('#', '').replace('present', ''), 10);
-    if (!isNaN(fromHash) && fromHash > 0) return Math.min(fromHash - 1, slides.length - 1);
-    return 0;
+    if (deck.getAttribute('data-live-sync') === '1') {
+      try { fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: index, step: step }), keepalive: true }).catch(function () {}); } catch (e) {}
+    }
   }
 
   // show(nextIndex, nextStep, push) commits a new (slide, step) position. nextStep
@@ -602,8 +440,8 @@ func navScript() string {
   // sentinel like Infinity to mean "this slide's LAST step" (prev() uses that to
   // land on the end of the previous slide's walkthrough). It toggles the active
   // class, writes data-active-step on the active slide (and clears it elsewhere) so
-  // the theme CSS spotlights the active step's lines, keeps the URL hash slide-only
-  // (#n — steps are ephemeral), broadcasts {index, step}, and notifies subscribers.
+  // the theme CSS spotlights the active step's lines, keeps the URL in sync
+  // (#n/k for a click step), broadcasts {index, step}, and notifies subscribers.
   function show(nextIndex, nextStep, push) {
     var prevIndex = index, prevStep = step;
     index = Math.max(0, Math.min(slides.length - 1, nextIndex));
@@ -630,9 +468,11 @@ func navScript() string {
       } else {
         slides[i].removeAttribute('data-active-fragment');
       }
+      applyStep(i, on ? step : 0);
     }
     if (!overview) fitSlide(); // scale the now-active slide to fit; skip in the grid
     updateChrome();
+    if (push && !applyingRemote) revealControls();
     var source = slides[index].getAttribute('data-scene-source');
     for (var bg = 0; bg < backgroundSurfaces.length; bg++) {
       backgroundSurfaces[bg].classList.toggle('deck-background-active', backgroundSurfaces[bg].getAttribute('data-scene-source') === source && !overview);
@@ -641,12 +481,12 @@ func navScript() string {
       var oldMedia = slides[prevIndex].querySelectorAll('video, audio');
       for (var m = 0; m < oldMedia.length; m++) oldMedia[m].pause();
     }
-    if (prevIndex !== index || push) {
+    if (!overview && (prevIndex !== index || push)) {
       var media = slides[index].querySelectorAll('video[autoplay], audio[autoplay]');
       for (var m = 0; m < media.length; m++) { var play = media[m].play(); if (play && play.catch) play.catch(function () {}); }
     }
     deck.dispatchEvent(new CustomEvent('slides:change', { detail: { index: index, step: step } }));
-    if (push) history.replaceState(null, '', '#' + (index + 1) + (present ? 'present' : ''));
+    if (push) history.replaceState(null, '', positionHash(index, step, present));
     broadcast();
     if (index !== prevIndex || step !== prevStep || push) notifyChange();
   }
@@ -683,100 +523,22 @@ func navScript() string {
     }
   }
 
-  // --- Overview grid (the o key) ------------------------------------------
-  // Toggling the OVERVIEW class on the deck flips navStyle's overview rules on,
-  // laying every slide out as a scaled thumbnail card. Cards are made keyboard-
-  // operable (role=button + tabindex) only while overview is open, and a single
-  // delegated click handler (installed once below) jumps to the clicked card and
-  // closes overview — so a click on a thumbnail selects that slide.
-  function openOverview() {
-    if (overview) return;
-    overview = true;
-    deck.classList.add(OVERVIEW);
-    backgroundSurfaces.forEach(function (surface) { surface.classList.remove('deck-background-active'); });
-    for (var i = 0; i < slides.length; i++) {
-      var s = slides[i];
-      s.style.transform = ''; // drop the fit-scale; the grid uses its own zoom
-      s.setAttribute('tabindex', '0');
-      s.setAttribute('role', 'button');
-      s.setAttribute('aria-label', 'Go to slide ' + (i + 1));
-    }
-    // Focus the current slide's card so arrow keys + Enter work immediately.
-    if (slides[index]) slides[index].focus();
-  }
-
-  function closeOverview() {
-    if (!overview) return;
-    overview = false;
-    deck.classList.remove(OVERVIEW);
-    for (var i = 0; i < slides.length; i++) {
-      slides[i].removeAttribute('tabindex');
-      slides[i].removeAttribute('role');
-      slides[i].removeAttribute('aria-label');
-    }
-    show(index, step, false); // restore fitting and the selected background
-  }
-
-  function toggleOverview() { overview ? closeOverview() : openOverview(); }
-
-  // Jump to a slide from overview: select it, close the grid, land on its START
-  // (step 0), so picking a slide always begins its walkthrough fresh.
-  function jumpTo(i) {
-    closeOverview();
-    show(i, 0, true);
-  }
-
-  // One delegated click handler: find the [data-slide] card the click landed in.
-  deck.addEventListener('click', function (event) {
-    if (!overview) return;
-    var node = event.target;
-    while (node && node !== deck && !node.hasAttribute('data-slide')) node = node.parentNode;
-    if (!node || node === deck) return;
-    var i = slides.indexOf(node);
-    if (i >= 0) { event.preventDefault(); jumpTo(i); }
-  });
-
-  // Roving focus within the grid: track which card has focus so arrows move it.
-  function focusedIndex() {
-    var el = document.activeElement;
-    var i = slides.indexOf(el);
-    return i >= 0 ? i : index;
-  }
-  function focusCard(i) {
-    i = Math.max(0, Math.min(slides.length - 1, i));
-    if (slides[i]) slides[i].focus();
-  }
+` + overviewScript() + `
 
   document.addEventListener('keydown', function (event) {
-    var tag = event.target && event.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (event.target && event.target.closest('[contenteditable]'))) return;
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (overview) { overviewKey(event); return; }
+    var target = event.target, tag = target && target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.closest('[contenteditable], [role="slider"], [role="spinbutton"], [role="listbox"], [role="tablist"]'))) return;
+    // Let focused controls activate themselves rather than also advancing a slide.
+    if ((event.key === ' ' || event.key === 'Enter') && target && target.closest('button, a, summary, [role="button"]')) return;
     if (event.key === 'b' || event.key === 'B' || (event.key === 'Escape' && blank)) { event.preventDefault(); toggleBlank(); return; }
-    if (!overview && event.key === 'Home') { event.preventDefault(); show(0, 0, true); return; }
-    if (!overview && event.key === 'End') { event.preventDefault(); show(slides.length - 1, 0, true); return; }
-    if (!overview && event.key === 'PageDown') { event.preventDefault(); next(); return; }
-    if (!overview && event.key === 'PageUp') { event.preventDefault(); prev(); return; }
-
-    // o toggles the overview grid from either state.
-    if (event.key === 'o' || event.key === 'O') { event.preventDefault(); toggleOverview(); return; }
-
-    if (overview) {
-      // While the grid is open, the keyboard drives card selection, not slide nav.
-      if (event.key === 'Escape') { event.preventDefault(); closeOverview(); return; }
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault(); jumpTo(focusedIndex()); return;
-      }
-      if (event.key === 'ArrowRight') { event.preventDefault(); focusCard(focusedIndex() + 1); return; }
-      if (event.key === 'ArrowLeft') { event.preventDefault(); focusCard(focusedIndex() - 1); return; }
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        // Approximate row movement from the on-screen column count.
-        event.preventDefault();
-        var cols = columnCount();
-        focusCard(focusedIndex() + (event.key === 'ArrowDown' ? cols : -cols));
-        return;
-      }
-      return; // swallow other keys while overview is open
-    }
+    if (event.key === 'Home') { event.preventDefault(); show(0, 0, true); return; }
+    if (event.key === 'End') { event.preventDefault(); show(slides.length - 1, 0, true); return; }
+    if (event.key === 'PageDown') { event.preventDefault(); next(); return; }
+    if (event.key === 'PageUp') { event.preventDefault(); prev(); return; }
+    if (event.key === 'o' || event.key === 'O' || event.key === '/') { event.preventDefault(); openOverview(); return; }
+    if (event.key === '?') { event.preventDefault(); openOverview(true); return; }
 
     // Single-slide navigation (overview closed).
     if (event.key === 'ArrowRight' || event.key === ' ') { event.preventDefault(); next(); }
@@ -787,20 +549,11 @@ func navScript() string {
     else if ((event.key === 'p' || event.key === 'P') && !present) { event.preventDefault(); openPresenter(); }
   });
 
-  // columnCount estimates how many cards sit per row from the grid's computed
-  // template, so ArrowUp/Down can move by a row. Falls back to 1 if unknown.
-  function columnCount() {
-    try {
-      var tmpl = getComputedStyle(deck).gridTemplateColumns;
-      var n = tmpl ? tmpl.split(' ').filter(function (x) { return x && x !== 'none'; }).length : 0;
-      return n > 0 ? n : 1;
-    } catch (e) { return 1; }
-  }
-
-  // A hash change is a slide-only deep link (#n); steps are ephemeral, so land on
-  // the target slide at step 0. Pass push=false so we don't rewrite the hash we
-  // just read.
-  window.addEventListener('hashchange', function () { show(initialIndex(), 0, false); });
+  // Links and back/forward history restore the slide and its absolute click step.
+  window.addEventListener('hashchange', function () {
+    var target = readPosition(location.hash, slides.length);
+    show(target.index, target.step, false);
+  });
 
   window.SlidesNav = {
     show: show, next: next, prev: prev,
@@ -817,7 +570,7 @@ func navScript() string {
     openPresenter: openPresenter,
     isPresenter: function () { return present; }
   };
-  show(index, 0, false);
+  show(index, step, false);
 
   // Presenter chrome: only when this window is the presenter view. It is handed a
   // small api so it drives slide state through the SAME functions (so its prev/next
