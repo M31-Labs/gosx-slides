@@ -234,7 +234,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		out = "dist"
 	}
 	framesDir := out
-	if opts.Format == "pdf" || opts.Format == "video" {
+	if opts.Format == "pdf" || opts.Format == "video" || opts.Format == "pptx" {
 		framesDir = filepath.Dir(out)
 		if filepath.Ext(out) == "" {
 			framesDir = out
@@ -242,6 +242,18 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 	}
 	if err = os.MkdirAll(framesDir, 0755); err != nil {
 		return err
+	}
+	var pptx *pptxWriter
+	if opts.Format == "pptx" {
+		path := out
+		if filepath.Ext(out) == "" {
+			path = filepath.Join(out, "deck.pptx")
+		}
+		pptx, err = newPPTX(path)
+		if err != nil {
+			return err
+		}
+		defer pptx.abort()
 	}
 	var pages strings.Builder
 	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + pdfPageStyle[7:len(pdfPageStyle)-8] + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
@@ -340,6 +352,13 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			if opts.Steps {
 				label += fmt.Sprintf(" — step %d", step)
 			}
+			if pptx != nil {
+				if err = pptx.add(pixels, label, extractSlideNotes(slide)); err != nil {
+					return err
+				}
+				pageCount++
+				continue
+			}
 			fmt.Fprintf(&pages, `<section class="slide" data-slide="%d"><img class="capture-frame" alt="%s" src="data:image/png;base64,%s"><p class="capture-description">%s</p></section>`, pageCount, html.EscapeString(label), base64.StdEncoding.EncodeToString(pixels), html.EscapeString(slidePlainText(slide)))
 			pageCount++
 		}
@@ -350,6 +369,9 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			return fmt.Errorf("ffmpeg video encode: %w: %.1000s", err, videoLog.String())
 		}
 		return nil
+	}
+	if pptx != nil {
+		return pptx.finish(deck.title())
 	}
 	pages.WriteString(`<script>` + navScript() + `</script></main></body></html>`)
 	if opts.Format == "frames" {

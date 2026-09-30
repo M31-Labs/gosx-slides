@@ -21,3 +21,9 @@ var readabilityScript string
 
 //go:embed assets/code-morph.js
 var codeMorphScript string
+
+//go:embed assets/editing.js
+var editingScript string
+
+//go:embed assets/editing.css
+var editingStyle string

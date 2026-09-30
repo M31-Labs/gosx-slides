@@ -49,8 +49,8 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
-	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" {
-		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, or video)", opts.Format)
+	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
+		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, video, or pptx)", opts.Format)
 	}
 	if opts.Seconds == 0 {
 		opts.Seconds = 2
@@ -61,9 +61,9 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	if opts.Seconds < 0.1 || opts.Seconds > 60 || math.IsNaN(opts.Seconds) || math.IsInf(opts.Seconds, 0) || opts.FPS < 1 || opts.FPS > 60 {
 		return fmt.Errorf("video seconds must be 0.1–60 and fps 1–60")
 	}
-	if opts.Capture || opts.Steps || format == "frames" || format == "video" {
+	if opts.Capture || opts.Steps || format == "frames" || format == "video" || format == "pptx" {
 		if format == "" || format == "spa" {
-			return fmt.Errorf("--capture and --steps require single, pdf, frames, or video")
+			return fmt.Errorf("--capture and --steps require single, pdf, frames, video, or pptx")
 		}
 		opts.Format = format
 		return exportCaptured(deck, opts)

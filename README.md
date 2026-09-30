@@ -47,10 +47,37 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 
 Try `slides serve examples/authoring-lab`. **M** opens the motion studio: preview
 preset, duration, delay, and easing; pause, replay, reverse, or scrub the element
-timeline, then copy a directive back into Markdown. Preview edits last for the
-current page session. Pause/play also controls active native shader and Scene3D
+timeline, then copy a directive back into Markdown. Motion-studio preview edits last for the
+current page session. Use the source editor below to persist directives. Pause/play also controls active native shader and Scene3D
 clocks; element scrubbing and reversing affect DOM animations. Scene3D poses are
 controlled by their absolute click steps.
+
+**Persistent source editing:** `slides serve my-deck --edit`, then press **E**
+or click **Edit**. Save validates the deck and its components, writes `deck.md`
+atomically, and reloads the preview at the current anchor. Stale edits report a
+conflict; **Reload source** loads the latest file. The editor accepts up to 1 MiB
+and refuses symlinked source files. Browser editing is available in plain serve;
+use `--watch` separately for filesystem hot-swap.
+
+**Annotations:** press **D** for pen or **L** for laser, or click **Draw**.
+The toolbar provides a color picker, undo, clear, and done. Ink is per slide and
+remains while navigating in the current tab; a reload clears it. Annotations
+stay local to the presenter tab and are excluded from capture exports. Pointer
+updates are batched, with bounded stroke and point storage.
+
+**PowerPoint:** `slides export my-deck --format pptx --steps --out deck.pptx`.
+Chrome captures the actual rendered graphics into 16:9 image slides; `--steps`
+emits every click state. Speaker notes are editable text. Slide content is a
+captured image, so DOM text and shapes are not individually editable in PowerPoint.
+The PPTX writer streams image parts and needs no JavaScript or office toolchain.
+
+**Browser measurements:** `slides bench my-deck --runs 3` emits JSON with server
+setup time, fresh-profile browser readiness, resource transfer bytes, JS heap,
+DOM nodes, and hydrated island count. Chrome is required. Server setup includes
+cached runtime staging; browser timing starts at navigation and includes runtime
+activation plus active graphic readiness. Transfer includes the shared WASM;
+measure the same deck and browser when comparing releases. The command reports
+startup, not frame-rate performance.
 
 Give a slide an ID and ordered cues in its YAML fence:
 
