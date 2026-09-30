@@ -734,6 +734,9 @@ func stageRuntimeAssets(deckDir string, rebuild, needsWASM bool) (string, error)
 		}
 	}
 
+	if err := stageRuntimeManifest(deckDir, buildDir); err != nil {
+		return "", fmt.Errorf("stage runtime integrity: %w", err)
+	}
 	return deckDir, nil
 }
 

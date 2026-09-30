@@ -189,8 +189,9 @@ func StartDevLoop(deckDir string, cfg DevLoopConfig) (*DevLoop, error) {
 	if err != nil {
 		return nil, err
 	}
-	compiled, _ := deck.compileComponents()
-	if _, err := stageRuntimeAssets(absDir, cfg.RebuildRuntime, len(compiled) > 0); err != nil {
+	// Watch sessions can gain their first island at any time. Prepare the cached
+	// WASM bridge up front; native-only pages still emit no WASM runtime manifest.
+	if _, err := stageRuntimeAssets(absDir, cfg.RebuildRuntime, true); err != nil {
 		return nil, fmt.Errorf("stage runtime assets: %w", err)
 	}
 	if err := StageIslandPrograms(absDir); err != nil {

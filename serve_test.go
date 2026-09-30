@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"m31labs.dev/gosx/buildmanifest"
 )
 
 // realDeckDir is the shipped end-to-end example: prose + a standalone <Counter/>.
@@ -159,6 +161,30 @@ func TestNewServerServesRuntimeAssets(t *testing.T) {
 		t.Fatalf("NewServer(StageRuntime): %v", err)
 	}
 	handler := app.Build()
+
+	t.Run("verified manifest", func(t *testing.T) {
+		wasm, err := os.ReadFile(filepath.Join(buildDir, "gosx-runtime.wasm"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		match := regexp.MustCompile(`<script[^>]*id="gosx-manifest"[^>]*>(.*?)</script>`).FindSubmatch(rec.Body.Bytes())
+		if len(match) != 2 {
+			t.Fatal("missing page manifest")
+		}
+		var manifest struct {
+			Runtime struct {
+				Hash string `json:"hash"`
+			} `json:"runtime"`
+		}
+		if err := json.Unmarshal(match[1], &manifest); err != nil {
+			t.Fatal(err)
+		}
+		if manifest.Runtime.Hash != buildmanifest.ContentHash(wasm) {
+			t.Fatalf("runtime cannot be verified: %q", manifest.Runtime.Hash)
+		}
+	})
 
 	// wasm_exec.js comes straight from the Go toolchain — always stageable.
 	t.Run("wasm_exec.js", func(t *testing.T) {

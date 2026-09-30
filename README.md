@@ -1,5 +1,9 @@
 # gosx-slides
 
+The v0.2.0 release adds native Selena shaders and Scene3D diagrams, configurable
+element and slide motion with replay, faster deck serving, and GoSX v0.57.1.
+Install the tagged release with `go install m31labs.dev/gosx-slides/cmd/slides@v0.2.0`.
+
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
 your `{expr}` is evaluated by the GoSX compiler — no JavaScript toolchain.
@@ -125,6 +129,8 @@ publish WASM builds atomically, and stage every current bootstrap feature chunk.
 Static snapshots skip runtime builds, and exported decks disable live SSE sync.
 Images use lazy loading and asynchronous decoding. The dev watcher includes
 shader and scene JSON sources in nested directories.
+Watch mode stages the cached WASM bridge so islands added during an editing
+session hydrate without restarting. Native-only pages still load only bootstrap JS.
 
 A deck is a **directory** with `deck.md` plus one `<Name>.gsx` per island:
 
