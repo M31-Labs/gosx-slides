@@ -29,6 +29,56 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 
 ## A deck
 
+### Native shaders and Scene3D
+
+GoSX v0.57.1's native graphics engine is available directly in Markdown:
+
+```md
+<Shader Src="shaders/ink.sel" Shape="torus" Label="Shader illustration" />
+<Scene3D Src="scenes/network.json" Shader="shaders/ink.sel" Targets="processor" />
+```
+
+`Shader` accepts Selena `.sel` source, optional `Material` selection, a `Uniforms`
+JSON file, and `Shape="plane|sphere|box|torus"`. `Scene3D` accepts a GoSX SceneIR
+document or full Scene3D props, including models, labels, particles, lights,
+animation, and post effects. Optional `Shader` and comma-separated `Targets`
+apply a Selena material to selected objects. All sources are relative to the deck.
+Shader compilation produces both GLSL and WGSL before serving the page.
+
+Set headmatter `scene: shaders/aurora.sel` or `scene: scenes/network.json` for a
+background. A slide's YAML fence can replace it or set `scene: false`. Each
+distinct background mounts once per page; GoSX pauses hidden surfaces. Defaults
+cap native graphics at 30 FPS, 1.5 device pixel ratio, and two million pixels,
+with adaptive quality. Scene JSON can override these budgets.
+
+Try `slides serve examples/shader-lab`. This native graphics deck needs no WASM
+island runtime. SPA exports retain live graphics; single-file and PDF exports
+retain their accessible fallback labels. `slides doctor` reports invalid sources
+and shader compilation failures; deck analysis includes a graphics inventory.
+
+Navigation also includes a hover/focus toolbar, touch swipes, Home/End,
+PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing
+media and emits `slides:change` with zero-based `index` and `step` values.
+
+### Upgrade and performance inventory
+
+The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
+gotreesitter **v0.55.1**, and Sirena **v0.1.0**. Existing Sirena/Mermaid diagrams,
+live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
+available. The native graphics components add the current GoSX scene engine
+without a separate renderer or frontend build system.
+
+Production servers now compile the deck once at startup. A 20-slide server
+benchmark improved from **11.06 ms to 0.29–1.00 ms per request**, with allocated bytes
+falling from **11.36 MB to 1.36 MB**. These are local synthetic measurements;
+graphics performance depends on the device and authored scene.
+
+Runtime caches track the resolved dependency graph and selected Go toolchain,
+publish WASM builds atomically, and stage every current bootstrap feature chunk.
+Static snapshots skip runtime builds, and exported decks disable live SSE sync.
+Images use lazy loading and asynchronous decoding. The dev watcher includes
+shader and scene JSON sources in nested directories.
+
 A deck is a **directory** with `deck.md` plus one `<Name>.gsx` per island:
 
 ```text

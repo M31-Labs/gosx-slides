@@ -256,6 +256,9 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString(cls)
 	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	if source := resolveSlideLayer(slide, "scene", layers.Scene); graphicsSceneSource(source) {
+		b.WriteString(" data-scene-source={" + strconv.Quote(source) + "}")
+	}
 	// Per-slide `transition:` frontmatter overrides the deck-level enter
 	// animation for this one slide (fade | none; anything else stamps nothing).
 	if tr := slideTransition(slide); tr != "" {
@@ -535,7 +538,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// <img> with both as string-literal attribute expressions so a src/alt
 		// containing `<`, `{`, `"` can never corrupt the generated source. Themes
 		// constrain it to the slide with object-fit (see themes_css.go).
-		return "<img src={" + strconv.Quote(n.Attr("src")) + "} alt={" + strconv.Quote(n.Attr("alt")) + "}/>"
+		return "<img loading=\"lazy\" decoding=\"async\" src={" + strconv.Quote(n.Attr("src")) + "} alt={" + strconv.Quote(n.Attr("alt")) + "}/>"
 
 	case mdpp.NodeTable:
 		return lowerTableGSX(n)
@@ -774,6 +777,9 @@ func lowerChildrenGSX(n *mdpp.Node) string {
 // the raw mdpp-captured props string (already name={…}/name="…" shaped); it is
 // carried through verbatim so the island receives exactly the authored props.
 func componentTagGSX(name, props string) string {
+	if isGraphicsComponent(name) {
+		return "{" + graphicsNamespace + ".Render(" + strconv.Quote(graphicsKey(name, props)) + ")}"
+	}
 	if name == "" {
 		return ""
 	}

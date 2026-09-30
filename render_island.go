@@ -423,6 +423,12 @@ func lowerTextLiteral(r islandMounter, literal string, components map[string]*co
 // props. An unresolved component (not compiled / nil map) renders as an inert
 // span so the page degrades instead of panicking.
 func renderComponentRef(r islandMounter, ref ComponentRef, components map[string]*compiledComponent) gosx.Node {
+	if isGraphicsComponent(ref.Name) {
+		if mounter, ok := r.(interface{ RenderGraphic(string) gosx.Node }); ok {
+			return mounter.RenderGraphic(graphicsKey(ref.Name, ref.Props))
+		}
+		return gosx.Text("")
+	}
 	cc := components[ref.Name]
 	if cc == nil || cc.prog == nil {
 		return gosx.El("span",

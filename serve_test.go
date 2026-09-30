@@ -342,6 +342,18 @@ func TestStageRuntimeAssetsRebuild(t *testing.T) {
 		t.Fatalf("write sentinel: %v", err)
 	}
 
+	root, err := resolveGoSXRoot(deckDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := runtimeCacheKey(root, deckDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(buildDir, ".slides-runtime-version"), []byte(key), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	// Cache hit: rebuild=false must NOT touch the existing (stale-but-plausible) artifact.
 	if _, err := StageRuntimeAssets(deckDir, false); err != nil {
 		t.Fatalf("StageRuntimeAssets(rebuild=false): %v", err)
