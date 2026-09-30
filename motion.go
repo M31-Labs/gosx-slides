@@ -21,6 +21,11 @@ func motionDirectiveAttrs(n *mdpp.Node) map[string]string {
 	if attrs["trigger"] == "" {
 		attrs["trigger"] = "view"
 	}
+	switch attrs["replay"] {
+	case "once", "step":
+	default:
+		attrs["replay"] = "slide"
+	}
 	return attrs
 }
 
@@ -42,6 +47,7 @@ func lowerMotionDirectiveGSX(n *mdpp.Node) string {
 	attrs := motionDirectiveAttrs(n)
 	var b strings.Builder
 	b.WriteString("<Motion")
+	b.WriteString(" data-slides-motion-replay=" + strconv.Quote(attrs["replay"]))
 	for _, key := range []string{"preset", "trigger", "duration", "delay", "easing", "distance", "respect-reduced-motion"} {
 		if value := attrs[key]; value != "" {
 			prop := key
@@ -77,7 +83,7 @@ func lowerMotionDirectiveNode(n *mdpp.Node, children []gosx.Node) gosx.Node {
 	if value, err := strconv.ParseBool(attrs["respect-reduced-motion"]); err == nil {
 		props.RespectReducedMotion = &value
 	}
-	extra := gosx.Attrs(gosx.Attr("class", n.Attr("class")), gosx.Attr("id", n.Attr("id")))
+	extra := gosx.Attrs(gosx.Attr("class", n.Attr("class")), gosx.Attr("id", n.Attr("id")), gosx.Attr("data-slides-motion-replay", attrs["replay"]))
 	for _, key := range []string{"split", "stagger"} {
 		if value := attrs[key]; value != "" {
 			extra = append(extra, gosx.Attr("data-gosx-motion-"+key, value))

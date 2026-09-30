@@ -89,7 +89,9 @@ Your content stays readable before the bootstrap loads.
 
 Presets are `fade`, `slide-up`, `slide-down`, `slide-left`, `slide-right`, and
 `zoom-in`. Durations and delays are milliseconds. `trigger=view` is the slide
-default: play on first visibility; `trigger=load` starts on page load. Use
+default: start when visible; `trigger=load` starts on page load. Motion replays
+on each slide entry by default (`replay=slide`). Set `replay=once` for a single
+entrance, or `replay=step` to repeat on each presentation step as well. Use
 `split=word`, `split=char`, or `split=line` with `stagger=60` for text-only
 entrances (the native splitter replaces the region's markup with text units). Motion
 respects reduced-motion preferences by default. This uses GoSX's shared

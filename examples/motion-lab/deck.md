@@ -27,12 +27,20 @@ layout: center
 transition-duration: 250ms
 transition-delay: 50ms
 transition-easing: linear
+reveal: true
 ```
 
 # One word at a time.
 
-:::motion {preset=fade split=word stagger=90 duration=400}
+:::motion {preset=fade split=word stagger=90 duration=400 replay=step}
 Let each word carry its weight.
 :::
 
-<!-- GoSX handles first-view motion and reduced-motion preferences. -->
+- First beat
+- Second beat
+
+:::motion {preset=fade duration=400 replay=once}
+This entrance plays once.
+:::
+
+<!-- GoSX handles repeated entry, step motion and reduced-motion preferences. -->

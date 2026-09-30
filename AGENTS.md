@@ -273,7 +273,9 @@ container stay structured.
 
 `:::motion {preset=slide-up duration=450 delay=80 easing=ease-out distance=24}`
 wraps Markdown content in the GoSX managed Motion builtin. Trigger defaults to
-`view` (first visibility), and `load` is also supported. Presets: fade, slide-up,
+`view`, and `load` is also supported. Replay defaults to `slide` (every entry);
+`replay=once` disables repetition and `replay=step` also repeats on click steps.
+Presets: fade, slide-up,
 slide-down, slide-left, slide-right, zoom-in. Times are milliseconds. Text-only
 regions can use `split=word|char|line` with `stagger=60`; splitting replaces inner
 markup with native text units. Reduced motion is respected by default. Both the

@@ -11,6 +11,9 @@ import (
 func TestManagedMotionMarkdownUsesNativeBootstrap(t *testing.T) {
 	deck := graphicsDeck(t, "# Motion\n\n:::motion {preset=slide-up trigger=view duration=450 delay=80 distance=24 .entrance #arrival}\n## Arrive with intent\n\nA **native** entrance.\n\n- One\n- Two\n:::\n", nil)
 	body := graphicsBody(t, deck)
+	if !strings.Contains(body, `data-slides-motion-replay="slide"`) {
+		t.Fatal("motion must replay on slide entry by default")
+	}
 	for _, want := range []string{`data-gosx-motion-preset="slide-up"`, `data-gosx-motion-trigger="view"`, `data-gosx-motion-duration="450"`, `data-gosx-motion-delay="80"`, `data-gosx-motion-distance="24"`, `data-gosx-motion-respect-reduced="true"`, `class="entrance"`, `id="arrival"`, `<h2>Arrive with intent</h2>`, `<strong>native</strong>`, `<li>`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("managed motion missing %s", want)
