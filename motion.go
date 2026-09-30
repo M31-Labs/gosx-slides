@@ -67,6 +67,11 @@ func lowerMotionDirectiveGSX(n *mdpp.Node) string {
 			b.WriteString(" data-gosx-motion-" + key + "=" + strconv.Quote(value))
 		}
 	}
+	for _, key := range []string{"data-slides-motion-cue", "data-slides-motion-after", "data-slides-motion-group", "data-slides-motion-step"} {
+		if value := motionCueAttrs(n)[key]; value != "" {
+			b.WriteString(" " + key + "=" + strconv.Quote(value))
+		}
+	}
 	b.WriteString(">" + lowerChildrenGSX(n) + "</Motion>")
 	return b.String()
 }
@@ -88,6 +93,9 @@ func lowerMotionDirectiveNode(n *mdpp.Node, children []gosx.Node) gosx.Node {
 		if value := attrs[key]; value != "" {
 			extra = append(extra, gosx.Attr("data-gosx-motion-"+key, value))
 		}
+	}
+	for key, value := range motionCueAttrs(n) {
+		extra = append(extra, gosx.Attr(key, value))
 	}
 	return server.Motion(props, extra, gosx.Fragment(children...))
 }

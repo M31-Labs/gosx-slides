@@ -186,6 +186,7 @@ var knownLayouts = map[string]bool{
 	"quote":    true, // centered oversized pull-quote
 	"section":  true, // section divider: big heading + accent rule
 	"two-cols": true, // body flows into two balanced columns (headings span)
+	"split":    true, // explicit two-panel grid; responsive stacking
 	"full":     true, // full-bleed: no padding (e.g. a cover image)
 }
 

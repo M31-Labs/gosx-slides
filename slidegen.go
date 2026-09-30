@@ -256,6 +256,11 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString(cls)
 	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	for _, key := range []string{"data-slide-id", "data-slide-cues", "data-morph-duration"} {
+		if value := slideIdentityAttrs(slide)[key]; value != "" {
+			b.WriteString(" " + key + "={" + strconv.Quote(value) + "}")
+		}
+	}
 	if source := resolveSlideLayer(slide, "scene", layers.Scene); graphicsSceneSource(source) {
 		b.WriteString(" data-scene-source={" + strconv.Quote(source) + "}")
 	}
@@ -596,7 +601,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// the helper passes "" to fence.Options which selects the default theme).
 		return "{" + diagramNamespace + "." + diagramRenderFunc + "(" +
 			strconv.Quote(n.Literal) + ", " + strconv.Quote(n.Attr("theme")) + ", " +
-			strconv.Quote(n.Attr("view")) + ")}"
+			strconv.Quote(n.Attr("view")) + ", " + strconv.Quote(n.Attr("diagram")) + ")}"
 
 	case mdpp.NodeSoftBreak:
 		return "{\" \"}"
@@ -699,6 +704,9 @@ func lowerContainerDirectiveGSX(n *mdpp.Node) string {
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
 	if name == "motion" {
 		return lowerMotionDirectiveGSX(n)
+	}
+	if name == "code-morph" {
+		return lowerCodeMorphGSX(n)
 	}
 	title := strings.TrimSpace(n.Attr("title"))
 	if name == "details" {

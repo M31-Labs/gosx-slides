@@ -25,8 +25,10 @@ import (
 // computes the next position (step-then-slide) and clamps against its own DOM, so
 // the server stays a dumb relay.
 type presenterState struct {
-	Index int `json:"index"`
-	Step  int `json:"step"`
+	Index    int    `json:"index"`
+	Step     int    `json:"step"`
+	Source   string `json:"source,omitempty"`
+	Sequence uint64 `json:"sequence,omitempty"`
 }
 
 // presenterBroker fans one published position out to every subscribed SSE client
@@ -42,11 +44,18 @@ func newPresenterBroker() *presenterBroker {
 }
 
 func (b *presenterBroker) subscribe() chan presenterState {
+	ch, _ := b.subscribeSnapshot()
+	return ch
+}
+
+// subscribeSnapshot atomically captures replay state and subsequent updates.
+func (b *presenterBroker) subscribeSnapshot() (chan presenterState, presenterState) {
 	ch := make(chan presenterState, 8)
 	b.mu.Lock()
 	b.subs[ch] = struct{}{}
+	snapshot := b.state
 	b.mu.Unlock()
-	return ch
+	return ch, snapshot
 }
 
 func (b *presenterBroker) unsubscribe(ch chan presenterState) {
@@ -99,11 +108,10 @@ func (b *presenterBroker) handleEvents(w http.ResponseWriter, r *http.Request) {
 		_ = rc.SetWriteDeadline(time.Time{})
 	}
 
-	writeSSEState(w, b.current())
-	flusher.Flush()
-
-	ch := b.subscribe()
+	ch, snapshot := b.subscribeSnapshot()
 	defer b.unsubscribe(ch)
+	writeSSEState(w, snapshot)
+	flusher.Flush()
 	heartbeat := time.NewTicker(25 * time.Second)
 	defer heartbeat.Stop()
 	for {
@@ -143,6 +151,10 @@ func (b *presenterBroker) handleState(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		s.Index, _ = strconv.Atoi(r.FormValue("index"))
 		s.Step, _ = strconv.Atoi(r.FormValue("step"))
+	}
+	if len(s.Source) > 128 {
+		http.Error(w, "source exceeds 128 bytes", http.StatusBadRequest)
+		return
 	}
 	b.publish(s)
 	w.WriteHeader(http.StatusNoContent)

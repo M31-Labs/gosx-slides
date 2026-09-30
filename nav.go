@@ -345,8 +345,10 @@ func navScript() string {
   function stepCountFor(i) {
     if (i < 0 || i >= slides.length) return 0;
     if (stepCounts[i] != null) return stepCounts[i];
-    var max = 0;
-    var pres = slides[i].querySelectorAll('pre[data-steps], .slide-graphic[data-steps]');
+    var max = Math.max(0, (JSON.parse(slides[i].getAttribute("data-slide-cues") || "[]")).length - 1);
+    var motions = slides[i].querySelectorAll("[data-slides-motion-step]");
+    for (var q = 0; q < motions.length; q++) max = Math.max(max, Number(motions[q].getAttribute("data-slides-motion-step")) || 0);
+    var pres = slides[i].querySelectorAll('pre[data-steps]:not(.slides-code-morph pre), .slide-graphic[data-steps], .slides-code-morph[data-steps]');
     for (var p = 0; p < pres.length; p++) {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
       if (n > max) max = n;
@@ -388,13 +390,25 @@ func navScript() string {
   // step through code together, not just change slides together. Older browsers
   // without BroadcastChannel degrade silently to independent per-window navigation.
   var channel = null;
-  var applyingRemote = false;
+  var applyingRemote = false, initializing = true;
+  var sourceID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
+  var sequence = 0, pendingState = null, publishing = false;
+  var seenSources = new Map();
+  function acceptRemote(data) {
+    if (!data || typeof data.index !== 'number' || data.source === sourceID) return false;
+    if (data.source && typeof data.sequence === 'number') {
+      if (data.sequence <= (seenSources.get(data.source) || 0)) return false;
+      seenSources.set(data.source, data.sequence);
+      if (seenSources.size > 128) seenSources.delete(seenSources.keys().next().value);
+    }
+    return true;
+  }
   try {
     if (typeof BroadcastChannel !== 'undefined') {
       channel = new BroadcastChannel('gosx-slides:' + location.pathname);
       channel.onmessage = function (event) {
         var data = event && event.data;
-        if (!data || typeof data.index !== 'number') return;
+        if (!acceptRemote(data)) return;
         var remoteStep = typeof data.step === 'number' ? data.step : 0;
         if (data.index === index && remoteStep === step) return; // already there
         applyingRemote = true;
@@ -414,9 +428,12 @@ func navScript() string {
   try {
     if (typeof EventSource !== 'undefined' && deck.getAttribute('data-live-sync') === '1') {
       var sse = new EventSource('presenter/events');
+      var firstServerState = true, enteredWithAnchor = !!location.hash;
       sse.addEventListener('state', function (event) {
         var data; try { data = JSON.parse(event.data); } catch (e) { return; }
-        if (!data || typeof data.index !== 'number') return;
+        // An explicit bookmark owns the initial position; an unanchored audience joins the live room.
+        if (firstServerState) { firstServerState = false; if (enteredWithAnchor) return; }
+        if (!acceptRemote(data)) return;
         var remoteStep = typeof data.step === 'number' ? data.step : 0;
         if (data.index === index && remoteStep === step) return; // already there
         applyingRemote = true;
@@ -426,14 +443,21 @@ func navScript() string {
     }
   } catch (e) {}
 
+  // Coalesce fast stepping into one ordered POST stream. Origin and sequence also
+  // deduplicate BroadcastChannel/SSE delivery and prevent our own stale echoes.
+  function publishPending() {
+    if (publishing || !pendingState) return;
+    var data = pendingState; pendingState = null; publishing = true;
+    try {
+      fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true })
+        .catch(function () {}).finally(function () { publishing = false; publishPending(); });
+    } catch (e) { publishing = false; }
+  }
   function broadcast() {
-    if (applyingRemote) return;
-    if (channel) { try { channel.postMessage({ index: index, step: step }); } catch (e) {} }
-    // Publish to the server so other machines (and the phone remote) follow. Relative
-    // URL resolves against the deck page, so it works behind the --watch dev proxy.
-    if (deck.getAttribute('data-live-sync') === '1') {
-      try { fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: index, step: step }), keepalive: true }).catch(function () {}); } catch (e) {}
-    }
+    if (applyingRemote || (initializing && !location.hash)) return;
+    var data = { index: index, step: step, source: sourceID, sequence: ++sequence };
+    if (channel) { try { channel.postMessage(data); } catch (e) {} }
+    if (deck.getAttribute('data-live-sync') === '1') { pendingState = data; publishPending(); }
   }
 
   // show(nextIndex, nextStep, push) commits a new (slide, step) position. nextStep
@@ -445,6 +469,7 @@ func navScript() string {
   // (#n/k for a click step), broadcasts {index, step}, and notifies subscribers.
   function show(nextIndex, nextStep, push) {
     var prevIndex = index, prevStep = step;
+    if (nextIndex !== index) deck.dispatchEvent(new CustomEvent("slides:before-change", { detail: { from: prevIndex, to: Math.max(0, Math.min(slides.length - 1, nextIndex)) } }));
     index = Math.max(0, Math.min(slides.length - 1, nextIndex));
     var budget = stepCountFor(index);
     if (nextStep == null) nextStep = 0;
@@ -530,6 +555,10 @@ func navScript() string {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
     if (overview) { overviewKey(event); return; }
     var target = event.target;
+    // Native dialog dismissal can deliver the next key to its now-hidden input
+    // before focus restoration completes. That closed control cannot own a key.
+    if (target && target.closest('dialog:not([open])')) { target.blur(); target = deck; }
+    if (deck.querySelector('dialog[open]')) return;
     // Editors and composite widgets own their keyboard interaction, including
     // events from nested elements and space-separated ARIA fallback roles.
     if (target && target.closest('input, textarea, select, [contenteditable], [role~="textbox"], [role~="searchbox"], [role~="combobox"], [role~="slider"], [role~="spinbutton"], [role~="scrollbar"], [role~="listbox"], [role~="option"], [role~="tablist"], [role~="tab"], [role~="checkbox"], [role~="radio"], [role~="radiogroup"], [role~="switch"], [role~="tree"], [role~="treeitem"], [role~="grid"], [role~="treegrid"], [role~="gridcell"], [role~="menu"], [role~="menubar"], [role~="menuitem"], [role~="menuitemcheckbox"], [role~="menuitemradio"]')) return;
@@ -574,6 +603,7 @@ func navScript() string {
     isPresenter: function () { return present; }
   };
   show(index, step, false);
+  initializing = false;
 
   // Presenter chrome: only when this window is the presenter view. It is handed a
   // small api so it drives slide state through the SAME functions (so its prev/next

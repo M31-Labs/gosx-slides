@@ -3,6 +3,7 @@ package slides
 import (
 	"fmt"
 	"html"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,8 +22,12 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format string // "spa" (default), "single", or "pdf"
-	OutDir string // output directory (default "dist"); for pdf, may be a .pdf path
+	Format  string  // "spa" (default), "single", or "pdf"
+	Capture bool    // capture live graphics through Chrome for single/PDF
+	Steps   bool    // include every reveal/cue state in captured output
+	Seconds float64 // video hold time per state (default 2)
+	FPS     int     // video sampling rate (default 15)
+	OutDir  string  // output directory (default "dist"); for pdf, may be a .pdf path
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -44,8 +49,24 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
-	if format != "" && format != "spa" && format != "single" && format != "pdf" {
-		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
+	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" {
+		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, or video)", opts.Format)
+	}
+	if opts.Seconds == 0 {
+		opts.Seconds = 2
+	}
+	if opts.FPS == 0 {
+		opts.FPS = 15
+	}
+	if opts.Seconds < 0.1 || opts.Seconds > 60 || math.IsNaN(opts.Seconds) || math.IsInf(opts.Seconds, 0) || opts.FPS < 1 || opts.FPS > 60 {
+		return fmt.Errorf("video seconds must be 0.1–60 and fps 1–60")
+	}
+	if opts.Capture || opts.Steps || format == "frames" || format == "video" {
+		if format == "" || format == "spa" {
+			return fmt.Errorf("--capture and --steps require single, pdf, frames, or video")
+		}
+		opts.Format = format
+		return exportCaptured(deck, opts)
 	}
 	app, err := deck.NewServer(ServeOptions{StageRuntime: format == "" || format == "spa", Static: true})
 	if err != nil {

@@ -37,6 +37,7 @@ func motionReplayScript() string {
     currentIndex = next.index; currentStep = step;
     if (!entered && !stepped) return;
     next.slide.querySelectorAll('[data-slides-motion-replay]').forEach(function(element) {
+      if (element.hasAttribute('data-slides-motion-step') || element.hasAttribute('data-slides-motion-cue')) return;
       var mode = element.getAttribute('data-slides-motion-replay');
       if ((entered && mode !== 'once') || (stepped && mode === 'step')) restart(element);
     });

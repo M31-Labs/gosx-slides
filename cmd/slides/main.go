@@ -12,6 +12,8 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
+var version = "v0.4.0"
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "slides:", err)
@@ -205,9 +207,27 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out})
+		capture, rest := takeBoolFlag(rest, "capture")
+		steps, rest := takeBoolFlag(rest, "steps")
+		secondsText, rest, err := takeStringFlag(rest, "seconds", "2")
+		if err != nil {
+			return err
+		}
+		seconds, err := strconv.ParseFloat(secondsText, 64)
+		if err != nil {
+			return fmt.Errorf("invalid --seconds: %w", err)
+		}
+		fpsText, rest, err := takeStringFlag(rest, "fps", "15")
+		if err != nil {
+			return err
+		}
+		fps, err := strconv.Atoi(fpsText)
+		if err != nil {
+			return fmt.Errorf("invalid --fps: %w", err)
+		}
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Seconds: seconds, FPS: fps})
 	case "version":
-		fmt.Println("gosx-slides v0.3.0")
+		fmt.Println("gosx-slides " + version)
 		return nil
 	case "help", "-h", "--help":
 		usage()
@@ -329,7 +349,10 @@ Commands:
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
   build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
-  export [deck-dir] --format spa|single|pdf [--out dist] spa = hostable folder; single = one snapshot html; pdf = one-slide-per-page handout (needs chrome)
+  export [deck-dir] --format spa|single|pdf|frames|video [--out dist]
+    --capture    Render live graphics in single/PDF snapshots (needs Chrome)
+    --steps      Capture every click state (implies capture)
+    --seconds 2  Seconds per video state; --fps 15 (video needs ffmpeg)
   check [deck-dir]                                       title / slide / click / notes / layout counts
   inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
   validate [deck-dir] [--strict] [--profile standard|conference|demo|lecture]

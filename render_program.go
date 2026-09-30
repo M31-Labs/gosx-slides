@@ -319,11 +319,11 @@ type slidesDiagram struct{ deckTheme string }
 // the generated deck source — the gosx expression evaluator calls this at render
 // time, so the inline SVG is produced server-side with no JavaScript required.
 // A fence may name its own theme; an empty theme falls back to the deck's.
-func (d slidesDiagram) Render(source, theme, view string) gosx.Node {
+func (d slidesDiagram) Render(source, theme, view, diagram string) gosx.Node {
 	if theme == "" {
 		theme = d.deckTheme
 	}
-	return renderSirenaDiagram(source, theme, view, "")
+	return renderSirenaDiagram(source, theme, view, "", diagram)
 }
 
 // codeBlockNode renders a fenced code block to a syntax-highlighted

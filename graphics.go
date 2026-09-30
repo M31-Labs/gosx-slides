@@ -297,11 +297,11 @@ func graphicsStyle() string {
 main.deck .slide-graphic { width: 100%; height: min(54vh, 32rem); min-height: 12rem; border-radius: 1rem; overflow: hidden; background: var(--surface, #10141e); }
 main.deck .graphic-fallback { display: grid; place-items: center; height: 100%; min-height: 12rem; color: var(--muted, #aaa); }
 main.deck .graphic-error { color: #ff7979; white-space: pre-wrap; font-size: .8rem; }
-main.deck > .deck-graphics-background { position: fixed !important; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; pointer-events: none; display: none; }
-main.deck > .deck-graphics-background.deck-background-active { display: block; }
-main.deck:has(> .deck-graphics-background.deck-background-active) > .slide { background: transparent; z-index: 1; }
-@media (prefers-reduced-motion: reduce) { main.deck > .deck-graphics-background { display: none !important; } }
-@media print { main.deck > .deck-graphics-background { display: none !important; } }
+main.deck .deck-graphics-background { position: fixed !important; inset: 0; width: 100vw !important; height: 100vh !important; z-index: 0; pointer-events: none; display: none; }
+main.deck .deck-graphics-background.deck-background-active { display: block; }
+main.deck:has(.deck-graphics-background.deck-background-active) > .slide { background: transparent; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { main.deck .deck-graphics-background { display: none !important; } }
+@media print { main.deck .deck-graphics-background { display: none !important; } }
 `
 }
 

@@ -96,6 +96,7 @@ func LoadIslandDeck(dir string) (*IslandDeck, error) {
 	// Slide splitting is opt-in in mdpp; turn the flat document into a uniform
 	// NodeSlide layer (idempotent) before we walk it.
 	repairDeckHeadings(doc)
+	retainDiagramFenceOptions(doc)
 	mdpp.SplitSlides(doc)
 
 	deck := &IslandDeck{

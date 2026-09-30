@@ -1,0 +1,3856 @@
+{
+  "adaptiveQuality": true,
+  "ariaLabel": "Sirena diagram",
+  "background": "transparent",
+  "camera": {
+    "far": 100,
+    "fov": 50,
+    "near": 0.1,
+    "z": 11
+  },
+  "canvasAlpha": true,
+  "dragToRotate": true,
+  "fillHeight": true,
+  "maxDevicePixelRatio": 1.5,
+  "maxFrameRate": 30,
+  "maxPixels": 2000000,
+  "responsive": true,
+  "scene": {
+    "backendCaps": {
+      "capable": [
+        "webgpu",
+        "webgl",
+        "canvas2d"
+      ]
+    },
+    "environment": {
+      "ambientIntensity": 0.85
+    },
+    "labels": [
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "collision": "avoid",
+        "color": "#edf8f5",
+        "font": "600 16px sans-serif",
+        "id": "label:browser",
+        "maxLines": 1,
+        "maxWidth": 320,
+        "priority": 100,
+        "text": "Browser",
+        "whiteSpace": "pre",
+        "x": -5.146573249749776,
+        "y": 0.5610072169836169,
+        "z": 0.5
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "collision": "avoid",
+        "color": "#edf8f5",
+        "font": "600 16px sans-serif",
+        "id": "label:api",
+        "maxLines": 1,
+        "maxWidth": 320,
+        "priority": 100,
+        "text": "API",
+        "whiteSpace": "pre",
+        "x": -2.5929410525206764,
+        "y": 0.5610072169836169,
+        "z": 0.5
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "collision": "avoid",
+        "color": "#edf8f5",
+        "font": "600 16px sans-serif",
+        "id": "label:jobs",
+        "maxLines": 1,
+        "maxWidth": 320,
+        "priority": 100,
+        "text": "Job queue",
+        "whiteSpace": "pre",
+        "x": -0.03930885529157667,
+        "y": 0.5610072169836169,
+        "z": 0.5
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "collision": "avoid",
+        "color": "#edf8f5",
+        "font": "600 16px sans-serif",
+        "id": "label:worker",
+        "maxLines": 1,
+        "maxWidth": 320,
+        "priority": 100,
+        "text": "Worker",
+        "whiteSpace": "pre",
+        "x": 2.514323341937523,
+        "y": 0.5610072169836169,
+        "z": 0.5
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "collision": "avoid",
+        "color": "#edf8f5",
+        "font": "600 16px sans-serif",
+        "id": "label:db",
+        "maxLines": 1,
+        "maxWidth": 320,
+        "priority": 100,
+        "text": "Database",
+        "whiteSpace": "pre",
+        "x": 5.067955539166623,
+        "y": 0.5610072169836169,
+        "z": 0.5
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "color": "#bacdd2",
+        "font": "12px sans-serif",
+        "id": "label:edge:0",
+        "lineHeight": 16,
+        "maxLines": 1,
+        "maxWidth": 320,
+        "offsetY": 14,
+        "text": "enqueue",
+        "whiteSpace": "pre",
+        "x": -1.5014117894958647,
+        "y": 0.17261760522572828
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "color": "#bacdd2",
+        "font": "12px sans-serif",
+        "id": "label:edge:1",
+        "lineHeight": 16,
+        "maxLines": 1,
+        "maxWidth": 320,
+        "offsetY": 14,
+        "text": "request",
+        "whiteSpace": "pre",
+        "x": -3.7667017858083547,
+        "y": 0.17261760522572828
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "color": "#bacdd2",
+        "font": "12px sans-serif",
+        "id": "label:edge:2",
+        "lineHeight": 16,
+        "maxLines": 1,
+        "maxWidth": 320,
+        "offsetY": 14,
+        "text": "dispatch",
+        "whiteSpace": "pre",
+        "x": 1.3549544329136596,
+        "y": 0.17261760522572828
+      },
+      {
+        "anchorX": 0.5,
+        "anchorY": 0.5,
+        "background": "#101923",
+        "color": "#bacdd2",
+        "font": "12px sans-serif",
+        "id": "label:edge:3",
+        "lineHeight": 16,
+        "maxLines": 1,
+        "maxWidth": 320,
+        "offsetY": 14,
+        "text": "persist",
+        "whiteSpace": "pre",
+        "x": 3.7166148659326765,
+        "y": 0.17261760522572828
+      }
+    ],
+    "objects": [
+      {
+        "color": "#a8d7f2",
+        "id": "browser",
+        "kind": "sphere",
+        "materialKind": "standard",
+        "metalness": 0.15,
+        "radius": 0.43154401306432066,
+        "roughness": 0.35,
+        "segments": 32,
+        "wireframe": false,
+        "x": -5.146573249749776
+      },
+      {
+        "color": "#88cab9",
+        "depth": 0.35,
+        "height": 0.8630880261286413,
+        "id": "api",
+        "kind": "box",
+        "materialKind": "standard",
+        "metalness": 0.15,
+        "roughness": 0.35,
+        "width": 1.294632039192962,
+        "wireframe": false,
+        "x": -2.5929410525206764
+      },
+      {
+        "color": "#edc183",
+        "depth": 0.35,
+        "height": 0.8630880261286413,
+        "id": "jobs",
+        "kind": "box",
+        "materialKind": "standard",
+        "metalness": 0.15,
+        "roughness": 0.35,
+        "width": 2.0357793815519147,
+        "wireframe": false,
+        "x": -0.03930885529157667
+      },
+      {
+        "color": "#88cab9",
+        "depth": 0.35,
+        "height": 0.8630880261286413,
+        "id": "worker",
+        "kind": "box",
+        "materialKind": "standard",
+        "metalness": 0.15,
+        "roughness": 0.35,
+        "width": 1.5659906231891692,
+        "wireframe": false,
+        "x": 2.514323341937523
+      },
+      {
+        "color": "#b9a5f7",
+        "height": 0.8630880261286413,
+        "id": "db",
+        "kind": "cylinder",
+        "materialKind": "standard",
+        "metalness": 0.15,
+        "radiusBottom": 0.7829173471000368,
+        "radiusTop": 0.7829173471000368,
+        "roughness": 0.35,
+        "segments": 32,
+        "wireframe": false,
+        "x": 5.067955539166623
+      },
+      {
+        "color": "#658d98",
+        "emissive": 1,
+        "id": "edge:0",
+        "kind": "lines",
+        "lineSegments": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "lineWidth": 2,
+        "materialKind": "standard",
+        "points": [
+          {
+            "x": -1.9456250329241953,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -1.0571985460675342,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -1.0571985460675342,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -1.237198546067534,
+            "y": -0.09,
+            "z": -0.25
+          },
+          {
+            "x": -1.0571985460675342,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -1.237198546067534,
+            "y": 0.09,
+            "z": -0.25
+          }
+        ],
+        "wireframe": false
+      },
+      {
+        "color": "#658d98",
+        "emissive": 1,
+        "id": "edge:1",
+        "kind": "lines",
+        "lineSegments": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "lineWidth": 2,
+        "materialKind": "standard",
+        "points": [
+          {
+            "x": -4.293146499499552,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -3.2402570721171573,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -3.2402570721171573,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -3.4202570721171575,
+            "y": -0.09,
+            "z": -0.25
+          },
+          {
+            "x": -3.2402570721171573,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": -3.4202570721171575,
+            "y": 0.09,
+            "z": -0.25
+          }
+        ],
+        "wireframe": false
+      },
+      {
+        "color": "#658d98",
+        "emissive": 1,
+        "id": "edge:2",
+        "kind": "lines",
+        "lineSegments": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "lineWidth": 2,
+        "materialKind": "standard",
+        "points": [
+          {
+            "x": 0.9785808354843807,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 1.7313280303429384,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 1.7313280303429384,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 1.5513280303429384,
+            "y": -0.09,
+            "z": -0.25
+          },
+          {
+            "x": 1.7313280303429384,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 1.5513280303429384,
+            "y": 0.09,
+            "z": -0.25
+          }
+        ],
+        "wireframe": false
+      },
+      {
+        "color": "#658d98",
+        "emissive": 1,
+        "id": "edge:3",
+        "kind": "lines",
+        "lineSegments": [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "lineWidth": 2,
+        "materialKind": "standard",
+        "points": [
+          {
+            "x": 3.2973186535321077,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 4.135911078333246,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 4.135911078333246,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 3.9559110783332456,
+            "y": -0.09,
+            "z": -0.25
+          },
+          {
+            "x": 4.135911078333246,
+            "y": 0,
+            "z": -0.25
+          },
+          {
+            "x": 3.9559110783332456,
+            "y": 0.09,
+            "z": -0.25
+          }
+        ],
+        "wireframe": false
+      }
+    ],
+    "shadowMaxPixels": 1048576
+  },
+  "slideSteps": {
+    "version": 1,
+    "frames": [
+      {
+        "label": "Overview",
+        "commands": [
+          {
+            "kind": 1,
+            "objectId": "api"
+          },
+          {
+            "kind": 0,
+            "objectId": "api",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "api",
+                "kind": "box",
+                "width": 1.294632039192962,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -2.5929410525206764
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "api",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -2.5929410525206764,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:api"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:api",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:api",
+                "text": "API",
+                "x": -2.5929410525206764,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "browser",
+            "data": {
+              "geometry": "sphere",
+              "props": {
+                "id": "browser",
+                "kind": "sphere",
+                "radius": 0.43154401306432066,
+                "segments": 32,
+                "materialKind": "standard",
+                "color": "#a8d7f2",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -5.146573249749776
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "browser",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -5.146573249749776,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:browser",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:browser",
+                "text": "Browser",
+                "x": -5.146573249749776,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "db"
+          },
+          {
+            "kind": 0,
+            "objectId": "db",
+            "data": {
+              "geometry": "cylinder",
+              "props": {
+                "id": "db",
+                "kind": "cylinder",
+                "height": 0.8630880261286413,
+                "segments": 32,
+                "radiusTop": 0.7829173471000368,
+                "radiusBottom": 0.7829173471000368,
+                "materialKind": "standard",
+                "color": "#b9a5f7",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 5.067955539166623
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "db",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 5.067955539166623,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:db"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:db",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:db",
+                "text": "Database",
+                "x": 5.067955539166623,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:0",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:0",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -1.9456250329241953,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:0",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:0",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:0",
+                "text": "enqueue",
+                "x": -1.5014117894958647,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:1",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:1",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -4.293146499499552,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:1",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:1",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:1",
+                "text": "request",
+                "x": -3.7667017858083547,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:2",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:2",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 0.9785808354843807,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:2",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:2",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:2",
+                "text": "dispatch",
+                "x": 1.3549544329136596,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:3",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:3",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 3.2973186535321077,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:3",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:3",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:3",
+                "text": "persist",
+                "x": 3.7166148659326765,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "jobs",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "jobs",
+                "kind": "box",
+                "width": 2.0357793815519147,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#edc183",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -0.03930885529157667
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "jobs",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -0.03930885529157667,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:jobs",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:jobs",
+                "text": "Job queue",
+                "x": -0.03930885529157667,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "worker",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "worker",
+                "kind": "box",
+                "width": 1.5659906231891692,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 2.514323341937523
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "worker",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 2.514323341937523,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:worker",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:worker",
+                "text": "Worker",
+                "x": 2.514323341937523,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "label": "Request enters",
+        "commands": [
+          {
+            "kind": 1,
+            "objectId": "api"
+          },
+          {
+            "kind": 0,
+            "objectId": "api",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "api",
+                "kind": "box",
+                "width": 1.294632039192962,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -2.5929410525206764
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "api",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -2.5929410525206764,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:api"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:api",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:api",
+                "text": "API",
+                "x": -2.5929410525206764,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "browser",
+            "data": {
+              "geometry": "sphere",
+              "props": {
+                "id": "browser",
+                "kind": "sphere",
+                "radius": 0.43154401306432066,
+                "segments": 32,
+                "materialKind": "standard",
+                "color": "#a8d7f2",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -5.146573249749776
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "browser",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -5.146573249749776,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:browser",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:browser",
+                "text": "Browser",
+                "x": -5.146573249749776,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "db"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:db"
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:0"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:0"
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:1",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:1",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#ffd27e",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -4.293146499499552,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:1",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:1",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:1",
+                "text": "request",
+                "x": -3.7667017858083547,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:2"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:2"
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:3"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:3"
+          },
+          {
+            "kind": 1,
+            "objectId": "jobs"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:jobs"
+          },
+          {
+            "kind": 1,
+            "objectId": "worker"
+          },
+          {
+            "kind": 1,
+            "objectId": "label:worker"
+          }
+        ]
+      },
+      {
+        "label": "Focus the API",
+        "commands": [
+          {
+            "kind": 1,
+            "objectId": "api"
+          },
+          {
+            "kind": 0,
+            "objectId": "api",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "api",
+                "kind": "box",
+                "width": 1.294632039192962,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -2.5929410525206764
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "api",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1.2,
+              "scaleY": 1.2,
+              "scaleZ": 1.2,
+              "x": -2.5929410525206764,
+              "y": 0,
+              "z": 0.4
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:api"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:api",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:api",
+                "text": "API",
+                "x": -2.5929410525206764,
+                "y": 0.5610072169836169,
+                "z": 0.9,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "browser",
+            "data": {
+              "geometry": "sphere",
+              "props": {
+                "id": "browser",
+                "kind": "sphere",
+                "radius": 0.43154401306432066,
+                "segments": 32,
+                "materialKind": "standard",
+                "color": "#a8d7f2",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -5.146573249749776
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "browser",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -5.146573249749776,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:browser",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:browser",
+                "text": "Browser",
+                "x": -5.146573249749776,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "db"
+          },
+          {
+            "kind": 0,
+            "objectId": "db",
+            "data": {
+              "geometry": "cylinder",
+              "props": {
+                "id": "db",
+                "kind": "cylinder",
+                "height": 0.8630880261286413,
+                "segments": 32,
+                "radiusTop": 0.7829173471000368,
+                "radiusBottom": 0.7829173471000368,
+                "materialKind": "standard",
+                "color": "#b9a5f7",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 5.067955539166623
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "db",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 5.067955539166623,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:db"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:db",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:db",
+                "text": "Database",
+                "x": 5.067955539166623,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:0",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:0",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -1.9456250329241953,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:0",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:0",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:0",
+                "text": "enqueue",
+                "x": -1.5014117894958647,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:1",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:1",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -4.293146499499552,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:1",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:1",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:1",
+                "text": "request",
+                "x": -3.7667017858083547,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:2",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:2",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 0.9785808354843807,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:2",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:2",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:2",
+                "text": "dispatch",
+                "x": 1.3549544329136596,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:3",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:3",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 3.2973186535321077,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:3",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:3",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:3",
+                "text": "persist",
+                "x": 3.7166148659326765,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "jobs",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "jobs",
+                "kind": "box",
+                "width": 2.0357793815519147,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#edc183",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -0.03930885529157667
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "jobs",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -0.03930885529157667,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:jobs",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:jobs",
+                "text": "Job queue",
+                "x": -0.03930885529157667,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "worker",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "worker",
+                "kind": "box",
+                "width": 1.5659906231891692,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 2.514323341937523
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "worker",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 2.514323341937523,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:worker",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:worker",
+                "text": "Worker",
+                "x": 2.514323341937523,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "label": "Persist storage",
+        "commands": [
+          {
+            "kind": 1,
+            "objectId": "api"
+          },
+          {
+            "kind": 0,
+            "objectId": "api",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "api",
+                "kind": "box",
+                "width": 1.294632039192962,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -2.5929410525206764
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "api",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -2.5929410525206764,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:api"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:api",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:api",
+                "text": "API",
+                "x": -2.5929410525206764,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "browser",
+            "data": {
+              "geometry": "sphere",
+              "props": {
+                "id": "browser",
+                "kind": "sphere",
+                "radius": 0.43154401306432066,
+                "segments": 32,
+                "materialKind": "standard",
+                "color": "#a8d7f2",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -5.146573249749776
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "browser",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -5.146573249749776,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:browser",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:browser",
+                "text": "Browser",
+                "x": -5.146573249749776,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "db"
+          },
+          {
+            "kind": 0,
+            "objectId": "db",
+            "data": {
+              "geometry": "cylinder",
+              "props": {
+                "id": "db",
+                "kind": "cylinder",
+                "height": 0.8630880261286413,
+                "segments": 32,
+                "radiusTop": 0.7829173471000368,
+                "radiusBottom": 0.7829173471000368,
+                "materialKind": "standard",
+                "color": "#b9a5f7",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 5.067955539166623
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "db",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1.2,
+              "scaleY": 1.2,
+              "scaleZ": 1.2,
+              "x": 5.067955539166623,
+              "y": 0,
+              "z": 0.4
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:db"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:db",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:db",
+                "text": "Database",
+                "x": 5.067955539166623,
+                "y": 0.5610072169836169,
+                "z": 0.9,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:0",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:0",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -1.9456250329241953,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:0",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:0",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:0",
+                "text": "enqueue",
+                "x": -1.5014117894958647,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:1",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:1",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -4.293146499499552,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:1",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:1",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:1",
+                "text": "request",
+                "x": -3.7667017858083547,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:2",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:2",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 0.9785808354843807,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:2",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:2",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:2",
+                "text": "dispatch",
+                "x": 1.3549544329136596,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:3",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:3",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#ffd27e",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 3.2973186535321077,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:3",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:3",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:3",
+                "text": "persist",
+                "x": 3.7166148659326765,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "jobs",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "jobs",
+                "kind": "box",
+                "width": 2.0357793815519147,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#edc183",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -0.03930885529157667
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "jobs",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -0.03930885529157667,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:jobs",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:jobs",
+                "text": "Job queue",
+                "x": -0.03930885529157667,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "worker",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "worker",
+                "kind": "box",
+                "width": 1.5659906231891692,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 2.514323341937523
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "worker",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1.2,
+              "scaleY": 1.2,
+              "scaleZ": 1.2,
+              "x": 2.514323341937523,
+              "y": 0,
+              "z": 0.4
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:worker",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:worker",
+                "text": "Worker",
+                "x": 2.514323341937523,
+                "y": 0.5610072169836169,
+                "z": 0.9,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "label": "Overview",
+        "commands": [
+          {
+            "kind": 1,
+            "objectId": "api"
+          },
+          {
+            "kind": 0,
+            "objectId": "api",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "api",
+                "kind": "box",
+                "width": 1.294632039192962,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -2.5929410525206764
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "api",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -2.5929410525206764,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:api"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:api",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:api",
+                "text": "API",
+                "x": -2.5929410525206764,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "browser",
+            "data": {
+              "geometry": "sphere",
+              "props": {
+                "id": "browser",
+                "kind": "sphere",
+                "radius": 0.43154401306432066,
+                "segments": 32,
+                "materialKind": "standard",
+                "color": "#a8d7f2",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -5.146573249749776
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "browser",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -5.146573249749776,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:browser"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:browser",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:browser",
+                "text": "Browser",
+                "x": -5.146573249749776,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "db"
+          },
+          {
+            "kind": 0,
+            "objectId": "db",
+            "data": {
+              "geometry": "cylinder",
+              "props": {
+                "id": "db",
+                "kind": "cylinder",
+                "height": 0.8630880261286413,
+                "segments": 32,
+                "radiusTop": 0.7829173471000368,
+                "radiusBottom": 0.7829173471000368,
+                "materialKind": "standard",
+                "color": "#b9a5f7",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 5.067955539166623
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "db",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 5.067955539166623,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:db"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:db",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:db",
+                "text": "Database",
+                "x": 5.067955539166623,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:0",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:0",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -1.9456250329241953,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.0571985460675342,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -1.237198546067534,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:0",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:0"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:0",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:0",
+                "text": "enqueue",
+                "x": -1.5014117894958647,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:1",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:1",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": -4.293146499499552,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.2402570721171573,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": -3.4202570721171575,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:1",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:1"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:1",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:1",
+                "text": "request",
+                "x": -3.7667017858083547,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:2",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:2",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 0.9785808354843807,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.7313280303429384,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 1.5513280303429384,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:2",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:2"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:2",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:2",
+                "text": "dispatch",
+                "x": 1.3549544329136596,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "edge:3",
+            "data": {
+              "geometry": "lines",
+              "props": {
+                "id": "edge:3",
+                "kind": "lines",
+                "lineSegments": [
+                  [
+                    0,
+                    1
+                  ],
+                  [
+                    2,
+                    3
+                  ],
+                  [
+                    4,
+                    5
+                  ]
+                ],
+                "lineWidth": 2,
+                "materialKind": "standard",
+                "color": "#658d98",
+                "emissive": 1,
+                "wireframe": false,
+                "points": [
+                  {
+                    "x": 3.2973186535321077,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": -0.09,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 4.135911078333246,
+                    "y": 0,
+                    "z": -0.25
+                  },
+                  {
+                    "x": 3.9559110783332456,
+                    "y": 0.09,
+                    "z": -0.25
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "edge:3",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:edge:3"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:edge:3",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:edge:3",
+                "text": "persist",
+                "x": 3.7166148659326765,
+                "y": 0.17261760522572828,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "12px sans-serif",
+                "lineHeight": 16,
+                "color": "#bacdd2",
+                "background": "#101923",
+                "offsetY": 14,
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "jobs",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "jobs",
+                "kind": "box",
+                "width": 2.0357793815519147,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#edc183",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": -0.03930885529157667
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "jobs",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": -0.03930885529157667,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:jobs"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:jobs",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:jobs",
+                "text": "Job queue",
+                "x": -0.03930885529157667,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "worker",
+            "data": {
+              "geometry": "box",
+              "props": {
+                "id": "worker",
+                "kind": "box",
+                "width": 1.5659906231891692,
+                "height": 0.8630880261286413,
+                "depth": 0.35,
+                "materialKind": "standard",
+                "color": "#88cab9",
+                "wireframe": false,
+                "roughness": 0.35,
+                "metalness": 0.15,
+                "x": 2.514323341937523
+              }
+            }
+          },
+          {
+            "kind": 2,
+            "objectId": "worker",
+            "data": {
+              "rotationX": 0,
+              "rotationY": -0,
+              "rotationZ": 0,
+              "scaleX": 1,
+              "scaleY": 1,
+              "scaleZ": 1,
+              "x": 2.514323341937523,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "kind": 1,
+            "objectId": "label:worker"
+          },
+          {
+            "kind": 0,
+            "objectId": "label:worker",
+            "data": {
+              "kind": "label",
+              "props": {
+                "id": "label:worker",
+                "text": "Worker",
+                "x": 2.514323341937523,
+                "y": 0.5610072169836169,
+                "z": 0.5,
+                "priority": 100,
+                "maxWidth": 320,
+                "maxLines": 1,
+                "font": "600 16px sans-serif",
+                "color": "#edf8f5",
+                "background": "#101923",
+                "anchorX": 0.5,
+                "anchorY": 0.5,
+                "collision": "avoid",
+                "whiteSpace": "pre"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

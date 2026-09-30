@@ -15,6 +15,7 @@ import (
 	"m31labs.dev/mdpp"
 	"m31labs.dev/sirena/fence"
 	_ "m31labs.dev/sirena/layout" // registers the layout engine into sirena.Render
+	"strings"
 )
 
 // renderSirenaDiagram renders a sirena diagram source to an inline SVG <figure>
@@ -22,8 +23,13 @@ import (
 // non-empty SVG it returns a <figure class="mdpp-diagram mdpp-diagram-sirena">
 // wrapping the inline SVG. On error or empty SVG it returns a visible degrade
 // node so a broken fence never produces a blank slide.
-func renderSirenaDiagram(source, theme, view, workspaceRoot string) gosx.Node {
+func renderSirenaDiagram(source, theme, view, workspaceRoot string, diagram ...string) gosx.Node {
+	kind := ""
+	if len(diagram) > 0 {
+		kind = diagram[0]
+	}
 	res, err := fence.Render([]byte(source), fence.Options{
+		Diagram:       kind,
 		Theme:         theme,
 		ViewRef:       view,
 		WorkspaceRoot: workspaceRoot,
@@ -91,7 +97,37 @@ func sirenaThemeForDeck(d *IslandDeck) string {
 // dark deck blends and a light diagram on a light deck reads as a clean card.
 // The selectors are scoped under main.deck so they never leak outside the deck.
 func baseDiagramStyle() string {
-	return `main.deck .mdpp-diagram { width: fit-content; max-width: 100%; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 12px); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid var(--line, rgba(128, 128, 128, 0.25)); }
-main.deck .mdpp-diagram svg { display: block; max-width: 100%; max-height: 56vh; height: auto; }
+	return `main.deck .mdpp-diagram { width: 100%; max-width: 100%; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 12px); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid var(--line, rgba(128, 128, 128, 0.25)); }
+main.deck .mdpp-diagram svg { display: block; width: 100%; max-width: 100%; max-height: 56vh; height: auto; }
 main.deck pre.diagram-error { color: #ff6b6b; font: 600 0.9rem var(--font-mono, ui-monospace, monospace); }`
+}
+
+// mdpp's fast and grammar paths retain different amounts of fence info. Read
+// each already-parsed diagram's own opening line, never scan prose/code bodies.
+func retainDiagramFenceOptions(doc *mdpp.Document) {
+	for _, node := range doc.AST().Find(mdpp.NodeDiagram) {
+		if node.Attr("syntax") != "sirena" {
+			continue
+		}
+		start := node.Range.StartByte
+		if start < 0 || start >= len(doc.Source) {
+			continue
+		}
+		opening := strings.SplitN(string(doc.Source[start:]), "\n", 2)[0]
+		info := strings.Fields(strings.TrimLeft(strings.TrimSpace(opening), "`~"))
+		if len(info) < 2 {
+			continue
+		}
+		for _, field := range info[1:] {
+			field = strings.Trim(field, "{}")
+			key, value, has := strings.Cut(field, "=")
+			if !has {
+				key, value = "diagram", field
+			}
+			value = strings.Trim(value, "\"'")
+			if key == "diagram" || key == "theme" {
+				node.Attrs[key] = value
+			}
+		}
+	}
 }

@@ -296,7 +296,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if custom := deckCustomCSS(d); custom != "" {
@@ -351,6 +351,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			gosx.Attr("data-caption-guide", boolAttr(conference.CaptionGuide)),
 			gosx.Attr("data-offline", boolAttr(conference.OfflineRequired)),
 			gosx.Attr("data-live-sync", boolAttr(liveSync)),
+			gosx.Attr("data-hydration", deckFrontmatterString(d, "hydration")),
 		),
 		starfield,
 		renderGraphicsBackgrounds(r, d, cd),
@@ -370,7 +371,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+graphicsStepScript()+"\n"+motionReplayScript()+"\n"+codeCopyScript()+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"</script>"),
 	)
 }
 
