@@ -16,6 +16,9 @@ func TestGraphicKeyframesTransportAndInventory(t *testing.T) {
 	if !strings.Contains(body, `data-steps="3"`) || !strings.Contains(body, "data-slide-steps=") {
 		t.Fatal("keyframes are missing from the owning graphic mount")
 	}
+	if !strings.Contains(body, `data-gosx-text-layout="true"`) {
+		t.Fatal("native labels must activate the typography feature")
+	}
 	manifest := graphicsManifest(t, body)
 	props := manifest["engines"].([]any)[0].(map[string]any)["props"].(map[string]any)
 	if _, exists := props["slideSteps"]; exists {

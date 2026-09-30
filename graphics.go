@@ -235,6 +235,14 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 	}
 	cfg := engine.Config{Name: scene.DefaultEngineName, Kind: engine.KindSurface, Props: raw,
 		MountAttrs: map[string]any{"class": "slide-graphic", "data-gosx-scene3d": true, "role": "img", "aria-label": label}}
+	// Native engine mounts do not add scene3d to the selective bootstrap's
+	// feature list. Declare managed fallback text so its typography dependency
+	// initializes before Scene3D projects labels, sprites, or HTML overlays.
+	for _, kind := range []string{"labels", "sprites", "html"} {
+		if entries, _ := payload["scene"].(map[string]any)[kind].([]any); len(entries) > 0 {
+			cfg.MountAttrs["data-slide-text-layout"] = true
+		}
+	}
 	for key, value := range stepAttrs {
 		cfg.MountAttrs[key] = value
 	}
@@ -253,7 +261,11 @@ func renderDeckGraphic(r islandMounter, graphics map[string]deckGraphic, key str
 	if graphic.err != nil {
 		return gosx.El("pre", gosx.Attrs(gosx.Attr("class", "graphic-error")), gosx.Text("graphic error: "+graphic.err.Error()))
 	}
-	fallback := gosx.El("div", gosx.Attrs(gosx.Attr("class", "graphic-fallback")), gosx.Text(graphic.config.MountAttrs["aria-label"].(string)))
+	attrs := gosx.Attrs(gosx.Attr("class", "graphic-fallback"))
+	if needsLayout, _ := graphic.config.MountAttrs["data-slide-text-layout"].(bool); needsLayout {
+		attrs = append(attrs, gosx.Attr("data-gosx-text-layout", "true"))
+	}
+	fallback := gosx.El("div", attrs, gosx.Text(graphic.config.MountAttrs["aria-label"].(string)))
 	if mounter, ok := r.(engineMounter); ok {
 		return mounter.RenderEngine(graphic.config, fallback)
 	}
