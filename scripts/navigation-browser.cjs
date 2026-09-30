@@ -24,6 +24,13 @@ async function check() {
     await page.keyboard.press('o');
     assert.equal(await page.locator('.slide:visible').count(), 0);
     assert.equal(await page.locator('.deck-overview-dialog [data-gosx-island], .deck-overview-dialog canvas').count(), 0);
+    await page.keyboard.press('?');
+    assert.equal(await page.locator('.deck-overview-search').inputValue(), '?');
+    assert.equal(await page.locator('.deck-overview-help').evaluate(node => node.open), false);
+    await page.locator('.deck-overview-search').fill('');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('?');
+    assert.equal(await page.locator('.deck-overview-help').evaluate(node => node.open), true);
     await page.locator('.deck-overview-search').fill('PRIVATE PRESENTER NOTE');
     assert.equal(await page.locator('.deck-overview-card:visible').count(), 0);
     await page.locator('.deck-overview-search').fill('creme brings');

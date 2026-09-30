@@ -192,6 +192,7 @@ func overviewScript() string {
       else if (event.key === 'Enter' && visibleCards.length) { event.preventDefault(); jumpTo(Number(visibleCards[0].getAttribute('data-picker-slide'))); }
       return;
     }
+    if (event.key === '?') { event.preventDefault(); help.open = true; return; }
     if (event.key === 'o' || event.key === 'O') { event.preventDefault(); closeOverview(); return; }
     var position = visibleCards.indexOf(document.activeElement);
     if (position >= 0) {
