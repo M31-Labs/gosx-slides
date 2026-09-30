@@ -181,10 +181,11 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 	if norm := strings.TrimSpace(strings.ToLower(theme)); norm != "" && themeName(theme) != norm {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
 	}
+	graphicBudgets := graphicsClickBudgets(out.Graphics)
 	for _, slide := range d.Slides {
 		layoutName, layoutKnown := slideLayoutInfo(slide)
 		words := slideWordCount(slide)
-		clicks := slideClickCount(slide)
+		clicks := max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets))
 		notes := extractSlideNotes(slide)
 		components := slideComponentNames(slide)
 		citations := slideCitations(slide)
@@ -236,10 +237,11 @@ func Check(dir string) (*Summary, error) {
 		return nil, err
 	}
 	summary := &Summary{Title: d.title(), SlideCount: len(d.Slides), Layouts: map[string]int{}}
+	graphicBudgets := graphicsClickBudgets(DeckGraphics(d))
 	for _, slide := range d.Slides {
 		name, _ := slideLayoutInfo(slide)
 		summary.Layouts[name]++
-		summary.TotalClicks += slideClickCount(slide)
+		summary.TotalClicks += max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets))
 		if extractSlideNotes(slide) != "" {
 			summary.Notes++
 		}

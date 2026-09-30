@@ -505,7 +505,7 @@ func navScript() string {
     if (i < 0 || i >= slides.length) return 0;
     if (stepCounts[i] != null) return stepCounts[i];
     var max = 0;
-    var pres = slides[i].querySelectorAll('pre[data-steps]');
+    var pres = slides[i].querySelectorAll('pre[data-steps], .slide-graphic[data-steps]');
     for (var p = 0; p < pres.length; p++) {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
       if (n > max) max = n;

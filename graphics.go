@@ -222,12 +222,22 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 		}
 	}
 	scene.ApplyShaderLib(payload["scene"].(map[string]any))
+	stepAttrs, err := graphicStepAttrs(payload)
+	if err != nil {
+		return engine.Config{}, err
+	}
+	if background, _ := props["Background"].(bool); background && stepAttrs != nil {
+		return engine.Config{}, fmt.Errorf("graphic keyframes require an inline Scene3D surface")
+	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return engine.Config{}, err
 	}
 	cfg := engine.Config{Name: scene.DefaultEngineName, Kind: engine.KindSurface, Props: raw,
 		MountAttrs: map[string]any{"class": "slide-graphic", "data-gosx-scene3d": true, "role": "img", "aria-label": label}}
+	for key, value := range stepAttrs {
+		cfg.MountAttrs[key] = value
+	}
 	if background, _ := props["Background"].(bool); background {
 		cfg.MountAttrs["class"] = "deck-graphics-background"
 		cfg.MountAttrs["aria-hidden"] = "true"
@@ -283,6 +293,7 @@ type DeckGraphicInfo struct {
 	Kind     string `json:"kind"`
 	Source   string `json:"source"`
 	Compiles bool   `json:"compiles"`
+	Steps    int    `json:"steps,omitempty"`
 	Error    string `json:"error,omitempty"`
 }
 
@@ -297,6 +308,7 @@ func DeckGraphics(deck *IslandDeck) []DeckGraphicInfo {
 		}
 		seen[key] = true
 		entry := DeckGraphicInfo{Kind: ref.Name, Source: graphicString(parseProps(ref.Props), "Src", ""), Compiles: graphics[key].err == nil}
+		entry.Steps, _ = graphics[key].config.MountAttrs["data-steps"].(int)
 		if graphics[key].err != nil {
 			entry.Error = graphics[key].err.Error()
 		}

@@ -56,6 +56,20 @@ island runtime. SPA exports retain live graphics; single-file and PDF exports
 retain their accessible fallback labels. `slides doctor` reports invalid sources
 and shader compilation failures; deck analysis includes a graphics inventory.
 
+Sirena's `render --scene3d --shader material.sel --steps steps.json` output can
+be used directly as `<Scene3D Src="request.scene.json" />`. Try
+`slides serve examples/sirena-scene`: arrow keys focus the API, then the worker,
+then restore the whole diagram before advancing to the next slide. Backward
+navigation and direct seeks apply absolute frames, and hidden surfaces pause.
+The click budget appears in `check`, `inspect`, and the presenter run sheet.
+
+Custom Scene3D props can include `slideSteps: {"version":1,"frames":[...]}`,
+where each frame has a `label` and an array of native GoSX `commands`. Frame zero
+is the initial state. Author complete poses for each touched object in every
+frame so reverse navigation restores the expected state. The transport accepts
+up to 128 frames and 4 MiB of commands; it is supported on inline surfaces.
+SPA exports keep the timeline live; snapshot exports show the fallback label.
+
 Navigation also includes a hover/focus toolbar, touch swipes, Home/End,
 PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing
 media and emits `slides:change` with zero-based `index` and `step` values.
