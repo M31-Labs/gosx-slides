@@ -120,6 +120,12 @@ motion, graphics clocks, and captured exports. Its optional developer tools use
 normal CLI use requires no Node installation. Tagged releases build six platform
 binaries and publish SHA-256 checksums automatically.
 
+Select a native diagram layout with a fence such as `sirena class` or
+`sirena diagram=timeline`. Available layouts: architecture, sequence, radial,
+state, class, er, swimlane, and timeline. Field/method rows and timeline metadata
+use Sirena's normal declarations; see `examples/diagram-lab` for all five new
+families alongside semantic Scene3D steps. Mermaid ingestion supports flowcharts.
+
 ## A deck
 
 ### Native shaders and Scene3D

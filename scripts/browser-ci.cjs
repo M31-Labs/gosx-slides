@@ -33,6 +33,25 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
       await page.evaluate(()=>SlidesMotion.play());await page.waitForFunction(()=>document.querySelector('.deck-background-active').dataset.gosxScene3dAnimationState==='playing');assert.deepEqual(errors,[]);
     } finally {await browser.close()}
   });
+  await withServer('examples/diagram-lab',8118,async url=>{
+    const browser=await chromium.launch({args:['--enable-unsafe-swiftshader'],...(process.env.SLIDES_BROWSER?{executablePath:process.env.SLIDES_BROWSER}:{})});
+    try {
+      const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+      await page.goto(url+'#state',{waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>window.SlidesNav);
+      assert.equal(await page.locator('.mdpp-diagram svg').count(),5);
+      assert.equal(await page.locator('.diagram-error').count(),0);
+      assert.ok((await page.locator('[data-slide-id="class"] svg').textContent()).includes('submit()'));
+      await page.evaluate(()=>SlidesNav.show(5,0,true));
+      await page.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.appliedStep==='0');
+      assert.equal(await page.evaluate(()=>SlidesNav.stepCount()),4);
+      for(const step of [1,2,0,3,4,1,0]) {
+        await page.evaluate(step=>SlidesNav.show(5,step,true),step);
+        await page.waitForFunction(step=>Number(document.querySelector('.deck-active .slide-graphic').dataset.appliedStep)===step,step);
+      }
+      assert.deepEqual(errors,[]);
+    } finally {await browser.close()}
+  });
   const out=process.env.SLIDES_TEST_OUTPUT || 'browser-test-output';fs.mkdirSync(out,{recursive:true});
   for(const args of [['export','examples/authoring-lab','--format','pdf','--steps','--out',path.join(out,'steps.pdf')],['export','examples/shader-lab','--format','frames','--out',path.join(out,'graphics')]]){
     const result=spawnSync(binary,args,{stdio:'inherit',env:process.env});assert.equal(result.status,0,'capture export failed');

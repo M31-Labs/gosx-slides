@@ -601,7 +601,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// the helper passes "" to fence.Options which selects the default theme).
 		return "{" + diagramNamespace + "." + diagramRenderFunc + "(" +
 			strconv.Quote(n.Literal) + ", " + strconv.Quote(n.Attr("theme")) + ", " +
-			strconv.Quote(n.Attr("view")) + ")}"
+			strconv.Quote(n.Attr("view")) + ", " + strconv.Quote(n.Attr("diagram")) + ")}"
 
 	case mdpp.NodeSoftBreak:
 		return "{\" \"}"

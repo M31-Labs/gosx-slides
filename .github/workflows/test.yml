@@ -60,11 +60,13 @@ jobs:
         with:
           node-version: "26"
       - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
       - run: go build -o slides ./cmd/slides
-      - name: Configure capture browser
+      - name: Configure runner Chrome
         run: |
-          node -e 'const fs=require("fs");const p=require("playwright").chromium.executablePath();fs.writeFileSync("chrome-capture", "#!/bin/sh\nexec "+JSON.stringify(p)+" --no-sandbox \"$@\"\n", {mode:0o755});'
+          capture_browser="$(command -v google-chrome)"
+          printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$capture_browser" > chrome-capture
+          chmod +x chrome-capture
+          echo "SLIDES_BROWSER=$capture_browser" >> "$GITHUB_ENV"
           echo "SLIDES_CHROME=$PWD/chrome-capture" >> "$GITHUB_ENV"
       - run: node scripts/browser-ci.cjs ./slides
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

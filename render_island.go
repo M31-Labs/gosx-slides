@@ -127,7 +127,7 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		if theme == "" {
 			theme = diagramTheme
 		}
-		return []gosx.Node{renderSirenaDiagram(n.Literal, theme, n.Attr("view"), "")}
+		return []gosx.Node{renderSirenaDiagram(n.Literal, theme, n.Attr("view"), "", n.Attr("diagram"))}
 
 	case mdpp.NodeExpression:
 		// DEGRADE PATH ONLY: this hand-built lowering renders the expression's
