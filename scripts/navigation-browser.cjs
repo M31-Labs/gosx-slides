@@ -15,6 +15,9 @@ async function check() {
     url.hash = '2';
     await page.goto(url.href, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.SlidesNav && SlidesNav.current() === 2);
+    // Navigation is available before the asynchronous island bridge binds clicks.
+    await page.waitForFunction(() => window.__gosx && __gosx.islands &&
+      Array.from(__gosx.islands.values()).some(island => island.root.contains(document.querySelector('.counter-btn'))));
     await page.locator('.counter-btn').last().click();
     await page.waitForFunction(() => document.querySelector('.counter-label').textContent.includes('1'));
     await page.locator('.counter-btn').last().focus();
