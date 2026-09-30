@@ -207,7 +207,7 @@ func run(args []string) error {
 		}
 		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out})
 	case "version":
-		fmt.Println("gosx-slides v0.2.0")
+		fmt.Println("gosx-slides v0.3.0")
 		return nil
 	case "help", "-h", "--help":
 		usage()

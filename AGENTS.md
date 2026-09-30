@@ -485,8 +485,8 @@ Fenced code blocks render with syntax highlighting. Two additional features:
 - **Stepped highlights** — annotate a fence with `{line-range|line-range|…}` to
   walk through sections on `→`. Example: ` ```go {1-2|4-6} ``` ` — first press
   spotlights lines 1–2, second press spotlights 4–6, third press moves to the
-  next slide. The step position is ephemeral (not in the URL hash); a reload
-  lands on the slide with no step active.
+  next slide. The step position is recorded in `#N/K` (slide N, click step K). Reload,
+  links, and browser history restore it; `#N` starts at step zero.
 - **Copy button** — every code block shows a "copy" button on hover. The button
   captures the code text (excluding any line-number gutter) and writes it to the
   clipboard via the Clipboard API.
@@ -613,13 +613,33 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 | `→` or `Space` | Next slide (or advance to next code-step within the slide) |
 | `←` | Previous slide (or step back within the slide) |
 | `f` / `F` | Toggle fullscreen |
-| `o` / `O` | Toggle overview grid (every slide as a scaled thumbnail) |
+| `o` / `O` / `/` | Open searchable slide overview (text cards, live slides hidden) |
+| `?` | Open keyboard shortcuts |
+| `Home` / `End` | First / last slide |
+| `PageUp` / `PageDown` | Previous / next step or slide |
+| `b` / `B` / `Esc` | Blank / restore screen |
 | `p` | Open presenter view |
 
 - **Deep-linking:** the URL hash is **1-based** — `#1` is the first slide, `#3`
   the third. It loads to that slide and stays in sync as you navigate
-  (`history.replaceState`, so it doesn't pollute history).
-- Keys are ignored while typing in an `input`/`textarea`/`select`.
+  (`history.replaceState`, so it doesn't pollute history). Append `/K` to link to
+  click step K (e.g. `#3/2`). Steps are clamped to the destination budget; code,
+  fragments, and absolute Scene3D frames restore together. Timed entrance motion
+  begins on arrival rather than seeking an elapsed timestamp.
+- Search uses title and body words (case/accent insensitive), or an exact slide
+  number. Notes, scripts, and styles are excluded; text is indexed on first open.
+  Arrow keys choose cards, Enter/Space jumps, Esc restores the current step.
+  The modal traps focus and restores it on close; slide attributes remain intact.
+- Keys are ignored while typing in inputs, editable text, or ARIA input widgets;
+  Space/Enter on a focused button/link keeps its native activation.
+- Code spotlight and fragment styles have no fixed index ceiling. The controller
+  caches per-slide metadata and updates only visited slides. Hidden fragments
+  become inert and aria-hidden, restoring author settings when revealed.
+- Overview hides live slide surfaces, preserving state and allowing native
+  graphics to pause. Playing media pauses and resumes when returning.
+- The toolbar hides after 2.2 seconds of inactivity; pointer movement, touch,
+  or local navigation reveals it. Keyboard focus keeps controls visible.
+- Exported decks do not publish navigation state to a server.
 - Hidden slides still hydrate their islands on load; navigating only toggles
   visibility, so island state persists across slide changes.
 

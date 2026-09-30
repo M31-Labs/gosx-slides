@@ -241,7 +241,7 @@ main.deck.` + presenterModeClass + ` .pv-next .pv-label {
 }
 
 /* The moved slide section inside a screen. We scale a full slide down to fit the
-   screen with CSS zoom (the same technique the overview grid uses), so the preview
+   screen with CSS zoom, so the preview
    is a faithful miniature of the real slide — themed colors, real layout, real
    islands — not a re-render. The current screen gets a larger zoom than the next.
    Absolute fill keeps the scaled slide anchored to the screen's top-left. */

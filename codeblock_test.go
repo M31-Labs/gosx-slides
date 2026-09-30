@@ -285,16 +285,16 @@ func sameStepList(a, b []map[int]bool) bool {
 
 // TestServeCarriesStepSpotlightCSS proves the served page carries the
 // theme-agnostic click-through spotlight stylesheet: the dim-the-rest rule keyed
-// on the slide's data-active-step + the per-step re-light rule that matches a
-// line's data-step word. This is what makes the active step's lines pop while the
+// on the slide's data-active-step + the class the controller gives matching
+// code lines. This is what makes the active step's lines pop while the
 // others dim, in every theme.
 func TestServeCarriesStepSpotlightCSS(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
 	for _, want := range []string{
-		"data-active-step",                  // the attr navScript sets on the active slide
-		"pre.code-block[data-steps]",        // scoped to stepped blocks
-		`.ts-line.emphasis[data-step~="1"]`, // per-step re-light (word match)
-		"var(--accent",                      // theme-agnostic: inherits theme tokens
+		"data-active-step",                     // the attr navScript sets on the active slide
+		"pre.code-block[data-steps]",           // scoped to stepped blocks
+		`.ts-line.emphasis.slides-step-active`, // controller marks matching lines
+		"var(--accent",                         // theme-agnostic: inherits theme tokens
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("step spotlight CSS missing %q:\n(searched served body)", want)
