@@ -97,8 +97,8 @@ func sirenaThemeForDeck(d *IslandDeck) string {
 // dark deck blends and a light diagram on a light deck reads as a clean card.
 // The selectors are scoped under main.deck so they never leak outside the deck.
 func baseDiagramStyle() string {
-	return `main.deck .mdpp-diagram { width: fit-content; max-width: 100%; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 12px); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid var(--line, rgba(128, 128, 128, 0.25)); }
-main.deck .mdpp-diagram svg { display: block; max-width: 100%; max-height: 56vh; height: auto; }
+	return `main.deck .mdpp-diagram { width: 100%; max-width: 100%; margin: var(--sp-3, 1rem) auto; border-radius: var(--radius, 12px); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); border: 1px solid var(--line, rgba(128, 128, 128, 0.25)); }
+main.deck .mdpp-diagram svg { display: block; width: 100%; max-width: 100%; max-height: 56vh; height: auto; }
 main.deck pre.diagram-error { color: #ff6b6b; font: 600 0.9rem var(--font-mono, ui-monospace, monospace); }`
 }
 

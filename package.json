@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "build": "go build -o slides ./cmd/slides",
-    "test": "node scripts/browser-ci.cjs ./slides",
+    "test": "npm run build && node scripts/browser-ci.cjs ./slides",
     "test:browser": "node scripts/browser-ci.cjs ./slides"
   },
   "devDependencies": {
