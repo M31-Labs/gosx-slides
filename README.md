@@ -2,7 +2,14 @@
 
 The v0.2.0 release adds native Selena shaders and Scene3D diagrams, configurable
 element and slide motion with replay, faster deck serving, and GoSX v0.57.1.
-Install the tagged release with `go install m31labs.dev/gosx-slides/cmd/slides@v0.2.0`.
+Install from the [v0.2.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.2.0),
+or build the tagged source with Go 1.26 or newer:
+
+```sh
+git clone --depth 1 --branch v0.2.0 https://github.com/M31-Labs/gosx-slides.git
+cd gosx-slides
+go install ./cmd/slides
+```
 
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
