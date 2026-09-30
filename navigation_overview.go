@@ -151,12 +151,23 @@ func overviewScript() string {
   function dismissPicker() {
     overview = false; deck.classList.remove(OVERVIEW); if (picker) picker.hidden = true;
   }
+  function focusPickerTarget(target) {
+    if (!target || target === document.body || target === document.documentElement || !target.isConnected || !target.getClientRects().length || typeof target.focus !== 'function') return false;
+    if (target.matches(':disabled') || target.closest('[inert], [aria-hidden="true"], [aria-disabled="true"]') || getComputedStyle(target).visibility !== 'visible') return false;
+    target.focus({ preventScroll: true });
+    return document.activeElement === target;
+  }
   function restorePickerFocus() {
-    if (pickerFocus && pickerFocus !== document.body && pickerFocus !== document.documentElement && pickerFocus.isConnected && pickerFocus.getClientRects().length) {
-      pickerFocus.focus();
-      if (document.activeElement === pickerFocus) return;
+    if (focusPickerTarget(pickerFocus)) return;
+    // Audience controls are hidden in presenter mode. Try every candidate so a
+    // disabled/hidden control or a failed focus does not leave search focused.
+    var candidates = deck.querySelectorAll('.deck-controls button[aria-label="Slide overview (O)"], .pv-controls button');
+    for (var i = 0; i < candidates.length; i++) {
+      if (focusPickerTarget(candidates[i])) return;
     }
-    controls.querySelector('button[aria-label="Slide overview (O)"]').focus();
+    // Keep navigation reachable even without either set of chrome controls.
+    if (!deck.hasAttribute('tabindex')) deck.setAttribute('tabindex', '-1');
+    focusPickerTarget(deck);
   }
   function resumePickerMedia() {
     pausedMedia.forEach(function (media) { if (slides[index].contains(media)) { var promise = media.play(); if (promise && promise.catch) promise.catch(function () {}); } });

@@ -130,8 +130,71 @@ async function check() {
     assert.equal(await touch.locator('.deck-controls').evaluate(node => node.classList.contains('deck-controls-visible')), true);
     await touch.waitForFunction(() => getComputedStyle(document.querySelector('.deck-controls')).opacity === '0', undefined, { timeout: 5000 });
     await touch.close();
+
+    // Presenter chrome hides the audience toolbar. Restore a visible target
+    // after both dismissal and selection, even when the prior target goes away.
+    const presenterContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const presenter = await presenterContext.newPage();
+      presenter.on('pageerror', error => errors.push(error.message));
+      const presenterURL = new URL(url.href);
+      presenterURL.search = '?present';
+      presenterURL.hash = '3/2';
+      await presenter.goto(presenterURL.href, { waitUntil: 'domcontentloaded' });
+      await presenter.waitForFunction(() => window.SlidesNav && SlidesNav.isPresenter() && document.querySelector('.pv-controls button'));
+      for (const scenario of ['body-close', 'body-jump', 'hidden', 'disabled', 'failed-focus', 'no-controls']) {
+        await presenter.evaluate(scenario => {
+          SlidesNav.show(2, 2, true);
+          document.activeElement.blur();
+          if (scenario === 'hidden' || scenario === 'disabled') document.querySelector('.pv-controls button').focus();
+          if (scenario === 'failed-focus') {
+            const target = document.createElement('span');
+            target.id = 'prior-picker-focus'; target.tabIndex = 0; target.textContent = 'Temporary focus';
+            document.querySelector('.pv-controls').append(target); target.focus();
+          }
+        }, scenario);
+        await presenter.keyboard.press('/');
+        assert.equal(await presenter.locator('.deck-overview-search').evaluate(node => document.activeElement === node), true);
+        await presenter.evaluate(scenario => {
+          const button = document.querySelector('.pv-controls button');
+          if (scenario === 'hidden') button.style.visibility = 'hidden';
+          if (scenario === 'disabled') button.disabled = true;
+          if (scenario === 'failed-focus') document.getElementById('prior-picker-focus').removeAttribute('tabindex');
+          if (scenario === 'no-controls') document.querySelector('.pv-controls').remove();
+        }, scenario);
+        if (scenario === 'body-jump') {
+          await presenter.locator('.deck-overview-search').fill('5');
+          await presenter.keyboard.press('Enter');
+          assert.equal(await presenter.evaluate(() => SlidesNav.current()), 5);
+        } else {
+          await presenter.keyboard.press('Escape');
+          assert.equal(await presenter.evaluate(() => SlidesNav.current()), 3);
+          assert.equal(await presenter.evaluate(() => SlidesNav.step()), 2);
+        }
+        assert.equal(await presenter.evaluate(() => {
+          const target = document.activeElement;
+          return !SlidesNav.isOverview() && target !== document.body &&
+            !target.closest('.deck-overview-dialog') && target.getClientRects().length > 0 &&
+            getComputedStyle(target).visibility === 'visible' && !target.matches(':disabled') &&
+            !target.closest('[inert], [aria-hidden="true"], [aria-disabled="true"]');
+        }), true, `${scenario}: focus did not leave hidden search for a visible enabled target`);
+        await presenter.keyboard.press('Home');
+        assert.equal(await presenter.evaluate(() => SlidesNav.current()), 1, `${scenario}: Home trapped`);
+        await presenter.keyboard.press('ArrowDown');
+        assert.equal(await presenter.evaluate(() => SlidesNav.current()), 1, `${scenario}: hidden picker handled ArrowDown`);
+        await presenter.keyboard.press('ArrowRight');
+        assert.equal(await presenter.evaluate(() => SlidesNav.current()), 2, `${scenario}: ArrowRight trapped`);
+        await presenter.evaluate(() => {
+          const button = document.querySelector('.pv-controls button');
+          if (button) { button.style.visibility = ''; button.disabled = false; }
+          document.getElementById('prior-picker-focus')?.remove();
+        });
+      }
+    } finally {
+      await presenterContext.close();
+    }
     assert.deepEqual(errors, []);
-    console.log('Navigation browser checks passed: widget state, nested input keys, search, step links, focus, idle controls.');
+    console.log('Navigation browser checks passed: widget state, nested input keys, search, step links, audience/presenter focus, idle controls.');
   } finally {
     await browser.close();
   }
