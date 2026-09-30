@@ -166,7 +166,8 @@ main.deck .slide [data-fragment].slides-fragment-visible { opacity: 1; }
 //   - keydown (single-slide view): ArrowRight or Space -> next, ArrowLeft ->
 //     prev, `f` -> toggle fullscreen, `o` -> open the overview grid, `p` -> open
 //     the presenter window (audience view only; a no-op in the presenter window).
-//     Typing in an input/textarea/select is ignored. Arrow/Space default scrolling
+//     Keys in native inputs, editable text, and ARIA input widgets are ignored.
+//     Arrow/Space default scrolling
 //     is prevented.
 //   - CLICK-THROUGH CODE STEPS: a slide whose code block(s) carry data-steps="N"
 //     (lowered from a `{2-3|6}` fence's `|`-groups) has N click steps. ArrowRight
@@ -528,10 +529,12 @@ func navScript() string {
   document.addEventListener('keydown', function (event) {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
     if (overview) { overviewKey(event); return; }
-    var target = event.target, tag = target && target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.closest('[contenteditable], [role="slider"], [role="spinbutton"], [role="listbox"], [role="tablist"]'))) return;
+    var target = event.target;
+    // Editors and composite widgets own their keyboard interaction, including
+    // events from nested elements and space-separated ARIA fallback roles.
+    if (target && target.closest('input, textarea, select, [contenteditable], [role~="textbox"], [role~="searchbox"], [role~="combobox"], [role~="slider"], [role~="spinbutton"], [role~="scrollbar"], [role~="listbox"], [role~="option"], [role~="tablist"], [role~="tab"], [role~="checkbox"], [role~="radio"], [role~="radiogroup"], [role~="switch"], [role~="tree"], [role~="treeitem"], [role~="grid"], [role~="treegrid"], [role~="gridcell"], [role~="menu"], [role~="menubar"], [role~="menuitem"], [role~="menuitemcheckbox"], [role~="menuitemradio"]')) return;
     // Let focused controls activate themselves rather than also advancing a slide.
-    if ((event.key === ' ' || event.key === 'Enter') && target && target.closest('button, a, summary, [role="button"]')) return;
+    if ((event.key === ' ' || event.key === 'Enter') && target && target.closest('button, a, summary, [role~="button"]')) return;
     if (event.key === 'b' || event.key === 'B' || (event.key === 'Escape' && blank)) { event.preventDefault(); toggleBlank(); return; }
     if (event.key === 'Home') { event.preventDefault(); show(0, 0, true); return; }
     if (event.key === 'End') { event.preventDefault(); show(slides.length - 1, 0, true); return; }

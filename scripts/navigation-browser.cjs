@@ -21,6 +21,52 @@ async function check() {
     await page.keyboard.press('Space');
     await page.waitForFunction(() => document.querySelector('.counter-label').textContent.includes('2'));
     assert.equal(await page.evaluate(() => SlidesNav.current()), 2);
+
+    // A custom editor's focused child must retain both its keys and their
+    // defaults. Composite controls and ARIA fallback role tokens count too.
+    const widgetKeys = await page.evaluate(() => {
+      const roles = ['textbox', 'searchbox', 'combobox', 'slider', 'spinbutton',
+        'scrollbar', 'listbox', 'option', 'tablist', 'tab', 'checkbox', 'radio',
+        'radiogroup', 'switch', 'tree', 'treeitem', 'grid', 'treegrid', 'gridcell',
+        'menu', 'menubar', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
+        'unknown textbox', 'unknown searchbox', 'unknown combobox', 'unknown grid',
+        'button', 'unknown button'];
+      const results = [];
+      const previousFocus = document.activeElement;
+      for (const role of roles) {
+        const widget = document.createElement('div');
+        widget.setAttribute('role', role);
+        const child = document.createElement('span');
+        child.tabIndex = 0;
+        child.textContent = 'Nested keyboard target';
+        widget.append(child);
+        document.querySelector('.deck-active').append(widget);
+        child.focus();
+        const keys = role === 'button' || role === 'unknown button' ? [' ', 'Enter'] :
+          ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', ' ', '?', 'o'];
+        for (const key of keys) {
+          const before = [SlidesNav.current(), SlidesNav.step(), location.hash];
+          const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+          const accepted = child.dispatchEvent(event);
+          results.push({ role, key, accepted, defaultPrevented: event.defaultPrevented,
+            before, after: [SlidesNav.current(), SlidesNav.step(), location.hash] });
+        }
+        widget.remove();
+      }
+      previousFocus.focus();
+      return results;
+    });
+    for (const result of widgetKeys) {
+      assert.equal(result.accepted, true, `${result.role}: ${result.key} was canceled`);
+      assert.equal(result.defaultPrevented, false, `${result.role}: ${result.key} lost its default`);
+      assert.deepEqual(result.after, result.before, `${result.role}: ${result.key} navigated`);
+    }
+    // A standard button still permits arrow navigation; only activation keys
+    // belong to the button (the Space activation and state are checked above).
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => SlidesNav.current()), 3);
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await page.evaluate(() => SlidesNav.current()), 2);
     await page.keyboard.press('o');
     assert.equal(await page.locator('.slide:visible').count(), 0);
     assert.equal(await page.locator('.deck-overview-dialog [data-gosx-island], .deck-overview-dialog canvas').count(), 0);
@@ -62,16 +108,16 @@ async function check() {
 
     await page.mouse.click(120, 120);
     await page.mouse.move(130, 120);
-    await page.waitForTimeout(2800);
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.deck-controls')).opacity === '0', undefined, { timeout: 5000 });
     assert.equal(await page.locator('.deck-controls').evaluate(node => getComputedStyle(node).opacity), '0');
     await page.mouse.move(140, 120);
     await page.waitForFunction(() => getComputedStyle(document.querySelector('.deck-controls')).opacity === '1');
     await page.keyboard.press('Tab');
     await page.locator('.deck-controls button').first().focus();
-    await page.waitForTimeout(2800);
+    await page.waitForFunction(() => !document.querySelector('.deck-controls').classList.contains('deck-controls-visible'), undefined, { timeout: 5000 });
     assert.equal(await page.locator('.deck-controls').evaluate(node => getComputedStyle(node).opacity), '1');
     assert.deepEqual(errors, []);
-    console.log('Navigation browser checks passed: widget state, search, step links, focus, idle controls.');
+    console.log('Navigation browser checks passed: widget state, nested input keys, search, step links, focus, idle controls.');
   } finally {
     await browser.close();
   }
