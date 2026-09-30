@@ -17,7 +17,7 @@
   // runtime capabilities remain unchanged; only DOM island work is deferred. Static entries keep WASM activation
   // available even when the opening slide has no interactive widgets.
   script.textContent = JSON.stringify(manifest);
-  let timer = null, stopped = false;
+  let timer = null, stopped = false, attempts = 0;
   async function hydrate(slide) {
     const host = window.__gosx && window.__gosx.host;
     const ready = window.__gosx && window.__gosx.islands;
@@ -42,13 +42,15 @@
     const slide = deck.querySelector('.slide.deck-active');
     if (!slide) return;
     hydrate(slide).then(ready => {
-      if (!ready) { timer = setTimeout(schedule, 100); return; }
+      if (stopped) return;
+      if (!ready) { if (++attempts < 300) timer = setTimeout(schedule, 100); return; }
+      attempts = 0;
       // Warm only the adjacent slide during idle; visited instances stay live.
       const warm = () => { const next = slide.nextElementSibling; if (next && next.matches('.slide') && slide.classList.contains('deck-active')) hydrate(next); };
       if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 1000 }); else timer = setTimeout(warm, 250);
     });
   }
-  deck.addEventListener('slides:change', schedule);
+  deck.addEventListener('slides:change', () => { attempts = 0; schedule(); });
   window.addEventListener('pagehide', () => { stopped = true; clearTimeout(timer); });
   window.SlidesRuntime = { stats: () => ({ total: all.length, deferred: pending.size,
     hydrated: window.__gosx && window.__gosx.islands ? window.__gosx.islands.size : 0 }) };

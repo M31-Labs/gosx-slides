@@ -257,6 +257,15 @@ func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*co
 	if name == "motion" {
 		return lowerMotionDirectiveNode(n, children)
 	}
+	if name == "code-morph" {
+		var codes []gosx.Node
+		for _, child := range n.Children {
+			if child.Type == mdpp.NodeCodeBlock {
+				codes = append(codes, codeBlockNode(child.Attr("language"), child.Literal, "all"))
+			}
+		}
+		return gosx.El("div", gosx.Attrs(gosx.Attr("class", "slides-code-morph"), gosx.Attr("data-steps", max(0, len(codes)-1))), gosx.Fragment(codes...))
+	}
 	if name == "details" {
 		var args []any
 		args = append(args, gosx.Attrs(

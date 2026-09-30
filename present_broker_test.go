@@ -100,3 +100,20 @@ func TestPresenterHandleStatePublishes(t *testing.T) {
 		t.Fatalf("GET handleState status = %d, want 405", rec.Code)
 	}
 }
+
+func TestPresenterSnapshotAndOrigin(t *testing.T) {
+	b := newPresenterBroker()
+	b.publish(presenterState{Index: 1, Step: 2, Source: "speaker", Sequence: 8})
+	ch, snapshot := b.subscribeSnapshot()
+	defer b.unsubscribe(ch)
+	if snapshot.Source != "speaker" || snapshot.Sequence != 8 {
+		t.Fatalf("missing origin: %+v", snapshot)
+	}
+	req := httptest.NewRequest("POST", "/presenter/state", strings.NewReader(`{"index":2,"step":3,"source":"speaker","sequence":9}`))
+	req.Header.Set("Content-Type", "application/json")
+	b.handleState(httptest.NewRecorder(), req)
+	update := <-ch
+	if update.Index != 2 || update.Sequence != 9 || update.Source != snapshot.Source {
+		t.Fatalf("lost update: %+v", update)
+	}
+}

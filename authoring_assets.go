@@ -18,3 +18,6 @@ var morphScript string
 
 //go:embed assets/readability.js
 var readabilityScript string
+
+//go:embed assets/code-morph.js
+var codeMorphScript string

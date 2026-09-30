@@ -70,7 +70,7 @@ directly also works (the parent directory is used).
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
 | `serve [deck-dir] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
-| `export [deck-dir] --format spa\|single\|pdf [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
+| `export [deck-dir] --format spa\|single\|pdf\|frames\|video [--capture] [--steps] [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
 | `inspect [deck-dir] [--json]` | Full authoring analysis: word count, estimated runtime, component usage, warnings. |
 | `validate [deck-dir] [--strict] [--profile standard\|conference\|demo\|lecture]` | Authoring-rule checks by profile. `--strict` exits non-zero on failure (CI gate). |
@@ -97,6 +97,28 @@ directly also works (the parent directory is used).
 ```
 
 ---
+
+## v0.4 authoring additions
+
+See [README motion and export recipes](README.md#motion-authoring-and-exports)
+and `examples/authoring-lab` for runnable examples.
+
+- Slide YAML `id:` and comma-separated `cues:` create stable `#id/cue` addresses.
+  Motion `cue`, `step`, `after`, `group`, and `stagger` share the click budget.
+  Explicit numeric steps range from 0 to 10,000. Cue names follow slide ID rules.
+- **M** previews element animation timing; **R** checks current rendered readability.
+  Edits are temporary, with copyable Markdown. GPU clocks pause/play; absolute
+  Scene3D poses use navigation steps, and scrubbing/reverse controls DOM motion.
+- `data-morph-id` connects matching elements between slides; `morph-duration:`
+  controls arrival timing. `:::code-morph` groups sequential code fences.
+- `layout: split`, `:::cards`, and `:::card` provide responsive recipes.
+- Islands defer until active/next; `hydration: eager` restores startup hydration.
+- `--capture` uses real browser pixels for single/PDF; `--steps` captures every
+  click state. `frames` emits PNG; `video --seconds 2 --fps 15` emits silent WebM.
+  Set `SLIDES_CHROME` for captured exports; video also requires `ffmpeg` VP9.
+  Capture bounds: 10,000 states, 18,000 frames, seconds 0.1–60, FPS 1–60.
+- Optional browser developer checks: `npm ci`, `npx playwright install chromium`,
+  `go build -o slides ./cmd/slides`, `node scripts/browser-ci.cjs ./slides`.
 
 ## Authoring a deck
 
@@ -612,6 +634,8 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 |---|---|
 | `→` or `Space` | Next slide (or advance to next code-step within the slide) |
 | `←` | Previous slide (or step back within the slide) |
+| `m` / `M` | Motion studio: preview timing, replay, pause, reverse, scrub, copy directives |
+| `r` / `R` | Readability report for the current viewport |
 | `f` / `F` | Toggle fullscreen |
 | `o` / `O` / `/` | Open searchable slide overview (text cards, live slides hidden) |
 | `?` | Open keyboard shortcuts |
@@ -640,7 +664,9 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 - The toolbar hides after 2.2 seconds of inactivity; pointer movement, touch,
   or local navigation reveals it. Keyboard focus keeps controls visible.
 - Exported decks do not publish navigation state to a server.
-- Hidden slides still hydrate their islands on load; navigating only toggles
+- Islands on hidden slides defer hydration until active or next in idle time;
+  visited instances retain state. Headmatter `hydration: eager` restores startup
+  hydration. Navigating only toggles
   visibility, so island state persists across slide changes.
 
 ### Audience chrome

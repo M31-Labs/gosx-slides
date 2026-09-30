@@ -371,7 +371,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"</script>"),
 	)
 }
 

@@ -4,6 +4,7 @@
   if (!deck || !window.SlidesNav) return;
   const records = new WeakMap(), played = new WeakSet();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  let lastSlide = null, lastStep = -1;
   let paused = false, panel = null, selected = null, refreshTimer = null;
   function active() { return deck.querySelector('.slide.deck-active'); }
   function items(slide) { return Array.from((slide || active()).querySelectorAll('[data-slides-motion-replay]')); }
@@ -15,15 +16,25 @@
     return [{ opacity: 0, ...(transform ? { transform } : {}) }, { opacity: 1, ...(transform ? { transform: 'none' } : {}) }];
   }
   function number(el, key, fallback) {
-    const n = Number(el.getAttribute('data-gosx-motion-' + key));
+    const raw = el.getAttribute('data-gosx-motion-' + key);
+    if (raw == null || raw === '') return fallback;
+    const n = Number(raw);
     return Number.isFinite(n) && n >= 0 && n <= 600000 ? n : fallback;
   }
   function animations() { return active().getAnimations({ subtree: true }).filter(a => a.effect); }
-  function pause() { paused = true; animations().forEach(a => a.pause()); updatePanel(); }
-  function play() { paused = false; animations().forEach(a => a.play()); updatePanel(); }
+  function graphicsPause(value) {
+    deck.querySelectorAll(".slide.deck-active .slide-graphic, .deck-graphics-background.deck-background-active").forEach(mount => { const scope = mount.closest("[data-gosx-scene3d-control-scope]"); const toggle = scope && scope.querySelector("[data-gosx-scene3d-animation-toggle]"); if (toggle && !toggle.disabled && (mount.dataset.gosxScene3dAnimationState === "paused") !== value) toggle.click(); });
+  }
+  deck.querySelectorAll(".slide-graphic, .deck-graphics-background").forEach(mount => {
+    if (mount.closest("[data-gosx-scene3d-control-scope]")) return;
+    // Scene mounting replaces its children; controls must live in an ancestor scope.
+    const scope = document.createElement("div"); scope.style.display = "contents"; scope.setAttribute("data-gosx-scene3d-control-scope", ""); mount.before(scope); scope.appendChild(mount); const toggle = document.createElement("button"); toggle.type = "button"; toggle.hidden = true; toggle.setAttribute("data-gosx-scene3d-animation-toggle", ""); toggle.setAttribute("data-slides-motion-graphics-toggle", ""); toggle.setAttribute("aria-label", "Toggle scene animation"); scope.appendChild(toggle);
+  });
+  function pause() { paused = true; graphicsPause(true); animations().forEach(a => a.pause()); updatePanel(); }
+  function play() { paused = false; graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
   function seek(ms) { paused = true; animations().forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
-  function duration() { return animations().reduce((n, a) => Math.max(n, Number(a.effect.getComputedTiming().endTime) || 0), 0); }
-  function reverse() { paused = false; animations().forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function duration() { return animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0); }
+  function reverse() { paused = false; animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
   function run(el, delay) {
     const old = records.get(el); if (old) old.cancel();
     if (played.has(el) && el.dataset.slidesMotionReplay === "once") return;
@@ -76,9 +87,10 @@
       } else {
         if (el.dataset.slidesAuthoredInert !== 'true') el.inert = false;
         if (el.dataset.slidesAuthoredAria) el.setAttribute('aria-hidden', el.dataset.slidesAuthoredAria); else el.removeAttribute('aria-hidden');
-        if (!was || replay) run(el, delay(el));
+        if (!was || replay || (el.dataset.slidesMotionReplay === "step" && (lastSlide !== slide || lastStep !== step))) run(el, delay(el));
       }
     });
+    lastSlide = slide; lastStep = step;
     updatePanel();
   }
   // Claim cued entrances before the deferred GoSX bootstrap mounts them.
@@ -91,7 +103,7 @@
     });
     sync(true);
   }
-  deck.addEventListener('slides:change', () => { paused = false; sync(false); });
+  deck.addEventListener('slides:change', () => { paused = false; graphicsPause(false); sync(false); if (panel && panel.open) panel.close(); });
   deck.addEventListener('slides:before-change', event => {
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
     if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); el.dataset.slidesCueVisible = 'false'; });
@@ -114,7 +126,7 @@
         '<label>Duration (ms)<input data-motion-duration type="number" min="1" max="600000"></label><label>Delay (ms)<input data-motion-delay type="number" min="0" max="600000"></label>' +
         '<label>Easing<select data-motion-easing><option>ease-out</option><option>ease-in-out</option><option>linear</option><option>ease</option></select></label></div>' +
         '<div class="slides-author-actions"><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><button type="button" data-motion-copy>Copy directive</button></div>' +
-        '<label>Timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
+        '<label>Element timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
       deck.appendChild(panel);
       panel.querySelector('[data-motion-close]').onclick = () => panel.close();
       panel.querySelector('[data-motion-pause]').onclick = () => paused ? play() : pause();
@@ -130,7 +142,11 @@
       };
       panel.querySelector('[data-motion-copy]').onclick = async () => {
         if (!selected) return;
-        const fields = ['preset', 'duration', 'delay', 'easing'].map(k => k + '=' + selected.getAttribute('data-gosx-motion-' + k));
+        const quote = value => JSON.stringify(value);
+        const fields = ['preset', 'duration', 'delay', 'easing'].filter(k => selected.hasAttribute('data-gosx-motion-' + k)).map(k => k + '=' + quote(selected.getAttribute('data-gosx-motion-' + k)));
+        if (selected.hasAttribute('data-gosx-motion-respect-reduced')) fields.push('respect-reduced-motion=' + selected.getAttribute('data-gosx-motion-respect-reduced'));
+        for (const key of ['distance', 'split', 'stagger']) if (selected.hasAttribute('data-gosx-motion-' + key)) fields.push(key + '=' + selected.getAttribute('data-gosx-motion-' + key));
+        if (selected.dataset.slidesMotionReplay) fields.push('replay=' + selected.dataset.slidesMotionReplay);
         for (const key of ['cue', 'step', 'after', 'group']) if (selected.hasAttribute('data-slides-motion-' + key)) fields.push(key + '=' + selected.getAttribute('data-slides-motion-' + key));
         try { await navigator.clipboard.writeText(':::motion {' + fields.join(' ') + '}\nYour content\n:::'); panel.querySelector('[data-motion-status]').textContent = 'Copied'; }
         catch (_) { panel.querySelector('[data-motion-status]').textContent = 'Clipboard unavailable'; }
@@ -139,7 +155,7 @@
     }
     const selector = panel.querySelector('[data-motion-element]'); selector.replaceChildren();
     items().forEach((el, i) => { const option = document.createElement('option'); option.value = i; option.textContent = el.dataset.slidesMotionCue || el.id || el.textContent.trim().slice(0, 55) || 'Element ' + (i + 1); selector.appendChild(option); });
-    selected = items()[0]; fill(); panel.showModal(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
+    selected = items()[0]; fill(); if (panel.open) return; panel.showModal(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
   }
   function fill() {
     for (const key of ['preset', 'duration', 'delay', 'easing']) { const input = panel.querySelector('[data-motion-' + key + ']'); input.disabled = !selected; const value = selected ? selected.getAttribute('data-gosx-motion-' + key) || (key === "easing" ? "ease-out" : "") : "";

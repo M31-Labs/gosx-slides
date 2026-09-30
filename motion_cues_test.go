@@ -30,3 +30,18 @@ func TestNamedCueAddresses(t *testing.T) {
  assert.equal(positionHash(0,2,true),'#1/2present');
  `)
 }
+
+func TestCodeMorphClickBudgetAndMovedCue(t *testing.T) {
+	deck := graphicsDeck(t, "```yaml\nid: code\ncues: overview, worker\nmorph-duration: 800\n```\n\n# Code\n\n:::motion {cue=worker step=3}\nWork\n:::\n\n:::code-morph\n```go\nold()\n```\n\n```go\nnew()\n```\n:::\n", nil)
+	body := graphicsBody(t, deck)
+	if !strings.Contains(body, `data-morph-duration="800"`) || !strings.Contains(body, `slides-code-morph`) {
+		t.Fatal("missing authored morph controls")
+	}
+	names := slideCueNames(deck.Slides[0])
+	if names[1] != "" || names[3] != "worker" {
+		t.Fatalf("ambiguous cue address: %v", names)
+	}
+	if Analyze(deck).Slides[0].Clicks != 3 {
+		t.Fatal("lost click budget")
+	}
+}

@@ -1,13 +1,16 @@
 # gosx-slides
 
-The v0.3.0 release adds a searchable slide picker, lighter overview rendering,
-full-length click walkthroughs, and better keyboard controls. Native Selena
-shaders, Scene3D diagrams, and configurable GoSX motion are included.
-Install from the [v0.3.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.3.0),
+GoSX Slides v0.4.0 adds named motion cues, a timing studio, shared-element and
+code morphs, deferred island hydration, and live-rendered graphics exports.
+Sirena diagrams include state, class, ER, swimlane, and timeline layouts, with
+Scene3D focus, reveal, and trace steps.
+
+Download a binary for Linux, macOS, or Windows from the
+[v0.4.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.4.0),
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.3.0 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.4.0 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -39,6 +42,84 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 # edit examples/showcase/deck.md     → full reload with new content
 ```
 
+## Motion, authoring, and exports
+
+Try `slides serve examples/authoring-lab`. **M** opens the motion studio: preview
+preset, duration, delay, and easing; pause, replay, reverse, or scrub the element
+timeline, then copy a directive back into Markdown. Preview edits last for the
+current page session. Pause/play also controls active native shader and Scene3D
+clocks; element scrubbing and reversing affect DOM animations. Scene3D poses are
+controlled by their absolute click steps.
+
+Give a slide an ID and ordered cues in its YAML fence:
+
+````md
+```yaml
+id: pipeline
+cues: overview, request, worker, done
+```
+
+:::motion {preset=slide-up cue=request duration=450}
+## Request arrives
+:::
+
+:::motion {preset=fade cue=worker duration=300 group=work stagger=100}
+The worker processes it.
+:::
+
+:::motion {cue=worker after=worker duration=200}
+Context appears after the worker's entrance.
+:::
+````
+
+`#pipeline/worker` opens that cue directly. IDs and cue names use ASCII letters,
+digits, `_`, or `-`, start with a letter, and allow at most 64 characters. Cues
+share the existing code, list, and Scene3D click budget. `step=N` chooses a numeric
+step; `after=cue` sequences entrances within that step, and `group` plus `stagger`
+offsets matching group members. Replay defaults to every slide visit; use
+`replay=once` or `replay=step` to choose otherwise. Cued groups preserve child
+markup; use separate grouped entrances for rich content rather than text splitting.
+
+Match `data-morph-id="idea"` across slides to animate an element's position and
+size without replacing live widgets. Set slide `morph-duration: 600` for its
+arrival timing. Native Sirena SVG nodes carry these identities too. Shared morphs
+skip island and graphics-engine roots; put the identity on a surrounding element
+when appropriate. Wrap successive code fences in `:::code-morph` to advance
+versions with arrow keys: unchanged lines move and added lines fade in.
+
+**R** opens a readability report for the current viewport, highlighting small
+text and low contrast on solid backgrounds. Gradient and translucent backgrounds
+need visual inspection. `layout: split`, `:::cards`, and `:::card` provide simple
+responsive layout recipes. The [authoring lab](examples/authoring-lab/README.md)
+is a copyable starting point.
+
+Islands hydrate on the active slide and warm the next slide during idle time.
+Visited instances retain state. `SlidesRuntime.stats()` reports the inventory;
+set deck headmatter `hydration: eager` to hydrate all islands at startup. Deferred
+hydration reduces initial widget work; the shared GoSX runtime still loads.
+
+```sh
+slides export my-deck --format single --capture --out snapshot
+slides export my-deck --format pdf --steps --out walkthrough.pdf
+slides export my-deck --format frames --steps --out frames
+slides export my-deck --format video --steps --seconds 2 --fps 15 --out deck.webm
+```
+
+Captured formats need Chrome/Chromium (`SLIDES_CHROME` can point to its executable).
+`--steps` captures every click state, including the initial pose. PNG frames and
+self-contained HTML/PDF snapshots use the rendered scene at 1280×720; snapshots
+include slide text for accessibility, while diagrams are captured as pixels.
+Video additionally needs `ffmpeg` with the VP9 encoder and exports silent WebM.
+`--seconds` is per slide or selected step, bounded to 0.1–60; FPS is 1–60.
+GPU clocks advance during video sampling. Exports allow at most 10,000 states
+and 18,000 video frames. Fonts and image assets must be available during capture.
+
+Browser CI covers navigation, presenter sync, authoring, mobile sizing, reduced
+motion, graphics clocks, and captured exports. Its optional developer tools use
+`npm ci`, `npx playwright install chromium`, and `node scripts/browser-ci.cjs ./slides`;
+normal CLI use requires no Node installation. Tagged releases build six platform
+binaries and publish SHA-256 checksums automatically.
+
 ## A deck
 
 ### Native shaders and Scene3D
@@ -64,8 +145,8 @@ cap native graphics at 30 FPS, 1.5 device pixel ratio, and two million pixels,
 with adaptive quality. Scene JSON can override these budgets.
 
 Try `slides serve examples/shader-lab`. This native graphics deck needs no WASM
-island runtime. SPA exports retain live graphics; single-file and PDF exports
-retain their accessible fallback labels. `slides doctor` reports invalid sources
+island runtime. SPA exports retain live graphics. Add `--capture` to single-file or PDF exports
+to render actual shader and Scene3D pixels; ordinary snapshots retain fallback labels. `slides doctor` reports invalid sources
 and shader compilation failures; deck analysis includes a graphics inventory.
 
 Sirena's `render --scene3d --shader material.sel --steps steps.json` output can
@@ -80,7 +161,8 @@ where each frame has a `label` and an array of native GoSX `commands`. Frame zer
 is the initial state. Author complete poses for each touched object in every
 frame so reverse navigation restores the expected state. The transport accepts
 up to 128 frames and 4 MiB of commands; it is supported on inline surfaces.
-SPA exports keep the timeline live; snapshot exports show the fallback label.
+SPA exports keep the timeline live. Captured exports render each selected pose;
+ordinary snapshots show the fallback label.
 
 Navigation also includes a toolbar, touch swipes, Home/End,
 PageUp/PageDown, and **B** to blank the screen. Changing slides pauses outgoing

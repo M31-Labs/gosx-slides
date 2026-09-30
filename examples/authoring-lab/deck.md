@@ -84,3 +84,34 @@ id: far-away
 <Counter Initial={20}/>
 
 <!-- Inspect SlidesRuntime.stats() to see the deferred islands. -->
+
+---
+
+```yaml
+id: evolving-code
+```
+
+# Evolve the implementation
+
+:::code-morph
+```go
+func greet() string {
+    return "hello"
+}
+```
+
+```go
+func greet(name string) string {
+    return "hello " + name
+}
+```
+
+```go
+func greet(name string) string {
+    message := "hello " + name
+    return message
+}
+```
+:::
+
+<!-- Three code states. Repeated lines move; new lines fade in. -->

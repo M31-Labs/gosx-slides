@@ -2,6 +2,7 @@ package slides
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -38,6 +39,11 @@ func slideCueNames(slide IslandSlide) []string {
 					for len(cues) <= step {
 						cues = append(cues, "")
 					}
+					for i, old := range cues {
+						if old == name {
+							cues[i] = ""
+						}
+					}
 					cues[step] = name
 				}
 			} else if name != "" {
@@ -67,6 +73,9 @@ func slideIdentityAttrs(slide IslandSlide) map[string]string {
 	attrs := map[string]string{}
 	if id, _ := slideFrontmatterValues(slide)["id"].(string); cueNamePattern.MatchString(id) {
 		attrs["data-slide-id"] = id
+	}
+	if n, err := strconv.Atoi(fmt.Sprint(slideFrontmatterValues(slide)["morph-duration"])); err == nil && n >= 0 && n <= 600000 {
+		attrs["data-morph-duration"] = strconv.Itoa(n)
 	}
 	if names := slideCueNames(slide); len(names) > 0 {
 		data, _ := json.Marshal(names)
@@ -98,6 +107,9 @@ func slideMotionClicks(slide IslandSlide) int {
 		named[name] = i
 	}
 	for _, node := range slide.Node.Find(mdpp.NodeContainerDirective) {
+		if node.Attr("name") == "code-morph" {
+			budget = max(budget, len(node.Find(mdpp.NodeCodeBlock))-1)
+		}
 		if node.Attr("name") != "motion" {
 			continue
 		}
