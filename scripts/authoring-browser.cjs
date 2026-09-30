@@ -4,6 +4,15 @@ const assert = require('node:assert/strict');
   const browser = await chromium.launch({ ...(process.env.SLIDES_BROWSER ? { executablePath: process.env.SLIDES_BROWSER } : {}), args: ['--enable-unsafe-swiftshader'] });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.addInitScript(() => {
+      window.slidesKeyTrace = [];
+      document.addEventListener('keydown', event => {
+        const target = event.target;
+        queueMicrotask(() => { slidesKeyTrace.push({ key: event.key, tag: target.tagName, type: target.type, connected: target.isConnected,
+          visible: !!target.getClientRects().length, dialog: !!target.closest('dialog[open]'), prevented: event.defaultPrevented,
+          hash: location.hash }); if (slidesKeyTrace.length > 12) slidesKeyTrace.shift(); });
+      }, true);
+    });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     const url = process.argv[2] || 'http://127.0.0.1:8110/';
     await page.goto(url+'#opening', { waitUntil: 'domcontentloaded' });
@@ -37,8 +46,12 @@ const assert = require('node:assert/strict');
     await page.evaluate(() => SlidesNav.show(5,0,true));
     assert.equal(await page.evaluate(() => SlidesNav.stepCount()), 2);
     assert.equal(await page.locator('.deck-active .slides-code-morph pre:visible').count(), 1);
+    // Chromium can deliver a key to the closed editor before restoring focus.
+    await page.evaluate(() => document.querySelector('[data-motion-duration]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true})));
+    assert.equal(await page.evaluate(() => SlidesNav.step()),1);
+    await page.evaluate(() => SlidesNav.show(5,0,true));
     await page.keyboard.press('ArrowRight');
-    assert.ok((await page.locator('.deck-active .slides-code-morph pre:visible').textContent()).includes('name string'), JSON.stringify(await page.evaluate(()=>({step:SlidesNav.step(),slide:SlidesNav.current(),hash:location.hash,focus:document.activeElement.tagName,focusClass:document.activeElement.className,dialog:!!document.querySelector('dialog[open]')}))));
+    assert.ok((await page.locator('.deck-active .slides-code-morph pre:visible').textContent()).includes('name string'), JSON.stringify(await page.evaluate(()=>({step:SlidesNav.step(),slide:SlidesNav.current(),hash:location.hash,focus:document.activeElement.tagName,focusClass:document.activeElement.className,dialog:!!document.querySelector('dialog[open]'),keys:window.slidesKeyTrace}))));
     await page.keyboard.press('ArrowRight');
     await page.waitForTimeout(200); // Allow SSE echoes to arrive; they must not revert rapid steps.
     assert.ok((await page.locator('.deck-active .slides-code-morph pre:visible').textContent()).includes('message :='));

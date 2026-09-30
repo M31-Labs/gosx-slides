@@ -555,7 +555,10 @@ func navScript() string {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
     if (overview) { overviewKey(event); return; }
     var target = event.target;
-    if (target && target.closest("dialog[open]")) return;
+    // Native dialog dismissal can deliver the next key to its now-hidden input
+    // before focus restoration completes. That closed control cannot own a key.
+    if (target && target.closest('dialog:not([open])')) { target.blur(); target = deck; }
+    if (deck.querySelector('dialog[open]')) return;
     // Editors and composite widgets own their keyboard interaction, including
     // events from nested elements and space-separated ARIA fallback roles.
     if (target && target.closest('input, textarea, select, [contenteditable], [role~="textbox"], [role~="searchbox"], [role~="combobox"], [role~="slider"], [role~="spinbutton"], [role~="scrollbar"], [role~="listbox"], [role~="option"], [role~="tablist"], [role~="tab"], [role~="checkbox"], [role~="radio"], [role~="radiogroup"], [role~="switch"], [role~="tree"], [role~="treeitem"], [role~="grid"], [role~="treegrid"], [role~="gridcell"], [role~="menu"], [role~="menubar"], [role~="menuitem"], [role~="menuitemcheckbox"], [role~="menuitemradio"]')) return;
