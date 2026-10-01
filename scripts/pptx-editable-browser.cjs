@@ -93,6 +93,27 @@ const assert = require("node:assert/strict"),
         .evaluate((el) => el.style.visibility),
       "",
     );
+    await page.evaluate(() => {
+      const slide = document.querySelector(".slide.deck-active");
+      slide.style.cssText +=
+        ";width:500px;height:300px;overflow:hidden;transform:none";
+      const text = document.createElement("div");
+      text.style.cssText =
+        "position:absolute;left:600px;top:50px;width:120px;height:30px;white-space:nowrap;color:black;font:20px Arial";
+      text.textContent = "ROOT_CLIPPED_TEXT";
+      slide.append(text);
+    });
+    const rootObjects = await page.evaluate(
+      fs.readFileSync(
+        path.join(__dirname, "../assets/pptx-editable.js"),
+        "utf8",
+      ),
+    );
+    assert.ok(
+      !rootObjects.some((o) => o.text === "ROOT_CLIPPED_TEXT"),
+      "slide-root clipping stays captured",
+    );
+    await page.evaluate(() => window.__slidesPPTXRestore());
     console.log(
       "PASS editable PPTX overflow fallback, contained geometry and restoration",
     );

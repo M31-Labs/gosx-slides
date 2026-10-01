@@ -30,7 +30,7 @@
       .join("");
   }
   function safe(el, objectRect = el.getBoundingClientRect()) {
-    for (let p = el; p && p !== slide; p = p.parentElement) {
+    for (let p = el; p; p = p.parentElement) {
       const s = getComputedStyle(p);
       if (
         Number(s.opacity) !== 1 ||
