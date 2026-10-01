@@ -1,0 +1,10 @@
+material Aurora {
+    param ink : color = rgb(0.025, 0.045, 0.075)
+    param glow : color = rgb(0.23, 0.78, 0.66)
+    surface(geo) -> color {
+        let coord = geo.uv
+        let wave = sin(coord.x * 12.0 + coord.y * 8.0) * 0.5 + 0.5
+        let band = pow(wave, 6.0) * (0.2 + coord.y * 0.8)
+        return mix(ink, glow, band * 0.42)
+    }
+}

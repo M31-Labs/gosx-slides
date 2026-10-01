@@ -1,0 +1,12 @@
+classDiagram
+ class Order {
+ +id: UUID
+ +total: Money
+ +submit()
+ }
+ class Item {
+ +sku: string
+ +quantity: int
+ +subtotal()
+ }
+ Order --> Item: contains

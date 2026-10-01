@@ -1,0 +1,6 @@
+flowchart LR
+ Browser[Browser] --> API[API]
+ API --> Auth[Authentication]
+ API --> Worker[Worker]
+ Worker --> Cache[Cache]
+ Worker --> Store[Store]

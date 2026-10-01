@@ -11,7 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
 	"time"
+
+	"m31labs.dev/gosx/buildmanifest"
 )
 
 // dev_test.go verifies the real-lane hot-swap dev loop (Slice 3) over real
@@ -57,6 +60,64 @@ func newTempDeck(t *testing.T, srcDir string) string {
 		}
 	}
 	return dst
+}
+
+func TestNativeDevCanAddItsFirstIsland(t *testing.T) {
+	dir := newTempDeck(t, "examples/motion-lab")
+	baseURL, loop := startDevLoopForTest(t, dir)
+	wasm, err := os.ReadFile(filepath.Join(loop.BuildDir, "gosx-runtime.wasm"))
+	if err != nil || len(wasm) < 1<<20 {
+		t.Fatalf("watch runtime was not prepared: %v (%d bytes)", err, len(wasm))
+	}
+	response, err := http.Get(baseURL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || strings.Contains(string(body), `"path":"/gosx/runtime.wasm"`) {
+		t.Fatalf("native page unnecessarily loads WASM: %v", err)
+	}
+	component, err := os.ReadFile("examples/showcase/Counter.gsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "Counter.gsx"), component, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, DeckFileName), []byte("# Now interactive\n\n<Counter Initial={2}/>\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// The real watcher stages programs asynchronously before sending reload.
+	// Wait for that publication rather than racing a second explicit restage.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		response, err = http.Get(baseURL + "/gosx/islands/Counter.json")
+		if err == nil {
+			body, err = io.ReadAll(response.Body)
+			response.Body.Close()
+			if err == nil && response.StatusCode == 200 && json.Valid(body) {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("first island program was not published: %v", err)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	response, err = http.Get(baseURL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err = io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || !strings.Contains(string(body), "Counter.json") || strings.Contains(string(body), "data-gosx-unresolved") {
+		t.Fatalf("first island absent from fresh page: %v", err)
+	}
+	if !strings.Contains(string(body), `"hash":"`+buildmanifest.ContentHash(wasm)+`"`) {
+		t.Fatal("first island page lacks the staged runtime hash")
+	}
+
 }
 
 // startDevLoopForTest stands up the dev loop on deckDir and starts the dev proxy

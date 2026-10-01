@@ -31,6 +31,8 @@ import (
 // function plus the island components they reference; RenderProgramComponent
 // renders an individual slide from it.
 type compiledDeck struct {
+	graphics map[string]deckGraphic
+	motion   bool
 	// prog is the compiled program for the generated deck source (all Slide_N
 	// funcs + merged island defs). nil if compilation failed.
 	prog *ir.Program
@@ -50,6 +52,7 @@ type compiledDeck struct {
 // compiledDeck has a nil prog and the error is returned, so callers can fall
 // back to the previous render lane rather than 500.
 func compileDeckProgram(deck *IslandDeck) (*compiledDeck, error) {
+	graphics := compileDeckGraphics(deck)
 	defs := loadIslandDefs(deck)
 	source := generateDeckSource(deck, defs)
 	// gosx.Compile's parser error-recovers hard around damaged input, so a
@@ -58,13 +61,13 @@ func compileDeckProgram(deck *IslandDeck) (*compiledDeck, error) {
 	// parse: one bad island must poison the whole program — that error is
 	// the callers' degrade trigger — never compile into nonsense.
 	if err := validateIslandDefs(defs); err != nil {
-		return &compiledDeck{slideCount: len(deck.Slides), source: source}, err
+		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, err
 	}
 	prog, err := gosx.Compile([]byte(source))
 	if err != nil {
-		return &compiledDeck{slideCount: len(deck.Slides), source: source}, err
+		return &compiledDeck{slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, err
 	}
-	return &compiledDeck{prog: prog, slideCount: len(deck.Slides), source: source}, nil
+	return &compiledDeck{prog: prog, slideCount: len(deck.Slides), source: source, graphics: graphics, motion: deckHasManagedMotion(deck)}, nil
 }
 
 // validateIslandDefs rejects any island whose original .gsx source does not
@@ -95,6 +98,9 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 	defs := map[string]islandDef{}
 	for _, slide := range deck.Slides {
 		for _, ref := range slide.Components {
+			if isGraphicsComponent(ref.Name) {
+				continue
+			}
 			if _, ok := defs[ref.Name]; ok {
 				continue
 			}
@@ -158,6 +164,7 @@ func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, co
 
 	deckVals := deckFrontmatterValues(deck)
 	funcs := exprFuncs(diagramTheme, deck.Dir)
+	funcs[graphicsNamespace] = map[string]any{"Render": func(key string) gosx.Node { return renderDeckGraphic(r, cd.graphics, key) }}
 
 	var nodes []gosx.Node
 	for _, slide := range deck.Slides {
@@ -236,6 +243,7 @@ func exprFuncs(diagramTheme, deckDir string) map[string]any {
 		// HTML-escaped. Pure server-side: no JavaScript, no CDN.
 		diagramNamespace: map[string]any{
 			diagramRenderFunc: slidesDiagram{deckTheme: diagramTheme}.Render,
+			"Morph":           slidesDiagram{deckTheme: diagramTheme}.Morph,
 		},
 		// htmlNS backs the generated `{__slidesHTML.Raw(literal)}` call that
 		// slidegen lowers a raw HTML literal to. rawHTMLNode sanitizes the
@@ -312,11 +320,11 @@ type slidesDiagram struct{ deckTheme string }
 // the generated deck source — the gosx expression evaluator calls this at render
 // time, so the inline SVG is produced server-side with no JavaScript required.
 // A fence may name its own theme; an empty theme falls back to the deck's.
-func (d slidesDiagram) Render(source, theme, view string) gosx.Node {
+func (d slidesDiagram) Render(source, theme, view, diagram string) gosx.Node {
 	if theme == "" {
 		theme = d.deckTheme
 	}
-	return renderSirenaDiagram(source, theme, view, "")
+	return renderSirenaDiagram(source, theme, view, "", diagram)
 }
 
 // codeBlockNode renders a fenced code block to a syntax-highlighted

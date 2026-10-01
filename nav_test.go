@@ -167,60 +167,33 @@ func TestServeInjectsNavScript(t *testing.T) {
 	}
 }
 
-// TestServeInjectsOverviewGrid proves the overview-grid feature (the `o` key) is
-// wired end-to-end in the served page: navStyle carries the grid CSS gated on the
-// overview class, and the controller script carries the o/Esc handlers, the
-// click-to-jump delegation, and the card a11y wiring.
+// Overview cards must not reveal every live slide or duplicate island trees.
 func TestServeInjectsOverviewGrid(t *testing.T) {
 	body := serveBody(t, twoSlideDeck, nil)
-
-	// The overview CSS: a grid container gated on the overview class, plus the rule
-	// that reveals every slide as a card (display:block !important beats the
-	// single-slide :not(.deck-active) display:none).
 	for _, want := range []string{
-		"main.deck." + navOverviewClass,
-		"display: grid !important",
-		"grid-template-columns",
-		"> .slide {",
-		"display: block !important",
-		"zoom:", // the thumbnail scaling
+		".deck-overview-dialog", "grid-template-columns", "overflow-y: auto",
+		"Search slides or enter a number", "aria-modal", "aria-live",
+		"NodeFilter.FILTER_REJECT", "data-picker-slide", "openOverview", "closeOverview",
 	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("overview grid CSS missing %q:\n%s", want, body)
+			t.Errorf("overview missing %q", want)
 		}
 	}
-
-	// The controller: o toggles, Esc closes, a click on a card jumps, and cards are
-	// made keyboard-operable while open.
-	script := extractFirstScript(t, body)
-	for _, want := range []string{
-		navOverviewClass,           // toggles the overview class
-		"toggleOverview",           // the o handler
-		"'Escape'",                 // Esc closes
-		"addEventListener('click'", // click-to-jump delegation
-		"jumpTo",                   // selecting a card
-		"role", "button",           // card a11y while open
-		"openOverview", "closeOverview",
-	} {
-		if !strings.Contains(script, want) {
-			t.Errorf("overview controller missing %q:\n%s", want, script)
+	for _, unwanted := range []string{"zoom: 0.26", "cloneNode(", "slide.setAttribute('role', 'button')"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("overview copies or repurposes live slides: %q", unwanted)
 		}
 	}
 }
 
-// TestNavStyleOverviewDoesNotBreakSingleSlideRule proves the overview rules layer
-// ON TOP of the one-slide-at-a-time visibility rule without removing it: the
-// :not(.deck-active) display:none rule is still present, and the overview reveal is
-// gated behind the overview class (so the deck is single-slide until `o`).
 func TestNavStyleOverviewDoesNotBreakSingleSlideRule(t *testing.T) {
 	css := navStyle()
 	if !strings.Contains(css, "main.deck > .slide:not(."+navActiveClass+") { display: none !important; }") {
-		t.Fatalf("overview CSS clobbered the single-slide visibility rule:\n%s", css)
+		t.Fatal("single-slide visibility rule missing")
 	}
-	// The display:block reveal must be scoped under the overview class (never bare).
-	reveal := "main.deck." + navOverviewClass + " > .slide {"
-	if !strings.Contains(css, reveal) {
-		t.Errorf("overview reveal rule not scoped under the overview class:\n%s", css)
+	if !strings.Contains(css, "@media screen {\nmain.deck.deck-overview > .slide,") ||
+		!strings.Contains(css, ".pv-footer { display: none !important; }") {
+		t.Fatal("overview must hide real slides and presenter surfaces only on screen")
 	}
 }
 

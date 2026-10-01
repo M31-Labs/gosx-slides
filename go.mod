@@ -4,15 +4,14 @@ go 1.26
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/odvcencio/gotreesitter v0.48.1
+	github.com/odvcencio/gotreesitter v0.55.1
 	golang.org/x/net v0.52.0
-	m31labs.dev/gosx v0.36.0
-	m31labs.dev/mdpp v0.4.7
-	m31labs.dev/sirena v0.1.0
+	m31labs.dev/gosx v0.57.1
+	m31labs.dev/mdpp v0.4.8
+	m31labs.dev/sirena v0.6.1
 )
 
 require (
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
@@ -29,6 +28,6 @@ require (
 	m31labs.dev/eos v0.1.4 // indirect
 	m31labs.dev/mll v0.1.0 // indirect
 	m31labs.dev/prism v0.1.3 // indirect
-	m31labs.dev/selena v0.4.0 // indirect
-	m31labs.dev/turboquant v0.2.0 // indirect
+	m31labs.dev/selena v0.5.2 // indirect
+	m31labs.dev/turboquant v0.2.1 // indirect
 )

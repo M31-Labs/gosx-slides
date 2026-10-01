@@ -1,0 +1,84 @@
+{
+  "background": "transparent",
+  "canvasAlpha": true,
+  "camera": {
+    "x": 0,
+    "y": 0,
+    "z": 8,
+    "fov": 50
+  },
+  "controls": "orbit",
+  "autoRotate": false,
+  "scene": {
+    "schema": "gosx.scene3d.ir.v1",
+    "environment": {
+      "ambientColor": "#ffffff",
+      "ambientIntensity": 1
+    },
+    "objects": [
+      {
+        "id": "source",
+        "kind": "sphere",
+        "radius": 0.8,
+        "x": -3.5,
+        "y": 0,
+        "z": 0,
+        "color": "#5fe3b6",
+        "wireframe": false,
+        "materialKind": "standard"
+      },
+      {
+        "id": "transform",
+		"rotationX": 1.1,
+        "kind": "torus",
+        "radius": 0.8,
+        "tube": 0.25,
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "color": "#9982fb",
+        "wireframe": false,
+        "materialKind": "standard"
+      },
+      {
+        "id": "output",
+        "kind": "box",
+        "width": 1.4,
+        "height": 1.4,
+        "depth": 1.4,
+        "x": 3.5,
+        "y": 0,
+        "z": 0,
+        "color": "#5fe3b6",
+        "wireframe": false,
+        "materialKind": "standard"
+      },
+      {
+        "id": "link-a",
+        "kind": "box",
+        "width": 1.8,
+        "height": 0.045,
+        "depth": 0.045,
+        "x": -1.7,
+        "y": 0,
+        "z": 0,
+        "color": "#8294ac",
+        "wireframe": false,
+        "materialKind": "standard"
+      },
+      {
+        "id": "link-b",
+        "kind": "box",
+        "width": 1.8,
+        "height": 0.045,
+        "depth": 0.045,
+        "x": 1.7,
+        "y": 0,
+        "z": 0,
+        "color": "#8294ac",
+        "wireframe": false,
+        "materialKind": "standard"
+      }
+    ]
+  }
+}

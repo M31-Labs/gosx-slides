@@ -109,6 +109,9 @@ func slideComponentNames(slide IslandSlide) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, ref := range slide.Components {
+		if isGraphicsComponent(ref.Name) {
+			continue
+		}
 		if !seen[ref.Name] {
 			seen[ref.Name] = true
 			out = append(out, ref.Name)
@@ -166,6 +169,7 @@ func slideCheckpoints(slide IslandSlide) []CheckpointRef {
 func Analyze(d *IslandDeck) DeckAnalysis {
 	theme := deckTheme(d)
 	out := DeckAnalysis{
+		Graphics:    DeckGraphics(d),
 		Title:       d.title(),
 		Theme:       theme,
 		SourceFiles: []string{DeckFileName},
@@ -177,10 +181,11 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 	if norm := strings.TrimSpace(strings.ToLower(theme)); norm != "" && themeName(theme) != norm {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
 	}
+	graphicBudgets := graphicsClickBudgets(out.Graphics)
 	for _, slide := range d.Slides {
 		layoutName, layoutKnown := slideLayoutInfo(slide)
 		words := slideWordCount(slide)
-		clicks := slideClickCount(slide)
+		clicks := max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets), slideMotionClicks(slide))
 		notes := extractSlideNotes(slide)
 		components := slideComponentNames(slide)
 		citations := slideCitations(slide)
@@ -232,10 +237,11 @@ func Check(dir string) (*Summary, error) {
 		return nil, err
 	}
 	summary := &Summary{Title: d.title(), SlideCount: len(d.Slides), Layouts: map[string]int{}}
+	graphicBudgets := graphicsClickBudgets(DeckGraphics(d))
 	for _, slide := range d.Slides {
 		name, _ := slideLayoutInfo(slide)
 		summary.Layouts[name]++
-		summary.TotalClicks += slideClickCount(slide)
+		summary.TotalClicks += max(slideClickCount(slide), slideGraphicClicks(slide, graphicBudgets), slideMotionClicks(slide))
 		if extractSlideNotes(slide) != "" {
 			summary.Notes++
 		}
@@ -303,6 +309,7 @@ func DeckComponents(d *IslandDeck) []DeckComponentInfo {
 	}
 	sort.Strings(order)
 	_, failures := d.compileComponents()
+
 	out := make([]DeckComponentInfo, 0, len(order))
 	for _, name := range order {
 		info := DeckComponentInfo{
@@ -360,6 +367,13 @@ func Doctor(dir string) (DoctorReport, error) {
 	// Island compile health — the highest-value check: a broken .gsx degrades to an
 	// inert placeholder at serve time, so catch it here.
 	_, failures := d.compileComponents()
+	for _, graphic := range DeckGraphics(d) {
+		status, detail := "ok", graphic.Kind+": "+graphic.Source
+		if !graphic.Compiles {
+			status, detail = "fail", graphic.Error
+		}
+		report.Items = append(report.Items, DoctorItem{Name: "graphic:" + graphic.Source, Status: status, Detail: detail})
+	}
 	if len(failures) == 0 {
 		report.Items = append(report.Items, DoctorItem{Name: "islands", Status: "ok", Detail: "all components compile"})
 	} else {
