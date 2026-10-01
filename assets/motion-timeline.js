@@ -5,7 +5,7 @@
   const records = new WeakMap(), played = new WeakSet();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let lastSlide = null, lastStep = -1;
-  let paused = false, panel = null, selected = null, refreshTimer = null;
+  let paused = false, graphicsFrozen = false, panel = null, selected = null, refreshTimer = null;
   const history = [], future = []; let sourceDraft = null, saving = false;
   const editable = !!document.querySelector('meta[name="slides-edit"]');
   const keys = ['preset','duration','delay','easing','replay'];
@@ -61,20 +61,23 @@
     graphicsPause(true);
     animations().forEach(a => a.pause());
   }
-  // Deferred engines and step replays can mount after Pause. Apply the same
-  // intent when they publish readiness; do no observation work while playing.
-  const pauseObserver = new MutationObserver(() => { if (paused) pauseActive(); });
-  function setPaused(value) {
-    paused = value;
+  // Deferred engines and step replays inherit Pause or the native clock freeze
+  // used during reverse. Disconnect whenever the transport resumes forward.
+  const pauseObserver = new MutationObserver(() => {
+    if (paused) pauseActive();
+    else if (graphicsFrozen) graphicsPause(true);
+  });
+  function setTransport(isPaused, freezeGraphics) {
+    paused = isPaused; graphicsFrozen = freezeGraphics;
     pauseObserver.disconnect();
-    if (value) pauseObserver.observe(deck, {subtree: true, attributes: true,
+    if (isPaused || freezeGraphics) pauseObserver.observe(deck, {subtree: true, attributes: true,
       attributeFilter: ['data-gosx-scene3d-ready', 'data-gosx-scene3d-animation-state', 'data-gosx-motion-state']});
   }
-  function pause() { setPaused(true); pauseActive(); updatePanel(); }
-  function play() { setPaused(false); window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
-  function seek(ms) { setPaused(true); pauseActive(); window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
+  function pause() { setTransport(true, true); pauseActive(); updatePanel(); }
+  function play() { setTransport(false, false); window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
+  function seek(ms) { setTransport(true, true); pauseActive(); window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
   function duration() { return Math.max(window.SlidesDiagramMotion?.duration() || 0, animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0)); }
-  function reverse() { setPaused(false); graphicsPause(true); window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function reverse() { setTransport(false, true); graphicsPause(true); window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
   function run(el, delay, force) {
     const old = records.get(el); if (old) old.cancel();
     if (!force && played.has(el) && el.dataset.slidesMotionReplay === "once") return;
@@ -147,10 +150,10 @@
   deck.addEventListener('slides:change', () => {
     const entered = lastSlide !== active();
     if (entered) {
-      setPaused(false); history.length = future.length = 0;
+      setTransport(false, false); history.length = future.length = 0;
       if (panel && panel.open) panel.close();
     }
-    graphicsPause(paused); sync(false);
+    graphicsPause(graphicsFrozen); sync(false);
     if (paused) pauseActive();
   });
   deck.addEventListener('slides:before-change', event => {

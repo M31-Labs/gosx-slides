@@ -32,6 +32,14 @@ const assert = require('node:assert/strict');
     assert.equal(await native.getAttribute('data-gosx-scene3d-animation-clock'), clock, 'scrubbing must freeze native time');
     await page.evaluate(() => { SlidesMotion.play(); SlidesMotion.reverse(); });
     assert.equal(await native.getAttribute('data-gosx-scene3d-animation-state'), 'paused', 'reverse must freeze unsupported native clocks');
+    await page.evaluate(() => SlidesNav.show(6, 0, true));
+    await page.waitForFunction(() => document.querySelector('.deck-active .slide-graphic')?.dataset.appliedStep === '0');
+    assert.equal(await native.getAttribute('data-gosx-scene3d-animation-state'), 'paused', 'a reverse click step must preserve the native clock freeze');
+    const reversedClock = await native.getAttribute('data-gosx-scene3d-animation-clock');
+    await page.waitForTimeout(180);
+    assert.equal(await native.getAttribute('data-gosx-scene3d-animation-clock'), reversedClock);
+    await page.evaluate(() => SlidesMotion.play());
+    await page.waitForFunction(() => document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dAnimationState === 'playing');
 
     await page.evaluate(() => { SlidesNav.show(1, 0, true); SlidesMotion.pause(); SlidesNav.next(); });
     assert.equal(await page.evaluate(() => SlidesDiagramMotion.state().paused), true);
