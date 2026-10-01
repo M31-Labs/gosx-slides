@@ -24,7 +24,7 @@ func slideCueNames(slide IslandSlide) []string {
 		}
 	}
 	cues = uniqueStrings(cues)
-	next := 0
+	next := max(0, len(cues)-1)
 	if slide.Node != nil {
 		for _, node := range slide.Node.Find(mdpp.NodeContainerDirective) {
 			if node.Attr("name") != "motion" {

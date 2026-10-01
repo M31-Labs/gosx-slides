@@ -1,9 +1,40 @@
 package slides
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
+
+func TestUndeclaredMotionCuePreservesDeclaredAddresses(t *testing.T) {
+	for _, before := range []string{"", ":::motion {cue=request}\nRequest\n:::\n\n"} {
+		t.Run(before, func(t *testing.T) {
+			deck := graphicsDeck(t, "```yaml\nid: pipeline\ncues: overview, request, worker\n```\n\n# Pipeline\n\n"+before+":::motion {cue=extra}\nExtra\n:::\n", nil)
+			names := slideCueNames(deck.Slides[0])
+			if strings.Join(names, ",") != "overview,request,worker,extra" {
+				t.Fatalf("declared cue addresses changed: %v", names)
+			}
+			if got := Analyze(deck).Slides[0].Clicks; got != 3 {
+				t.Fatalf("extra cue click budget = %d, want 3", got)
+			}
+			data, err := json.Marshal(names)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runNavigationJS(t, navLinkScript()+`
+ const assert = require('node:assert/strict');
+ const cueNames = `+string(data)+`;
+ const slides = [{getAttribute:key=>key==='data-slide-id'?'pipeline':key==='data-slide-cues'?JSON.stringify(cueNames):null}];
+ assert.deepEqual(readPosition('#pipeline/request',1),{index:0,step:1});
+ assert.deepEqual(readPosition('#pipeline/worker',1),{index:0,step:2});
+ assert.deepEqual(readPosition('#pipeline/extra',1),{index:0,step:3});
+ assert.equal(positionHash(0,1,false),'#pipeline/request');
+ assert.equal(positionHash(0,2,false),'#pipeline/worker');
+ assert.equal(positionHash(0,3,false),'#pipeline/extra');
+ `)
+		})
+	}
+}
 
 func TestNamedMotionCuesShareClickBudgetAndSurviveLowering(t *testing.T) {
 	deck := graphicsDeck(t, "```yaml\nid: pipeline\ncues: overview, request, worker\n```\n\n# Pipeline\n\n:::motion {cue=request duration=300}\nRequest\n:::\n\n:::motion {cue=worker after=request}\nWorker\n:::\n\n:::motion {cue=complete step=4}\nComplete\n:::\n", nil)
