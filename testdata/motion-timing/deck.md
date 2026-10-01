@@ -50,3 +50,15 @@ Cross-step dependency.
 :::motion {split=word stagger=40 duration=120 delay=10}
 One clear idea
 :::
+
+:::motion {step=1 split=word stagger=25 duration=80 delay=15}
+One stepped idea
+:::
+
+<!-- notes -->
+
+---
+
+# Another slide
+
+Step and slide exits cancel native text motion.

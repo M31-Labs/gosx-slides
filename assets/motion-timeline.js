@@ -105,9 +105,18 @@
   function controlled(el) {
     return ['step', 'cue', 'after', 'group'].some(key => el.hasAttribute('data-slides-motion-' + key));
   }
+  function nativeSplit(el) {
+    return !!el.dataset.gosxMotionSplit &&
+      !['cue', 'after', 'group'].some(key => el.hasAttribute('data-slides-motion-' + key));
+  }
+  function disposeMotion(el) {
+    window.__gosx?.motion?.dispose(el);
+    // Finished native units retain fill:both after their record drops them.
+    if (nativeSplit(el)) el.querySelectorAll('.gosx-motion-unit').forEach(unit => unit.getAnimations().forEach(a => a.cancel()));
+  }
   function motionLength(el) {
     let units = 0;
-    if (!controlled(el) && el.dataset.gosxMotionSplit) {
+    if (nativeSplit(el)) {
       units = el.querySelectorAll('.gosx-motion-unit').length;
       if (!units) {
         const text = el.textContent, mode = el.dataset.gosxMotionSplit.trim().toLowerCase();
@@ -212,11 +221,14 @@
     played.add(el);
     if (reduce.matches && el.dataset.gosxMotionRespectReduced !== 'false') return;
     const api = window.__gosx && window.__gosx.motion;
-    if (api) api.dispose(el);
+    disposeMotion(el);
     const split = el.dataset.gosxMotionSplit;
-    if (split && !controlled(el) && api) {
+    if (nativeSplit(el)) {
+      // Explicit steps own visibility; native GoSX still owns the text units.
+      // Keep its marker so later timing edits refresh rather than dispose them.
+      el.setAttribute('data-gosx-motion', '');
       el.removeAttribute('data-gosx-motion-revealed');
-      api.observe(el); return;
+      if (api) api.observe(el); return;
     }
     // Native GoSX splitting stays available for ordinary entrances. Cued groups
     // preserve their child markup and widgets rather than rebuilding text/DOM.
@@ -243,6 +255,7 @@
         if (!el.hasAttribute('data-slides-authored-aria')) el.dataset.slidesAuthoredAria = el.getAttribute('aria-hidden') || '';
         el.inert = true; el.setAttribute('aria-hidden', 'true');
         const animation = records.get(el); if (animation) animation.cancel();
+        if (nativeSplit(el)) disposeMotion(el);
         el.removeAttribute('data-gosx-motion');
       } else {
         if (el.dataset.slidesAuthoredInert !== 'true') el.inert = false;
@@ -260,8 +273,7 @@
     window.SlidesDiagramMotion?.replay();
     items().forEach(el => {
       if (el.hasAttribute('data-slides-motion-step')) return;
-      const api = window.__gosx && window.__gosx.motion;
-      if (api) api.dispose(el); run(el, number(el, 'delay', 0), true);
+      run(el, number(el, 'delay', 0), true);
     });
     sync(true);
   }
@@ -276,7 +288,7 @@
   });
   deck.addEventListener('slides:before-change', event => {
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
-    if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); el.dataset.slidesCueVisible = 'false'; });
+    if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); if (controlled(el) && nativeSplit(el)) { disposeMotion(el); el.removeAttribute('data-gosx-motion'); } el.dataset.slidesCueVisible = 'false'; });
   });
   function updatePanel() {
     if (!panel || !panel.open) return;
