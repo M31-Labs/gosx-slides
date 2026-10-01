@@ -1,20 +1,22 @@
 # gosx-slides
 
-GoSX Slides v0.4 adds named motion cues, a timing studio, shared-element and
-code morphs, deferred island hydration, and live-rendered graphics exports.
-Sirena diagrams include state, class, ER, swimlane, and timeline layouts, with
-Scene3D focus, reveal, and trace steps.
+GoSX Slides v0.5.0 adds persistent browser source editing, pen and laser
+annotations, captured PowerPoint export, and browser startup benchmarks.
+Sirena v0.5.0 adds mindmap, bar, pie, and Gantt diagrams alongside the existing
+layouts and Scene3D focus, reveal, and trace steps.
 
-The v0.4.1 patch resumes deferred widgets when a slow runtime finishes loading.
 Download a binary for Linux, macOS, or Windows from the
-[v0.4.1 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.4.1),
+[v0.5.0 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.5.0),
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.4.1 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.5.0 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
+
+Go installs `slides` in `$(go env GOPATH)/bin`, or in `GOBIN` when set. Add
+that directory to your `PATH`, then run `slides version`.
 
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;

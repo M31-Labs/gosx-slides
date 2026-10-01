@@ -3,8 +3,21 @@ package main
 import (
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestReadmeInstallTargetsCurrentRelease(t *testing.T) {
+	data, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"--branch " + version + " ", "/releases/tag/" + version + ")"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("README install instructions must target %s; missing %q", version, want)
+		}
+	}
+}
 
 func TestTakeStringFlag(t *testing.T) {
 	cases := []struct {
