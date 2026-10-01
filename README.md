@@ -161,7 +161,7 @@ binaries and publish SHA-256 checksums automatically.
 
 Select a native diagram layout with a fence such as `sirena class` or
 `sirena diagram=timeline`. Available layouts: architecture, sequence, radial,
-state, class, er, swimlane, and timeline. Field/method rows and timeline metadata
+state, class, er, swimlane, timeline, mindmap, bar, pie, and gantt. Field/method rows and timeline metadata
 use Sirena's normal declarations; see `examples/diagram-lab` for all five new
 families alongside semantic Scene3D steps. Mermaid ingestion supports flowcharts.
 
