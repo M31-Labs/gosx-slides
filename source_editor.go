@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"sync"
 
@@ -22,6 +24,25 @@ import (
 const maxSourceBytes = 1 << 20
 
 func sourceRevision(src []byte) string { sum := sha256.Sum256(src); return hex.EncodeToString(sum[:]) }
+
+// Literal loopback addresses and localhost are the trusted authoring authorities.
+// Never trust a request hostname merely because it resolves to the listener.
+func trustedSourceHost(authority string) bool {
+	u, err := url.Parse("//" + authority)
+	if err != nil || u.Host != authority || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return false
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		return err == nil && n > 0 && n <= 65535
+	}
+	return !strings.HasSuffix(authority, ":")
+}
 
 // The token is returned only by a same-origin GET. Writes also require an
 // Origin check and the current source revision, so another tab cannot silently
@@ -46,6 +67,10 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 			fail(405, "method not allowed")
 			return
 		}
+		if !trustedSourceHost(r.Host) {
+			fail(403, "local authoring host required")
+			return
+		}
 		if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
 			fail(403, "same-origin authoring required")
 			return
@@ -57,7 +82,7 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 			if r.TLS != nil {
 				scheme = "https"
 			}
-			if err != nil || u.Scheme != scheme || u.Host != r.Host || u.Path != "" {
+			if err != nil || u.Scheme != scheme || u.Host != r.Host || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 				fail(403, "same-origin authoring required")
 				return
 			}

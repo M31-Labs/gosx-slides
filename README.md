@@ -64,6 +64,9 @@ Recovery files remain until you remove them after reconciling your edits.
 The editor accepts up to 1 MiB
 and refuses symlinked source files. Browser editing is available in plain serve;
 use `--watch` separately for filesystem hot-swap.
+Authoring accepts only `localhost`, `127.0.0.1`, or `[::1]` authorities, with
+the same browser origin and a save token; custom hostnames cannot read or save
+source through the editor endpoint.
 
 **Annotations:** press **D** for pen or **L** for laser, or click **Draw**.
 The toolbar provides a color picker, undo, clear, and done. Ink is per slide and

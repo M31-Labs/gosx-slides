@@ -29,7 +29,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	}
 	handler := app.Build()
 	get := httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest("GET", "http://example.com/_slides/source", nil))
+	handler.ServeHTTP(get, httptest.NewRequest("GET", "http://localhost/_slides/source", nil))
 	if get.Code != 200 {
 		t.Fatal(get.Code, get.Body.String())
 	}
@@ -37,7 +37,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	json.Unmarshal(get.Body.Bytes(), &state)
 	put := func(source, revision, token, origin string) int {
 		data, _ := json.Marshal(map[string]string{"source": source, "revision": revision})
-		req := httptest.NewRequest("PUT", "http://example.com/_slides/source", bytes.NewReader(data))
+		req := httptest.NewRequest("PUT", "http://localhost/_slides/source", bytes.NewReader(data))
 		req.Header.Set("Origin", origin)
 		req.Header.Set("X-Slides-Token", token)
 		w := httptest.NewRecorder()
@@ -47,7 +47,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	for _, input := range []struct {
 		source, token, origin string
 		code                  int
-	}{{"# Forged", state["token"], "http://evil.example", 403}, {"# Forged", "", "http://example.com", 403}, {"# Forged", state["token"], "", 403}, {"# Broken\n\n<Missing/>", state["token"], "http://example.com", 422}, {strings.Repeat("x", maxSourceBytes+1), state["token"], "http://example.com", 400}} {
+	}{{"# Forged", state["token"], "http://evil.example", 403}, {"# Forged", "", "http://localhost", 403}, {"# Forged", state["token"], "", 403}, {"# Broken\n\n<Missing/>", state["token"], "http://localhost", 422}, {strings.Repeat("x", maxSourceBytes+1), state["token"], "http://localhost", 400}} {
 		if code := put(input.source, state["revision"], input.token, input.origin); code != input.code {
 			t.Fatalf("got %d want %d", code, input.code)
 		}
@@ -57,7 +57,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 		}
 	}
 	updated := "# Persistent\n\nSaved in the browser\n"
-	if code := put(updated, state["revision"], state["token"], "http://example.com"); code != 200 {
+	if code := put(updated, state["revision"], state["token"], "http://localhost"); code != 200 {
 		t.Fatal(code)
 	}
 	saved, _ := os.ReadFile(path)
@@ -76,7 +76,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	if info.Mode().Perm() != 0640 {
 		t.Fatal("changed file permissions")
 	}
-	if code := put("# Stale", state["revision"], state["token"], "http://example.com"); code != 409 {
+	if code := put("# Stale", state["revision"], state["token"], "http://localhost"); code != 409 {
 		t.Fatal("stale edit overwrote current source")
 	}
 	page := httptest.NewRecorder()
@@ -192,12 +192,12 @@ func TestSourceEditorServesNewComponent(t *testing.T) {
 	}
 	h := app.Build()
 	get := httptest.NewRecorder()
-	h.ServeHTTP(get, httptest.NewRequest("GET", "http://example.com/_slides/source", nil))
+	h.ServeHTTP(get, httptest.NewRequest("GET", "http://localhost/_slides/source", nil))
 	var state map[string]string
 	json.Unmarshal(get.Body.Bytes(), &state)
 	data, _ := json.Marshal(map[string]string{"source": "# Live\n\n<Counter/>\n", "revision": state["revision"]})
-	req := httptest.NewRequest("PUT", "http://example.com/_slides/source", bytes.NewReader(data))
-	req.Header.Set("Origin", "http://example.com")
+	req := httptest.NewRequest("PUT", "http://localhost/_slides/source", bytes.NewReader(data))
+	req.Header.Set("Origin", "http://localhost")
 	req.Header.Set("X-Slides-Token", state["token"])
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -225,8 +225,66 @@ func TestSourceEditorRefusesSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	app.Build().ServeHTTP(w, httptest.NewRequest("GET", "/_slides/source", nil))
+	app.Build().ServeHTTP(w, httptest.NewRequest("GET", "http://localhost/_slides/source", nil))
 	if w.Code != 400 {
 		t.Fatal("symlink deck could be replaced")
+	}
+}
+
+func TestSourceEditorRejectsReboundHost(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DeckFileName)
+	initial := "# Original\n"
+	if err := os.WriteFile(path, []byte(initial), 0644); err != nil {
+		t.Fatal(err)
+	}
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := deck.NewServer(ServeOptions{Edit: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := app.Build()
+	get := httptest.NewRecorder()
+	h.ServeHTTP(get, httptest.NewRequest("GET", "http://localhost/_slides/source", nil))
+	var state map[string]string
+	if err := json.Unmarshal(get.Body.Bytes(), &state); err != nil || get.Code != 200 {
+		t.Fatal("trusted source unavailable", get.Code, err)
+	}
+	for _, host := range []string{"attacker.example:8100", "localhost.evil:8100", "127.0.0.1.evil:8100"} {
+		for _, method := range []string{"GET", "PUT"} {
+			data, _ := json.Marshal(map[string]string{"source": "# Injected", "revision": state["revision"]})
+			req := httptest.NewRequest(method, "http://"+host+"/_slides/source", bytes.NewReader(data))
+			req.Header.Set("Origin", "http://"+host)
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			req.Header.Set("X-Slides-Token", state["token"])
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != 403 || strings.Contains(w.Body.String(), state["token"]) {
+				t.Fatalf("%s hostile authority %s: %d %s", method, host, w.Code, w.Body.String())
+			}
+		}
+	}
+	for _, host := range []string{"localhost", "LOCALHOST", "localhost:8100", "127.0.0.1", "127.0.0.1:8100", "[::1]", "[::1]:8100"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("GET", "http://"+host+"/_slides/source", nil))
+		if w.Code != 200 {
+			t.Fatalf("trusted authority %s: %d %s", host, w.Code, w.Body.String())
+		}
+	}
+	for _, host := range []string{"attacker.example:8100", "evil@localhost", "localhost/evil", "localhost?x=1", "localhost#fragment", "localhost:bad", "localhost:0", "localhost:65536", "localhost:"} {
+		req := httptest.NewRequest("GET", "http://localhost/_slides/source", nil)
+		req.Host = host
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req) // Even an Origin-less token request must be rejected.
+		if w.Code != 403 {
+			t.Fatalf("untrusted authority %q accepted without Origin: %d", host, w.Code)
+		}
+	}
+	src, err := os.ReadFile(path)
+	if err != nil || string(src) != initial {
+		t.Fatal("host rejection changed source", err)
 	}
 }
