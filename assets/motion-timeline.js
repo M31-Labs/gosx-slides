@@ -56,11 +56,25 @@
     // Scene mounting replaces its children; controls must live in an ancestor scope.
     const scope = document.createElement("div"); scope.style.display = "contents"; scope.setAttribute("data-gosx-scene3d-control-scope", ""); mount.before(scope); scope.appendChild(mount); const toggle = document.createElement("button"); toggle.type = "button"; toggle.hidden = true; toggle.setAttribute("data-gosx-scene3d-animation-toggle", ""); toggle.setAttribute("data-slides-motion-graphics-toggle", ""); toggle.setAttribute("aria-label", "Toggle scene animation"); scope.appendChild(toggle);
   });
-  function pause() { paused = true; window.SlidesDiagramMotion?.pause(); graphicsPause(true); animations().forEach(a => a.pause()); updatePanel(); }
-  function play() { paused = false; window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
-  function seek(ms) { paused = true; window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
+  function pauseActive() {
+    window.SlidesDiagramMotion?.pause();
+    graphicsPause(true);
+    animations().forEach(a => a.pause());
+  }
+  // Deferred engines and step replays can mount after Pause. Apply the same
+  // intent when they publish readiness; do no observation work while playing.
+  const pauseObserver = new MutationObserver(() => { if (paused) pauseActive(); });
+  function setPaused(value) {
+    paused = value;
+    pauseObserver.disconnect();
+    if (value) pauseObserver.observe(deck, {subtree: true, attributes: true,
+      attributeFilter: ['data-gosx-scene3d-ready', 'data-gosx-scene3d-animation-state', 'data-gosx-motion-state']});
+  }
+  function pause() { setPaused(true); pauseActive(); updatePanel(); }
+  function play() { setPaused(false); window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
+  function seek(ms) { setPaused(true); pauseActive(); window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
   function duration() { return Math.max(window.SlidesDiagramMotion?.duration() || 0, animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0)); }
-  function reverse() { paused = false; window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function reverse() { setPaused(false); graphicsPause(true); window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
   function run(el, delay, force) {
     const old = records.get(el); if (old) old.cancel();
     if (!force && played.has(el) && el.dataset.slidesMotionReplay === "once") return;
@@ -130,7 +144,15 @@
     });
     sync(true);
   }
-  deck.addEventListener('slides:change', () => { paused = false; history.length = future.length = 0; graphicsPause(false); sync(false); if (panel && panel.open) panel.close(); });
+  deck.addEventListener('slides:change', () => {
+    const entered = lastSlide !== active();
+    if (entered) {
+      setPaused(false); history.length = future.length = 0;
+      if (panel && panel.open) panel.close();
+    }
+    graphicsPause(paused); sync(false);
+    if (paused) pauseActive();
+  });
   deck.addEventListener('slides:before-change', event => {
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
     if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); el.dataset.slidesCueVisible = 'false'; });
