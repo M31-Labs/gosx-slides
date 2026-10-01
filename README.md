@@ -58,6 +58,12 @@ mounting later. Scrubbing or reversing freezes native graphics clocks until Play
 including across click steps. Click-step
 navigation keeps the studio and undo history open; entering another slide resets
 the transport and closes the studio.
+Timing tracks show the actual start and end for each click step, including `after`
+dependencies, group staggering and split-text staggering. Forward references
+resolve on first entry. Missing cues, cross-step dependencies and cycles appear
+as track warnings; cycles use local delay/stagger without chaining through the
+loop. Replay preserves native word/character splitting, including entrances
+assigned to an explicit click step. Cued/grouped containers preserve child markup.
 
 **Persistent source editing:** `slides serve my-deck --edit`, then press **E**
 or click **Edit**. Save validates the deck and its components, stages the new

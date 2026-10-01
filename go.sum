@@ -127,5 +127,7 @@ m31labs.dev/sirena v0.5.1-0.20261001085559-0c4a0ba91160 h1:W0IwryUuUvYhw7aXI/dF2
 m31labs.dev/sirena v0.5.1-0.20261001085559-0c4a0ba91160/go.mod h1:fQw2kW8XNsuV1206QsJ4HqCoz+UfHhQXMgzuvgJGK9U=
 m31labs.dev/sirena v0.6.0 h1:BOV5866z4nPgpDCk74sp68C1NmvkhE1OBsLPlUsNmgE=
 m31labs.dev/sirena v0.6.0/go.mod h1:fQw2kW8XNsuV1206QsJ4HqCoz+UfHhQXMgzuvgJGK9U=
+m31labs.dev/sirena v0.6.1 h1:/0z8Ld3LYIzGUjX4uhVRnkQs6ZSE3JFYltmzpwhH5zo=
+m31labs.dev/sirena v0.6.1/go.mod h1:fQw2kW8XNsuV1206QsJ4HqCoz+UfHhQXMgzuvgJGK9U=
 m31labs.dev/turboquant v0.2.1 h1:J6jY43qeZZkqjBcV0qASX9KA640uf5pAqbdfHWv+Hbo=
 m31labs.dev/turboquant v0.2.1/go.mod h1:7nkx3Sf/xgz/6V992ePuUpXTN6HyWL+2ueOGCEdlg84=
