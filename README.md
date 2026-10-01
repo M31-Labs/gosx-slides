@@ -269,7 +269,7 @@ slide timing and staggered text.
 ### Upgrade and performance inventory
 
 The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
-gotreesitter **v0.55.1**, and Sirena **v0.4.0**. Existing Sirena/Mermaid diagrams,
+gotreesitter **v0.55.1**, and Sirena **v0.5.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
 without a separate renderer or frontend build system.

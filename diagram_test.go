@@ -45,9 +45,12 @@ func TestDeckHasDiagram(t *testing.T) {
 }
 
 func TestNativeDiagramFamilyFences(t *testing.T) {
-	for _, kind := range []string{"state", "class", "er", "swimlane", "timeline"} {
+	for _, kind := range []string{"state", "class", "er", "swimlane", "timeline", "mindmap", "bar", "pie", "gantt"} {
 		t.Run(kind, func(t *testing.T) {
-			source := "service item { label: \"Item\" fields: \"id: UUID\" methods: \"save()\" start: 0 duration: 3 }\n"
+			source := "service item { label: \"Item\" fields: \"id: UUID\" methods: \"save()\" start: 0 duration: 3 value: 2 }\n"
+			if kind == "gantt" {
+				source = "service item { label: \"Item\" start: \"2026-10-01\" end: \"2026-10-04\" }\n"
+			}
 			deck := loadDeckFromSource(t, "# Diagram\n\n```sirena diagram="+kind+"\n"+source+"```\n", nil)
 			body := renderSlidesHTML(t, deck)
 			if !strings.Contains(body, "<svg") || strings.Contains(body, "diagram error:") || !strings.Contains(body, `data-sirena-id=`) {

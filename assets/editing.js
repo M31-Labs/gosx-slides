@@ -4,7 +4,7 @@
   if (!deck || !window.SlidesNav) return;
   const controls = deck.querySelector('.deck-controls');
   let editor, revision, token, saving = false;
-  function button(label, action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = action; return b; }
+  function button(label, action) { const b = document.createElement('button'); b.type = 'button'; b.classList.add('slides-extra-control'); b.textContent = label; b.onclick = action; return b; }
   async function openEditor() {
     if (!editor) {
       editor = document.createElement('dialog'); editor.className = 'slides-source-panel';
@@ -53,7 +53,7 @@
   overlay.addEventListener('touchstart', event => event.stopPropagation(), { passive: true });
   deck.addEventListener('slides:change', () => { drawing = null; position(); render(); });
   window.addEventListener('resize', position);
-  document.addEventListener('keydown', event => { if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input,textarea,select,[contenteditable],dialog,[role]')) return; const k = event.key.toLowerCase(); if (k === 'e' && canEdit) { event.preventDefault(); openEditor(); } else if (k === 'd' || k === 'l') { event.preventDefault(); const next = k === 'd' ? 'pen' : 'laser'; setMode(mode === next ? '' : next); } else if (k === 'escape' && mode) { event.preventDefault(); setMode(''); } });
+  document.addEventListener('keydown', event => { let target = event.target; if (target.closest('dialog:not([open]), .slides-ink-tools[hidden]')) { target.blur(); target = deck; } if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || target.closest('input,textarea,select,[contenteditable],dialog,[role]')) return; const k = event.key.toLowerCase(); if (k === 'e' && canEdit) { event.preventDefault(); openEditor(); } else if (k === 'd' || k === 'l') { event.preventDefault(); const next = k === 'd' ? 'pen' : 'laser'; setMode(mode === next ? '' : next); } else if (k === 'escape' && mode) { event.preventDefault(); setMode(''); } });
   window.SlidesInk = { mode: setMode, clear: () => { pointCount -= rows().reduce((n,row)=>n+row.points.length,0); rows().length=0; render(); }, count: () => rows().length };
   position();
 })();

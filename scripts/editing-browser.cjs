@@ -24,6 +24,8 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   await page.keyboard.press('e');await page.getByRole('status').filter({hasText:'Ready to edit'}).waitFor();fs.appendFileSync(sourcePath,'\n<!-- external edit -->\n');
   await page.getByRole('button',{name:'Save and preview',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.slides-source-panel [data-status]').textContent.includes('changed'));
   assert.ok(fs.readFileSync(sourcePath,'utf8').includes('external edit'));
+  await page.getByRole('button',{name:'Close source editor',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});await page.keyboard.press('e');await page.getByRole('status').filter({hasText:'Ready to edit'}).waitFor();const bounds=await page.locator('.slides-source-panel').boundingBox();assert.ok(bounds.x>=0 && bounds.x+bounds.width<=391,'mobile source editor exceeds viewport');
   assert.deepEqual(errors,[]);console.log('Editing browser passed: save, validation, conflict, pen, laser, navigation.');
  } finally {await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

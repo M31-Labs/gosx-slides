@@ -43,7 +43,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
       const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
       await page.goto(url+'#state',{waitUntil:'domcontentloaded'});
       await page.waitForFunction(()=>window.SlidesNav);
-      assert.equal(await page.locator('.mdpp-diagram svg').count(),5);
+      assert.equal(await page.locator('.mdpp-diagram svg').count(),9);
       assert.equal(await page.locator('.diagram-error').count(),0);
       assert.ok((await page.locator('[data-slide-id="class"] svg').textContent()).includes('submit()'));
       await page.evaluate(()=>SlidesNav.show(5,0,true));
