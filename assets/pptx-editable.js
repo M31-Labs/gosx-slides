@@ -29,13 +29,16 @@
       .map((v) => Number(v).toString(16).padStart(2, "0"))
       .join("");
   }
-  function safe(el) {
+  function safe(el, objectRect = el.getBoundingClientRect()) {
     for (let p = el; p && p !== slide; p = p.parentElement) {
       const s = getComputedStyle(p);
       if (
         Number(s.opacity) !== 1 ||
         s.filter !== "none" ||
-        s.clipPath !== "none"
+        s.clipPath !== "none" ||
+        (s.maskImage && s.maskImage !== "none") ||
+        (s.clip && s.clip !== "auto") ||
+        s.contentVisibility === "hidden"
       )
         return false;
       if (s.transform !== "none") {
@@ -45,6 +48,37 @@
           Math.abs(m.c) > 1e-6 ||
           m.a <= 0 ||
           m.d <= 0
+        )
+          return false;
+      }
+      const clipsX = s.overflowX !== "visible",
+        clipsY = s.overflowY !== "visible";
+      if (clipsX || clipsY) {
+        // Curved clips cannot be represented by these native objects. Keep
+        // their captured pixels; rectangular clips are safe only if contained.
+        if (
+          [
+            s.borderTopLeftRadius,
+            s.borderTopRightRadius,
+            s.borderBottomLeftRadius,
+            s.borderBottomRightRadius,
+          ].some((radius) => radius && radius !== "0px" && radius !== "0px 0px")
+        )
+          return false;
+        const box = p.getBoundingClientRect(),
+          sx = box.width / (p.offsetWidth || p.clientWidth || box.width || 1),
+          sy =
+            box.height / (p.offsetHeight || p.clientHeight || box.height || 1),
+          left = box.left + p.clientLeft * sx,
+          top = box.top + p.clientTop * sy,
+          right = left + p.clientWidth * sx,
+          bottom = top + p.clientHeight * sy;
+        if (
+          (clipsX &&
+            (objectRect.left < left - 0.01 ||
+              objectRect.right > right + 0.01)) ||
+          (clipsY &&
+            (objectRect.top < top - 0.01 || objectRect.bottom > bottom + 0.01))
         )
           return false;
       }
@@ -71,7 +105,18 @@
     const range = document.createRange();
     range.selectNodeContents(node);
     const rects = Array.from(range.getClientRects());
-    if (!rects.length) continue;
+    if (
+      !rects.length ||
+      rects.some(
+        (rect) =>
+          !safe(el, rect) ||
+          rect.left < 0 ||
+          rect.top < 0 ||
+          rect.right > innerWidth ||
+          rect.bottom > innerHeight,
+      )
+    )
+      continue;
     const rows = [];
     if (rects.length === 1) rows.push({ text: node.textContent, r: rects[0] });
     else {
