@@ -118,3 +118,80 @@ cues: overview, request, worker, done, restore
 [Focus the worker](#workflow/worker). Arrow keys restore each absolute state.
 
 <!-- Scene3D native GPU motion sleeps when this slide is hidden. -->
+
+
+---
+
+```yaml
+id: mindmap
+```
+
+# Build the story
+
+```sirena diagram=mindmap
+service story { label: "A compelling story" }
+service context { label: "Set the context" }
+service evidence { label: "Show the evidence" }
+service change { label: "Make the change" }
+service benchmark { label: "Measured performance" }
+service demo { label: "Interactive demonstration" }
+story -> context: flow
+story -> evidence: flow
+story -> change: flow
+evidence -> benchmark: flow
+evidence -> demo: flow
+```
+
+<!-- Native Sirena mindmap layout. -->
+
+---
+
+```yaml
+id: bar
+```
+
+# See the gain
+
+```sirena diagram=bar
+service baseline { label: "Previous release" value: 35 }
+service improvement { label: "New release" value: 72 }
+service regression { label: "Removed overhead" value: -18 }
+```
+
+<!-- Native Sirena bar layout. -->
+
+---
+
+```yaml
+id: pie
+```
+
+# Show the composition
+
+```sirena diagram=pie
+service authored { label: "Authoring" value: 45 }
+service presenting { label: "Presenting" value: 35 }
+service sharing { label: "Sharing" value: 20 }
+```
+
+<!-- Native Sirena pie layout. -->
+
+---
+
+```yaml
+id: gantt
+```
+
+# Plan real calendar days
+
+```sirena diagram=gantt
+service design { label: "Design" start: "2026-10-01" end: "2026-10-04" }
+service build { label: "Build" start: "2026-10-03" end: "2026-10-10" }
+service validate { label: "Validation" start: "2026-10-10" end: "2026-10-13" }
+service ship { label: "Ship" start: "2026-10-13" end: "2026-10-14" }
+design -> build: depends_on "handoff"
+build -> validate: depends_on "ready"
+validate -> ship: depends_on "approved"
+```
+
+<!-- Native Sirena gantt layout. -->

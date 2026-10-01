@@ -47,10 +47,46 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 
 Try `slides serve examples/authoring-lab`. **M** opens the motion studio: preview
 preset, duration, delay, and easing; pause, replay, reverse, or scrub the element
-timeline, then copy a directive back into Markdown. Preview edits last for the
-current page session. Pause/play also controls active native shader and Scene3D
+timeline, then copy a directive back into Markdown. Motion-studio preview edits last for the
+current page session. Use the source editor below to persist directives. Pause/play also controls active native shader and Scene3D
 clocks; element scrubbing and reversing affect DOM animations. Scene3D poses are
 controlled by their absolute click steps.
+
+**Persistent source editing:** `slides serve my-deck --edit`, then press **E**
+or click **Edit**. Save validates the deck and its components, stages the new
+source, and reloads the preview at the current anchor. Stale or concurrent edits
+report a conflict; **Reload source** loads the latest file. Each save retains the
+displaced source in `.slides-history-*/deck.md`, including writes through an
+already-open file. Publishing refuses to overwrite a file recreated by another
+editor. The source path is briefly absent between capture and publication;
+filesystems without hard-link support reject saves before moving the source.
+Recovery files remain until you remove them after reconciling your edits.
+The editor accepts up to 1 MiB
+and refuses symlinked source files. Browser editing is available in plain serve;
+use `--watch` separately for filesystem hot-swap.
+Authoring accepts only `localhost`, `127.0.0.1`, or `[::1]` authorities, with
+the same browser origin and a save token; custom hostnames cannot read or save
+source through the editor endpoint.
+
+**Annotations:** press **D** for pen or **L** for laser, or click **Draw**.
+The toolbar provides a color picker, undo, clear, and done. Ink is per slide and
+remains while navigating in the current tab; a reload clears it. Annotations
+stay local to the presenter tab and are excluded from capture exports. Pointer
+updates are batched, with bounded stroke and point storage.
+
+**PowerPoint:** `slides export my-deck --format pptx --steps --out deck.pptx`.
+Chrome captures the actual rendered graphics into 16:9 image slides; `--steps`
+emits every click state. Speaker notes are editable text. Slide content is a
+captured image, so DOM text and shapes are not individually editable in PowerPoint.
+The PPTX writer streams image parts and needs no JavaScript or office toolchain.
+
+**Browser measurements:** `slides bench my-deck --runs 3` emits JSON with server
+setup time, fresh-profile browser readiness, resource transfer bytes, JS heap,
+DOM nodes, and hydrated island count. Chrome is required. Server setup includes
+cached runtime staging; browser timing starts at navigation and includes runtime
+activation plus active graphic readiness. Transfer includes the shared WASM;
+measure the same deck and browser when comparing releases. The command reports
+startup, not frame-rate performance.
 
 Give a slide an ID and ordered cues in its YAML fence:
 
@@ -242,7 +278,7 @@ slide timing and staggered text.
 ### Upgrade and performance inventory
 
 The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
-gotreesitter **v0.55.1**, and Sirena **v0.4.0**. Existing Sirena/Mermaid diagrams,
+gotreesitter **v0.55.1**, and Sirena **v0.5.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
 without a separate renderer or frontend build system.

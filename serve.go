@@ -36,6 +36,8 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 type ServeOptions struct {
 	// Static disables server-only audience synchronization in exported decks.
 	Static bool
+	// Edit enables validated, revision-checked browser saves to deck.md.
+	Edit bool
 	// Addr is the listen address for Serve (e.g. "127.0.0.1:8080"). Ignored by
 	// NewServer, which only builds the App.
 	Addr string
@@ -99,14 +101,41 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	app := server.New()
 	app.SetPublicDir(d.Dir)
 
+	if opts.Edit && !opts.Static {
+		if err := mountSourceEditor(app, d); err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.Edit && !opts.Static {
+		app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
+			name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
+			fresh, err := LoadIslandDeck(d.Dir)
+			if err != nil {
+				return nil, err
+			}
+			cc, _ := fresh.compileComponents()
+			component := cc[name]
+			if component == nil {
+				ctx.SetStatus(http.StatusNotFound)
+				return nil, fmt.Errorf("component %q is unavailable", name)
+			}
+			ctx.Header().Set("Cache-Control", "no-store")
+			return json.RawMessage(component.json), nil
+		})
+	}
+
 	for _, name := range sortedKeys(compiled) {
+		if opts.Edit && !opts.Static {
+			continue
+		}
 		cc := compiled[name]
 		assetPath := "/gosx/islands/" + name + ".json"
 		jsonBytes := cc.json
 		// API routes take precedence over GoSX's built-in /gosx/ asset route.
 		app.API("GET "+assetPath, func(ctx *server.Context) (any, error) {
 			ctx.Header().Set("Cache-Control", "no-cache")
-			if opts.Dev {
+			if opts.Dev || (opts.Edit && !opts.Static) {
 				fresh, err := LoadIslandDeck(d.Dir)
 				if err == nil {
 					_, data, err := compileSceneComponent(fresh, name)
@@ -152,9 +181,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
+		if opts.Edit && !opts.Static {
+			ctx.AddHead(gosx.RawHTML(`<meta name="slides-edit" content="enabled">`))
+		}
 		renderDeck, renderCompiled, renderFailures := d, compiled, failures
 		renderProgram, renderErr := deckProgram, deckErr
-		if opts.Dev {
+		if opts.Dev || (opts.Edit && !opts.Static) {
 			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
 				if freshCompiled, freshFailures := fresh.compileComponents(); freshCompiled != nil {
 					logCompileFailures(fresh.Dir, freshFailures)
@@ -296,7 +328,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if custom := deckCustomCSS(d); custom != "" {
@@ -371,7 +403,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"</script>"),
 	)
 }
 

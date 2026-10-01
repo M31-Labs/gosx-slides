@@ -1,0 +1,20 @@
+.slides-source-panel { box-sizing:border-box; width:min(90vw,1000px); max-height:90vh; padding:24px; border:1px solid #ffffff25; border-radius:16px; background:#151923; color:#f1f3f8; box-shadow:0 24px 80px #0008; }
+.slides-source-panel::backdrop { background:#0009; }
+.slides-source-panel header,.slides-source-panel footer { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+main.deck dialog.slides-source-panel h2 { margin:0 auto 12px 0; font:600 22px system-ui; }
+.slides-source-panel textarea { display:block; box-sizing:border-box; width:100%; height:55vh; padding:16px; margin:8px 0 16px; resize:vertical; border:1px solid #ffffff35; border-radius:8px; background:#0b0e15; color:#f1f3f8; font:14px/1.6 ui-monospace,monospace; tab-size:2; }
+.slides-source-panel button,.slides-ink-tools button { cursor:pointer; border:1px solid #ffffff35; border-radius:7px; padding:8px 12px; background:#242c3c; color:#f1f3f8; font:14px system-ui; }
+.slides-source-panel button:focus-visible,.slides-ink-tools :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
+.slides-source-panel [data-status] { font:14px system-ui; flex:1; }
+.slides-source-panel button:disabled { opacity:.5; }
+.slides-ink { position:fixed; z-index:45; pointer-events:none; touch-action:none; overflow:visible; }
+.slides-ink-tools { position:fixed; z-index:60; left:50%; transform:translateX(-50%); bottom:88px; display:flex; align-items:center; gap:6px; padding:8px; border-radius:12px; background:#151923ee; box-shadow:0 8px 30px #0005; }
+.slides-ink-tools[hidden] { display:none; }
+.slides-ink-tools input { width:30px; height:30px; border:0; background:transparent; }
+.slides-laser { fill:#ff4b73; opacity:0; }
+@media(max-width:480px) { .slides-ink-tools { gap:3px; width:max-content; max-width:96vw; padding:5px; } .slides-ink-tools button { padding:8px; } }
+@media print { .slides-ink,.slides-ink-tools,.slides-source-panel { display:none!important; } }
+
+.deck-overview .slides-ink,.deck-blank .slides-ink { display:none; }
+
+.deck-controls .slides-extra-control { font-size:14px; min-width:40px; width:auto; padding-inline:5px; }
