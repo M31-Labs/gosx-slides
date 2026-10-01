@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "go build -o slides ./cmd/slides",
+    "test": "npm run build && node scripts/browser-ci.cjs ./slides",
+    "test:browser": "node scripts/browser-ci.cjs ./slides"
+  },
+  "devDependencies": {
+    "mermaid": "12.0.0",
+    "playwright": "1.58.2"
+  }
+}

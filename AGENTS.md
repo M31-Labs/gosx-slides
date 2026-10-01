@@ -70,7 +70,7 @@ directly also works (the parent directory is used).
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
 | `serve [deck-dir] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
-| `export [deck-dir] --format spa\|single\|pdf [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
+| `export [deck-dir] --format spa\|single\|pdf\|frames\|video [--capture] [--steps] [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
 | `inspect [deck-dir] [--json]` | Full authoring analysis: word count, estimated runtime, component usage, warnings. |
 | `validate [deck-dir] [--strict] [--profile standard\|conference\|demo\|lecture]` | Authoring-rule checks by profile. `--strict` exits non-zero on failure (CI gate). |
@@ -97,6 +97,28 @@ directly also works (the parent directory is used).
 ```
 
 ---
+
+## v0.4 authoring additions
+
+See [README motion and export recipes](README.md#motion-authoring-and-exports)
+and `examples/authoring-lab` for runnable examples.
+
+- Slide YAML `id:` and comma-separated `cues:` create stable `#id/cue` addresses.
+  Motion `cue`, `step`, `after`, `group`, and `stagger` share the click budget.
+  Explicit numeric steps range from 0 to 10,000. Cue names follow slide ID rules.
+- **M** previews element animation timing; **R** checks current rendered readability.
+  Edits are temporary, with copyable Markdown. GPU clocks pause/play; absolute
+  Scene3D poses use navigation steps, and scrubbing/reverse controls DOM motion.
+- `data-morph-id` connects matching elements between slides; `morph-duration:`
+  controls arrival timing. `:::code-morph` groups sequential code fences.
+- `layout: split`, `:::cards`, and `:::card` provide responsive recipes.
+- Islands defer until active/next; `hydration: eager` restores startup hydration.
+- `--capture` uses real browser pixels for single/PDF; `--steps` captures every
+  click state. `frames` emits PNG; `video --seconds 2 --fps 15` emits silent WebM.
+  Set `SLIDES_CHROME` for captured exports; video also requires `ffmpeg` VP9.
+  Capture bounds: 10,000 states, 18,000 frames, seconds 0.1–60, FPS 1–60.
+- Optional browser developer checks: `npm ci`, `npx playwright install chromium`,
+  `go build -o slides ./cmd/slides`, `node scripts/browser-ci.cjs ./slides`.
 
 ## Authoring a deck
 
@@ -270,6 +292,21 @@ deck compile fails.
 parallel concepts, `:::details "Title"` for disclosure, or any named container
 as a stable `.mdpp-container-<name>` styling hook. Titles and Markdown inside a
 container stay structured.
+
+`:::motion {preset=slide-up duration=450 delay=80 easing=ease-out distance=24}`
+wraps Markdown content in the GoSX managed Motion builtin. Trigger defaults to
+`view`, and `load` is also supported. Replay defaults to `slide` (every entry);
+`replay=once` disables repetition and `replay=step` also repeats on click steps.
+Presets: fade, slide-up,
+slide-down, slide-left, slide-right, zoom-in. Times are milliseconds. Text-only
+regions can use `split=word|char|line` with `stagger=60`; splitting replaces inner
+markup with native text units. Reduced motion is respected by default. Both the
+compiled and fail-soft lanes preserve the region. No WASM is required.
+
+Deck headmatter and a slide's leading YAML fence accept `transition-duration`,
+`transition-delay`, and `transition-easing`; the slide overrides each independently.
+Times accept numeric milliseconds or `ms`/`s` suffixes; supported easing forms
+are CSS keywords, cubic-bezier, and steps. Fade/none keep the fit transform intact.
 
 ```md
 :::columns
@@ -470,8 +507,8 @@ Fenced code blocks render with syntax highlighting. Two additional features:
 - **Stepped highlights** — annotate a fence with `{line-range|line-range|…}` to
   walk through sections on `→`. Example: ` ```go {1-2|4-6} ``` ` — first press
   spotlights lines 1–2, second press spotlights 4–6, third press moves to the
-  next slide. The step position is ephemeral (not in the URL hash); a reload
-  lands on the slide with no step active.
+  next slide. The step position is recorded in `#N/K` (slide N, click step K). Reload,
+  links, and browser history restore it; `#N` starts at step zero.
 - **Copy button** — every code block shows a "copy" button on hover. The button
   captures the code text (excluding any line-number gutter) and writes it to the
   clipboard via the Clipboard API.
@@ -597,15 +634,39 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 |---|---|
 | `→` or `Space` | Next slide (or advance to next code-step within the slide) |
 | `←` | Previous slide (or step back within the slide) |
+| `m` / `M` | Motion studio: preview timing, replay, pause, reverse, scrub, copy directives |
+| `r` / `R` | Readability report for the current viewport |
 | `f` / `F` | Toggle fullscreen |
-| `o` / `O` | Toggle overview grid (every slide as a scaled thumbnail) |
+| `o` / `O` / `/` | Open searchable slide overview (text cards, live slides hidden) |
+| `?` | Open keyboard shortcuts |
+| `Home` / `End` | First / last slide |
+| `PageUp` / `PageDown` | Previous / next step or slide |
+| `b` / `B` / `Esc` | Blank / restore screen |
 | `p` | Open presenter view |
 
 - **Deep-linking:** the URL hash is **1-based** — `#1` is the first slide, `#3`
   the third. It loads to that slide and stays in sync as you navigate
-  (`history.replaceState`, so it doesn't pollute history).
-- Keys are ignored while typing in an `input`/`textarea`/`select`.
-- Hidden slides still hydrate their islands on load; navigating only toggles
+  (`history.replaceState`, so it doesn't pollute history). Append `/K` to link to
+  click step K (e.g. `#3/2`). Steps are clamped to the destination budget; code,
+  fragments, and absolute Scene3D frames restore together. Timed entrance motion
+  begins on arrival rather than seeking an elapsed timestamp.
+- Search uses title and body words (case/accent insensitive), or an exact slide
+  number. Notes, scripts, and styles are excluded; text is indexed on first open.
+  Arrow keys choose cards, Enter/Space jumps, Esc restores the current step.
+  The modal traps focus and restores it on close; slide attributes remain intact.
+- Keys are ignored while typing in inputs, editable text, or ARIA input widgets;
+  Space/Enter on a focused button/link keeps its native activation.
+- Code spotlight and fragment styles have no fixed index ceiling. The controller
+  caches per-slide metadata and updates only visited slides. Hidden fragments
+  become inert and aria-hidden, restoring author settings when revealed.
+- Overview hides live slide surfaces, preserving state and allowing native
+  graphics to pause. Playing media pauses and resumes when returning.
+- The toolbar hides after 2.2 seconds of inactivity; pointer movement, touch,
+  or local navigation reveals it. Keyboard focus keeps controls visible.
+- Exported decks do not publish navigation state to a server.
+- Islands on hidden slides defer hydration until active or next in idle time;
+  visited instances retain state. Headmatter `hydration: eager` restores startup
+  hydration. Navigating only toggles
   visibility, so island state persists across slide changes.
 
 ### Audience chrome

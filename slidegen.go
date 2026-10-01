@@ -256,6 +256,14 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString(cls)
 	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
+	for _, key := range []string{"data-slide-id", "data-slide-cues", "data-morph-duration"} {
+		if value := slideIdentityAttrs(slide)[key]; value != "" {
+			b.WriteString(" " + key + "={" + strconv.Quote(value) + "}")
+		}
+	}
+	if source := resolveSlideLayer(slide, "scene", layers.Scene); graphicsSceneSource(source) {
+		b.WriteString(" data-scene-source={" + strconv.Quote(source) + "}")
+	}
 	// Per-slide `transition:` frontmatter overrides the deck-level enter
 	// animation for this one slide (fade | none; anything else stamps nothing).
 	if tr := slideTransition(slide); tr != "" {
@@ -373,6 +381,7 @@ func slideOverrideStyle(slide IslandSlide) string {
 			style.WriteString(";")
 		}
 	}
+	style.WriteString(transitionTimingStyle(fm))
 	return style.String()
 }
 
@@ -535,7 +544,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// <img> with both as string-literal attribute expressions so a src/alt
 		// containing `<`, `{`, `"` can never corrupt the generated source. Themes
 		// constrain it to the slide with object-fit (see themes_css.go).
-		return "<img src={" + strconv.Quote(n.Attr("src")) + "} alt={" + strconv.Quote(n.Attr("alt")) + "}/>"
+		return "<img loading=\"lazy\" decoding=\"async\" src={" + strconv.Quote(n.Attr("src")) + "} alt={" + strconv.Quote(n.Attr("alt")) + "}/>"
 
 	case mdpp.NodeTable:
 		return lowerTableGSX(n)
@@ -592,7 +601,7 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		// the helper passes "" to fence.Options which selects the default theme).
 		return "{" + diagramNamespace + "." + diagramRenderFunc + "(" +
 			strconv.Quote(n.Literal) + ", " + strconv.Quote(n.Attr("theme")) + ", " +
-			strconv.Quote(n.Attr("view")) + ")}"
+			strconv.Quote(n.Attr("view")) + ", " + strconv.Quote(n.Attr("diagram")) + ")}"
 
 	case mdpp.NodeSoftBreak:
 		return "{\" \"}"
@@ -693,6 +702,15 @@ func lowerAdmonitionGSX(n *mdpp.Node) string {
 // so themes and deck CSS can compose columns, callouts, and titled regions.
 func lowerContainerDirectiveGSX(n *mdpp.Node) string {
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	if name == "motion" {
+		return lowerMotionDirectiveGSX(n)
+	}
+	if name == "diagram-morph" {
+		return lowerDiagramMorphGSX(n)
+	}
+	if name == "code-morph" {
+		return lowerCodeMorphGSX(n)
+	}
 	title := strings.TrimSpace(n.Attr("title"))
 	if name == "details" {
 		var summary string
@@ -774,6 +792,9 @@ func lowerChildrenGSX(n *mdpp.Node) string {
 // the raw mdpp-captured props string (already name={…}/name="…" shaped); it is
 // carried through verbatim so the island receives exactly the authored props.
 func componentTagGSX(name, props string) string {
+	if isGraphicsComponent(name) {
+		return "{" + graphicsNamespace + ".Render(" + strconv.Quote(graphicsKey(name, props)) + ")}"
+	}
 	if name == "" {
 		return ""
 	}

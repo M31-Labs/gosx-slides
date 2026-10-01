@@ -62,20 +62,19 @@ func TestFragmentRevealNestedListNotTagged(t *testing.T) {
 	}
 }
 
-// TestSlideHasRevealCSSTriggers verifies that navStyle includes per-K CSS rules
-// for data-active-fragment (spot-check a few indices).
-func TestSlideHasRevealCSSTriggers(t *testing.T) {
-	css := navStyle()
-	// At least the first few per-K rules should be present.
-	for _, want := range []string{
-		`[data-active-fragment="0"] [data-fragment="0"]`,
-		`[data-active-fragment="1"] [data-fragment="0"]`,
-		`[data-active-fragment="1"] [data-fragment="1"]`,
-		`[data-active-fragment="2"] [data-fragment="2"]`,
-	} {
+// A constant-size stylesheet avoids the old quadratic growth and index ceiling.
+func TestRevealStylesHaveConstantSize(t *testing.T) {
+	css := fragmentRevealCSS() + stepSpotlightCSS()
+	if len(css) > 1800 {
+		t.Fatalf("step styles grew beyond the constant-size budget: %d bytes", len(css))
+	}
+	for _, want := range []string{"slides-fragment-visible", "slides-step-active"} {
 		if !strings.Contains(css, want) {
-			t.Errorf("navStyle missing per-K fragment rule %q", want)
+			t.Errorf("missing %s", want)
 		}
+	}
+	if strings.Contains(css, `[data-active-fragment="24"]`) || strings.Contains(css, `[data-step~="16"]`) {
+		t.Fatal("step stylesheet enumerates a fixed maximum")
 	}
 }
 
@@ -108,7 +107,7 @@ func TestNavFragmentCSS(t *testing.T) {
 	css := navStyle()
 	for _, want := range []string{
 		`[data-fragment] { opacity: 0; }`,
-		`:not([data-active-fragment]) [data-fragment="0"] { opacity: 1; }`,
+		`:not([data-active-fragment]) [data-fragment="0"]`,
 		`data-active-fragment`,
 		`opacity: 1 !important`,
 	} {

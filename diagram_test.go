@@ -1,6 +1,7 @@
 package slides
 
 import (
+	"m31labs.dev/mdpp"
 	"strings"
 	"testing"
 )
@@ -40,5 +41,28 @@ func TestDeckHasDiagram(t *testing.T) {
 	without := loadDeckFromSource(t, "# B\n\nplain prose\n", nil)
 	if deckHasDiagram(without) {
 		t.Error("deckHasDiagram should return false for a deck without any diagram")
+	}
+}
+
+func TestNativeDiagramFamilyFences(t *testing.T) {
+	for _, kind := range []string{"state", "class", "er", "swimlane", "timeline", "mindmap", "bar", "pie", "gantt"} {
+		t.Run(kind, func(t *testing.T) {
+			source := "service item { label: \"Item\" fields: \"id: UUID\" methods: \"save()\" start: 0 duration: 3 value: 2 }\n"
+			if kind == "gantt" {
+				source = "service item { label: \"Item\" start: \"2026-10-01\" end: \"2026-10-04\" }\n"
+			}
+			deck := loadDeckFromSource(t, "# Diagram\n\n```sirena diagram="+kind+"\n"+source+"```\n", nil)
+			body := renderSlidesHTML(t, deck)
+			if !strings.Contains(body, "<svg") || strings.Contains(body, "diagram error:") || !strings.Contains(body, `data-sirena-id=`) {
+				t.Fatalf("family did not render: %s", body)
+			}
+			nodes := deck.Slides[0].Node.Find(mdpp.NodeDiagram)
+			if len(nodes) != 1 || nodes[0].Attr("diagram") != kind {
+				t.Fatal("lost fence layout selection")
+			}
+			if kind == "class" && !strings.Contains(body, "save()") {
+				t.Fatal("class compartments lost")
+			}
+		})
 	}
 }

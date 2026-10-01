@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,6 +13,8 @@ import (
 
 	slides "m31labs.dev/gosx-slides"
 )
+
+var version = "v0.6.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -183,13 +187,52 @@ func run(args []string) error {
 		// live island in place (no reload, state preserved); editing deck.md
 		// full-reloads. It fronts the in-process deck server with the gosx dev proxy.
 		watch, rest := takeBoolFlag(rest, "watch")
+		edit, rest := takeBoolFlag(rest, "edit")
+		if watch && edit {
+			return fmt.Errorf("use serve --edit for browser authoring, or --watch for filesystem hot-swap")
+		}
 		dir := deckDir(rest)
 		if watch {
 			fmt.Printf("gosx-slides (hot-swap) serving %s at http://%s\n", dir, addr(port))
 			return slides.DevDeck(dir, slides.DevOptions{Addr: addr(port), RebuildRuntime: rebuild})
 		}
 		fmt.Printf("gosx-slides serving %s at http://%s\n", dir, addr(port))
-		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), StageRuntime: true, RebuildRuntime: rebuild})
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), StageRuntime: true, RebuildRuntime: rebuild, Edit: edit})
+	case "bench":
+		runs, rest, err := takeIntFlag(args[1:], "runs", 3)
+		if err != nil {
+			return err
+		}
+		budgetPath, rest, err := takeStringFlag(rest, "budget", "")
+		if err != nil {
+			return err
+		}
+		var budget slides.BrowserBudget
+		if budgetPath != "" {
+			data, readErr := os.ReadFile(budgetPath)
+			if readErr != nil {
+				return readErr
+			}
+			decoder := json.NewDecoder(bytes.NewReader(data))
+			decoder.DisallowUnknownFields()
+			if err = decoder.Decode(&budget); err != nil {
+				return err
+			}
+			if err = decoder.Decode(new(any)); err != io.EOF {
+				return fmt.Errorf("budget must contain one JSON object")
+			}
+			if err = budget.Validate(); err != nil {
+				return err
+			}
+		}
+		report, err := slides.BenchmarkBrowser(deckDir(rest), runs)
+		if err != nil {
+			return err
+		}
+		if err = json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return err
+		}
+		return report.CheckBudget(budget)
 	case "build":
 		out, rest, err := takeStringFlag(args[1:], "out", "dist")
 		if err != nil {
@@ -205,9 +248,28 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out})
+		capture, rest := takeBoolFlag(rest, "capture")
+		steps, rest := takeBoolFlag(rest, "steps")
+		editable, rest := takeBoolFlag(rest, "editable")
+		secondsText, rest, err := takeStringFlag(rest, "seconds", "2")
+		if err != nil {
+			return err
+		}
+		seconds, err := strconv.ParseFloat(secondsText, 64)
+		if err != nil {
+			return fmt.Errorf("invalid --seconds: %w", err)
+		}
+		fpsText, rest, err := takeStringFlag(rest, "fps", "15")
+		if err != nil {
+			return err
+		}
+		fps, err := strconv.Atoi(fpsText)
+		if err != nil {
+			return fmt.Errorf("invalid --fps: %w", err)
+		}
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Seconds: seconds, FPS: fps})
 	case "version":
-		fmt.Println("gosx-slides v0.1.0")
+		fmt.Println("gosx-slides " + version)
 		return nil
 	case "help", "-h", "--help":
 		usage()
@@ -324,12 +386,17 @@ slides is the gosx-slides command. One lane: a deck is a directory with deck.md 
 
 Commands:
   init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
-  serve [deck-dir] [--port 8080] [--rebuild] [--watch]   serve the deck (live islands). --watch = hot-swap dev loop
+  serve [deck-dir] [--edit] [--port 8080] [--rebuild] [--watch]   serve the deck (live islands). --watch = hot-swap dev loop
                                                          (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
+  bench [deck-dir] [--runs 3]  Measure fresh-browser readiness, transfer, heap and DOM
   build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
-  export [deck-dir] --format spa|single|pdf [--out dist] spa = hostable folder; single = one snapshot html; pdf = one-slide-per-page handout (needs chrome)
+  export [deck-dir] --format spa|single|pdf|frames|video|pptx [--out dist]
+    --capture    Render live graphics in single/PDF snapshots (needs Chrome)
+    --editable   Export native text and supported SVG shapes in PPTX
+    --steps      Capture every click state (implies capture)
+    --seconds 2  Seconds per video state; --fps 15 (video needs ffmpeg)
   check [deck-dir]                                       title / slide / click / notes / layout counts
   inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
   validate [deck-dir] [--strict] [--profile standard|conference|demo|lecture]

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"m31labs.dev/gosx/buildmanifest"
 )
 
 // realDeckDir is the shipped end-to-end example: prose + a standalone <Counter/>.
@@ -159,6 +161,30 @@ func TestNewServerServesRuntimeAssets(t *testing.T) {
 		t.Fatalf("NewServer(StageRuntime): %v", err)
 	}
 	handler := app.Build()
+
+	t.Run("verified manifest", func(t *testing.T) {
+		wasm, err := os.ReadFile(filepath.Join(buildDir, "gosx-runtime.wasm"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		match := regexp.MustCompile(`<script[^>]*id="gosx-manifest"[^>]*>(.*?)</script>`).FindSubmatch(rec.Body.Bytes())
+		if len(match) != 2 {
+			t.Fatal("missing page manifest")
+		}
+		var manifest struct {
+			Runtime struct {
+				Hash string `json:"hash"`
+			} `json:"runtime"`
+		}
+		if err := json.Unmarshal(match[1], &manifest); err != nil {
+			t.Fatal(err)
+		}
+		if manifest.Runtime.Hash != buildmanifest.ContentHash(wasm) {
+			t.Fatalf("runtime cannot be verified: %q", manifest.Runtime.Hash)
+		}
+	})
 
 	// wasm_exec.js comes straight from the Go toolchain — always stageable.
 	t.Run("wasm_exec.js", func(t *testing.T) {
@@ -340,6 +366,18 @@ func TestStageRuntimeAssetsRebuild(t *testing.T) {
 	sentinel := append([]byte("STALE-SENTINEL-NOT-A-REAL-WASM"), make([]byte, 1<<20)...)
 	if err := os.WriteFile(wasmPath, sentinel, 0o644); err != nil {
 		t.Fatalf("write sentinel: %v", err)
+	}
+
+	root, err := resolveGoSXRoot(deckDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := runtimeCacheKey(root, deckDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(buildDir, ".slides-runtime-version"), []byte(key), 0644); err != nil {
+		t.Fatal(err)
 	}
 
 	// Cache hit: rebuild=false must NOT touch the existing (stale-but-plausible) artifact.

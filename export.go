@@ -3,6 +3,7 @@ package slides
 import (
 	"fmt"
 	"html"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,8 +22,13 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format string // "spa" (default), "single", or "pdf"
-	OutDir string // output directory (default "dist"); for pdf, may be a .pdf path
+	Format   string  // "spa" (default), "single", or "pdf"
+	Editable bool    // native text and supported SVG objects in PPTX
+	Capture  bool    // capture live graphics through Chrome for single/PDF
+	Steps    bool    // include every reveal/cue state in captured output
+	Seconds  float64 // video hold time per state (default 2)
+	FPS      int     // video sampling rate (default 15)
+	OutDir   string  // output directory (default "dist"); for pdf, may be a .pdf path
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -43,12 +49,37 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// the App's runtime root there; StageIslandPrograms writes each island's JSON to
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
-	app, err := deck.NewServer(ServeOptions{StageRuntime: true})
+	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if opts.Editable && format != "pptx" {
+		return fmt.Errorf("--editable requires --format pptx")
+	}
+	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
+		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, video, or pptx)", opts.Format)
+	}
+	if opts.Seconds == 0 {
+		opts.Seconds = 2
+	}
+	if opts.FPS == 0 {
+		opts.FPS = 15
+	}
+	if opts.Seconds < 0.1 || opts.Seconds > 60 || math.IsNaN(opts.Seconds) || math.IsInf(opts.Seconds, 0) || opts.FPS < 1 || opts.FPS > 60 {
+		return fmt.Errorf("video seconds must be 0.1–60 and fps 1–60")
+	}
+	if opts.Capture || opts.Steps || format == "frames" || format == "video" || format == "pptx" {
+		if format == "" || format == "spa" {
+			return fmt.Errorf("--capture and --steps require single, pdf, frames, video, or pptx")
+		}
+		opts.Format = format
+		return exportCaptured(deck, opts)
+	}
+	app, err := deck.NewServer(ServeOptions{StageRuntime: format == "" || format == "spa", Static: true})
 	if err != nil {
 		return fmt.Errorf("build deck app: %w", err)
 	}
-	if err := StageIslandPrograms(dir); err != nil {
-		return fmt.Errorf("stage island programs: %w", err)
+	if format == "" || format == "spa" {
+		if err := StageIslandPrograms(dir); err != nil {
+			return fmt.Errorf("stage island programs: %w", err)
+		}
 	}
 
 	rec := httptest.NewRecorder()
@@ -253,6 +284,9 @@ func copyBuildToGosx(buildDir, destGosx string) error {
 			return err
 		}
 		if info.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(info.Name(), ".") {
 			return nil
 		}
 		rel, err := filepath.Rel(buildDir, path)

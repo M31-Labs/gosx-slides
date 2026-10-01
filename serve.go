@@ -1,6 +1,7 @@
 package slides
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 
 	"m31labs.dev/gosx"
+	"m31labs.dev/gosx/engine"
 	"m31labs.dev/gosx/island/program"
 	"m31labs.dev/gosx/server"
 	"m31labs.dev/mdpp"
@@ -32,6 +34,10 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 
 // ServeOptions configures the real-lane deck server.
 type ServeOptions struct {
+	// Static disables server-only audience synchronization in exported decks.
+	Static bool
+	// Edit enables validated, revision-checked browser saves to deck.md.
+	Edit bool
 	// Addr is the listen address for Serve (e.g. "127.0.0.1:8080"). Ignored by
 	// NewServer, which only builds the App.
 	Addr string
@@ -49,9 +55,8 @@ type ServeOptions struct {
 
 	// RebuildRuntime forces the GOOS=js runtime.wasm to be rebuilt even when a
 	// cached build/gosx-runtime.wasm already exists. The wasm build is
-	// existence-cached (it is slow), so without this a gosx runtime change is NOT
-	// picked up — `slides serve --rebuild` (or deleting build/) forces a fresh
-	// build. No effect unless StageRuntime is also set.
+	// cached by dependency graph and toolchain. Use --rebuild for local source
+	// edits that do not change the module graph. No effect unless StageRuntime is set.
 	RebuildRuntime bool
 
 	// Dev makes the deck server re-load the deck from disk on every GET / so
@@ -91,6 +96,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// the whole deck.
 	compiled, failures := d.compileComponents()
 	logCompileFailures(d.Dir, failures)
+	deckProgram, deckErr := compileDeckProgram(d)
 
 	// A bad `favicon:` fails the build (and `slides doctor`) instead of silently
 	// shipping the wrong icon.
@@ -101,15 +107,51 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	app := server.New()
 	app.SetPublicDir(d.Dir)
 
+	if opts.Edit && !opts.Static {
+		if err := mountSourceEditor(app, d); err != nil {
+			return nil, err
+		}
+	}
+
+	if opts.Edit && !opts.Static {
+		app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
+			name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
+			fresh, err := LoadIslandDeck(d.Dir)
+			if err != nil {
+				return nil, err
+			}
+			cc, _ := fresh.compileComponents()
+			component := cc[name]
+			if component == nil {
+				ctx.SetStatus(http.StatusNotFound)
+				return nil, fmt.Errorf("component %q is unavailable", name)
+			}
+			ctx.Header().Set("Cache-Control", "no-store")
+			return json.RawMessage(component.json), nil
+		})
+	}
+
 	for _, name := range sortedKeys(compiled) {
+		if opts.Edit && !opts.Static {
+			continue
+		}
 		cc := compiled[name]
 		assetPath := "/gosx/islands/" + name + ".json"
 		jsonBytes := cc.json
-		app.Mount(assetPath, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			_, _ = w.Write(jsonBytes)
-		}))
+		// API routes take precedence over GoSX's built-in /gosx/ asset route.
+		app.API("GET "+assetPath, func(ctx *server.Context) (any, error) {
+			ctx.Header().Set("Cache-Control", "no-cache")
+			if opts.Dev || (opts.Edit && !opts.Static) {
+				fresh, err := LoadIslandDeck(d.Dir)
+				if err == nil {
+					_, data, err := compileSceneComponent(fresh, name)
+					if err == nil {
+						return json.RawMessage(data), nil
+					}
+				}
+			}
+			return json.RawMessage(jsonBytes), nil
+		})
 	}
 
 	// Cross-device presenter: one broker per deck server relays {slide, step} from
@@ -145,12 +187,17 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
+		if opts.Edit && !opts.Static {
+			ctx.AddHead(gosx.RawHTML(`<meta name="slides-edit" content="enabled">`))
+		}
 		renderDeck, renderCompiled, renderFailures := d, compiled, failures
-		if opts.Dev {
+		renderProgram, renderErr := deckProgram, deckErr
+		if opts.Dev || (opts.Edit && !opts.Static) {
 			if fresh, err := LoadIslandDeck(d.Dir); err == nil {
 				if freshCompiled, freshFailures := fresh.compileComponents(); freshCompiled != nil {
 					logCompileFailures(fresh.Dir, freshFailures)
 					renderDeck, renderCompiled, renderFailures = fresh, freshCompiled, freshFailures
+					renderProgram, renderErr = compileDeckProgram(fresh)
 				}
 			} else {
 				log.Printf("slides: dev reload of deck %q failed; serving last good deck: %v", d.Dir, err)
@@ -164,35 +211,16 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures)
+		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static)
 	})
 
 	if opts.StageRuntime {
-		root, err := StageRuntimeAssets(d.Dir, opts.RebuildRuntime)
+		root, err := stageRuntimeAssets(d.Dir, opts.RebuildRuntime, len(compiled) > 0)
 		if err != nil {
 			return nil, fmt.Errorf("stage runtime assets: %w", err)
 		}
 		app.SetRuntimeRoot(root)
-		// GoSX v0.25.x's compatibility asset map serves the primary Scene3D
-		// feature but omits its split sub-feature chunks unless a hashed build
-		// manifest is present. Decks stage the unhashed compatibility files, so
-		// expose those exact local files explicitly. Without this, capable
-		// browsers request the advertised WebGPU URL and receive a 404.
-		for _, name := range []string{
-			"bootstrap-feature-scene3d-webgpu.js",
-			"bootstrap-feature-scene3d-gltf.js",
-			"bootstrap-feature-scene3d-animation.js",
-		} {
-			path := filepath.Join(root, "build", name)
-			if !isRegularFile(path) {
-				continue
-			}
-			assetPath := path
-			app.Mount("/gosx/"+name, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
-				http.ServeFile(w, r, assetPath)
-			}))
-		}
+
 	}
 
 	return app, nil
@@ -228,7 +256,17 @@ func ServeDeck(dir string, opts ServeOptions) error {
 // through it register on the App's PageRuntime, so the App's document contract
 // reports the runtime as active and auto-emits the manifest + bootstrap into the
 // single document <head> — the crux of the nested-document fix.
-type runtimeMounter struct{ rt *server.PageRuntime }
+type runtimeMounter struct {
+	rt       *server.PageRuntime
+	graphics map[string]deckGraphic
+}
+
+func (m runtimeMounter) RenderEngine(cfg engine.Config, fallback gosx.Node) gosx.Node {
+	return m.rt.Engine(cfg, fallback)
+}
+func (m runtimeMounter) RenderGraphic(key string) gosx.Node {
+	return renderDeckGraphic(m, m.graphics, key)
+}
 
 // RenderIslandFromProgram registers the program as an island on the page runtime
 // and returns its hydratable shell. It satisfies islandMounter (same signature as
@@ -250,9 +288,14 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync bool) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
-	cd, err := compileDeckProgram(d)
+	if cd != nil {
+		r.graphics = cd.graphics
+		if cd.motion {
+			ctx.Runtime().EnableBootstrap()
+		}
+	}
 	if err != nil {
 		// The deck failed to compile as one program: every slide will degrade to
 		// the hand-built lane with inline {expr} rendered as raw text (the
@@ -298,7 +341,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if custom := deckCustomCSS(d); custom != "" {
@@ -340,10 +383,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.Attrs(
 			gosx.Attr("class", "deck"),
 			gosx.Attr("data-theme", theme),
+			gosx.Attr("data-source-revision", sourceRevision(d.Source)),
 			// data-dev gates the dev-only overflow badge; data-transition picks the
 			// slide enter animation (fade | none) — both read by navScript.
 			gosx.Attr("data-dev", boolAttr(dev)),
 			gosx.Attr("data-transition", deckTransition(d)),
+			gosx.Attr("style", transitionTimingStyle(deckFrontmatterValues(d))),
 			// data-line-numbers="1" (deck headmatter `line-numbers: true`) turns on
 			// the code-block line-number gutter (a CSS ::before; see baseContentStyle).
 			gosx.Attr("data-line-numbers", boolAttr(deckLineNumbers(d))),
@@ -351,8 +396,11 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			gosx.Attr("data-caption-safe-bottom", conference.CaptionSafeBottom),
 			gosx.Attr("data-caption-guide", boolAttr(conference.CaptionGuide)),
 			gosx.Attr("data-offline", boolAttr(conference.OfflineRequired)),
+			gosx.Attr("data-live-sync", boolAttr(liveSync)),
+			gosx.Attr("data-hydration", deckFrontmatterString(d, "hydration")),
 		),
 		starfield,
+		renderGraphicsBackgrounds(r, d, cd),
 		gosx.Fragment(slideNodes...),
 		gosx.Fragment(noteNodes...),
 		// Dev-only build-error overlay: a deck/island compile failure is otherwise
@@ -369,7 +417,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+codeCopyScript()+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"</script>"),
 	)
 }
 
@@ -480,6 +528,9 @@ func (d *IslandDeck) compileComponents() (map[string]*compiledComponent, map[str
 	var failures map[string]error
 	for _, slide := range d.Slides {
 		for _, ref := range slide.Components {
+			if isGraphicsComponent(ref.Name) {
+				continue
+			}
 			if _, ok := compiled[ref.Name]; ok {
 				continue
 			}
@@ -585,6 +636,10 @@ func (d *IslandDeck) title() string {
 // the build/ directory to force a fresh build. wasm_exec.js and the bootstrap JS
 // are cheap copies and are always refreshed.
 func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
+	return stageRuntimeAssets(deckDir, rebuild, true)
+}
+
+func stageRuntimeAssets(deckDir string, rebuild, needsWASM bool) (string, error) {
 	// Resolve to an absolute path: the `go build -o` output path below must be
 	// absolute because we run the build with cmd.Dir set to the deck dir, and a
 	// relative -o would then resolve against that dir (doubly-nesting it).
@@ -608,6 +663,12 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 	// forces a fresh build even when a cached artifact exists (see I2: a gosx
 	// runtime change is otherwise never picked up).
 	wasmPath := filepath.Join(buildDir, "gosx-runtime.wasm")
+	cacheKey, err := runtimeCacheKey(gosxRoot, deckDir)
+	if err != nil {
+		return "", err
+	}
+	stampPath := filepath.Join(buildDir, ".slides-runtime-version")
+	stamp, _ := os.ReadFile(stampPath)
 	// The wasm is existence-cached, but a truncated or empty cached artifact (an
 	// interrupted prior build) would otherwise be served silently and the islands
 	// would never hydrate — a baffling failure mid-demo. Treat a sub-floor cached
@@ -615,20 +676,22 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 	// only catches corruption, never a legitimately small build.
 	const minRuntimeWasmBytes = 1 << 20 // 1 MiB
 	corruptCache := isRegularFile(wasmPath) && fileSizeBelow(wasmPath, minRuntimeWasmBytes)
-	if rebuild || !isRegularFile(wasmPath) || corruptCache {
-		// Remove any existing artifact first when forcing a rebuild or when the
-		// cached file is corrupt: `go build -o` refuses to overwrite an output that
-		// is not a Go object file (e.g. a stale or corrupt file), and removing it
-		// also guarantees the rebuild can't be a silent reuse of the old bytes.
-		if rebuild || corruptCache {
-			if corruptCache {
-				log.Printf("slides: cached runtime wasm at %s is truncated; rebuilding", wasmPath)
-			}
-			if err := os.Remove(wasmPath); err != nil && !os.IsNotExist(err) {
-				return "", fmt.Errorf("remove stale runtime wasm: %w", err)
-			}
+	if needsWASM && (rebuild || !isRegularFile(wasmPath) || corruptCache || string(stamp) != cacheKey) {
+		if corruptCache {
+			log.Printf("slides: cached runtime wasm at %s is truncated; rebuilding", wasmPath)
 		}
-		cmd := exec.Command("go", "build", "-o", wasmPath, gosxModuleImportPath+"/client/wasm")
+		// Build beside the cache and publish atomically after success. An interrupted
+		// build leaves the previous artifact and cache identity intact.
+		temporary, err := os.CreateTemp(buildDir, "runtime-*.wasm")
+		if err != nil {
+			return "", err
+		}
+		tempPath := temporary.Name()
+		if err := temporary.Close(); err != nil {
+			return "", err
+		}
+		defer os.Remove(tempPath)
+		cmd := exec.Command("go", "build", "-o", tempPath, gosxModuleImportPath+"/client/wasm")
 		cmd.Dir = deckDir
 		// Neutralize an ambient GOFLAGS (e.g. an exported `GOFLAGS=-mod=vendor`)
 		// that would otherwise skew the GOOS=js build, then set the wasm env
@@ -647,16 +710,27 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		}
 		// Guard against a silent no-op: the artifact must exist after a clean
 		// build, or downstream serving would 404 with no explanation.
-		if !isRegularFile(wasmPath) {
+		if !isRegularFile(tempPath) {
 			return "", fmt.Errorf("build runtime wasm: %s/client/wasm produced no output at %s", gosxModuleImportPath, wasmPath)
 		}
+		if err := os.Rename(tempPath, wasmPath); err != nil {
+			return "", fmt.Errorf("publish runtime wasm: %w", err)
+		}
+		if err := os.WriteFile(stampPath, []byte(cacheKey), 0o644); err != nil {
+			return "", err
+		}
+	}
+
+	toolchainRoot, err := deckGoRoot(deckDir)
+	if err != nil {
+		return "", err
 	}
 
 	// 2. wasm_exec.js — straight from the Go toolchain.
 	if err := copyFirstExisting(
 		filepath.Join(buildDir, "wasm_exec.js"),
-		filepath.Join(goroot(), "lib", "wasm", "wasm_exec.js"),
-		filepath.Join(goroot(), "misc", "wasm", "wasm_exec.js"),
+		filepath.Join(toolchainRoot, "lib", "wasm", "wasm_exec.js"),
+		filepath.Join(toolchainRoot, "misc", "wasm", "wasm_exec.js"),
 	); err != nil {
 		return "", fmt.Errorf("stage wasm_exec.js: %w", err)
 	}
@@ -665,6 +739,10 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 	// hydration. runtime_assets.go also resolves these from <root>/client/js as a
 	// fallback, but staging them into build/ keeps the whole runtime under one
 	// root that we own.
+	names, err := filepath.Glob(filepath.Join(gosxRoot, "client", "js", "bootstrap*.js"))
+	if err != nil {
+		return "", err
+	}
 	for _, name := range []string{
 		"bootstrap.js",
 		"bootstrap-lite.js",
@@ -686,7 +764,15 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		"bootstrap-feature-scene3d-webgpu.js",
 		"patch.js",
 	} {
-		src := filepath.Join(gosxRoot, "client", "js", name)
+		names = append(names, filepath.Join(gosxRoot, "client", "js", name))
+	}
+	seenAssets := map[string]bool{}
+	for _, src := range names {
+		name := filepath.Base(src)
+		if seenAssets[name] {
+			continue
+		}
+		seenAssets[name] = true
 		if !isRegularFile(src) {
 			continue
 		}
@@ -695,6 +781,9 @@ func StageRuntimeAssets(deckDir string, rebuild bool) (string, error) {
 		}
 	}
 
+	if err := stageRuntimeManifest(deckDir, buildDir); err != nil {
+		return "", fmt.Errorf("stage runtime integrity: %w", err)
+	}
 	return deckDir, nil
 }
 
@@ -782,17 +871,6 @@ func resolveGoSXRoot(projectDir string) (string, error) {
 		return "", fmt.Errorf("resolve %s module root: empty result", gosxModuleImportPath)
 	}
 	return dir, nil
-}
-
-func goroot() string {
-	if r := strings.TrimSpace(os.Getenv("GOROOT")); r != "" {
-		return r
-	}
-	out, err := exec.Command("go", "env", "GOROOT").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
 
 func isRegularFile(path string) bool {

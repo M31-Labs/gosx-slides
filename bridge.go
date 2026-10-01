@@ -88,13 +88,20 @@ func LoadIslandDeck(dir string) (*IslandDeck, error) {
 		return nil, fmt.Errorf("read deck %s: %w", path, err)
 	}
 
+	return parseIslandDeck(dir, src)
+}
+
+func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 	doc, err := mdpp.Parse(src)
 	if err != nil {
-		return nil, fmt.Errorf("parse deck %s: %w", path, err)
+		return nil, fmt.Errorf("parse deck %s: %w", filepath.Join(dir, DeckFileName), err)
 	}
 
 	// Slide splitting is opt-in in mdpp; turn the flat document into a uniform
 	// NodeSlide layer (idempotent) before we walk it.
+	repairDeckHeadings(doc)
+	retainDiagramFenceOptions(doc)
+	retainMotionFenceOptions(doc)
 	mdpp.SplitSlides(doc)
 
 	deck := &IslandDeck{
