@@ -37,6 +37,12 @@ const assert = require("node:assert/strict"),
       shapes.innerHTML =
         '<svg width="200" height="40" style="overflow:visible"><rect id="export-clipped-shape" x="0" y="0" width="100" height="15" fill="#ff0000"/><rect id="export-contained-shape" x="5" y="20" width="10" height="10" fill="#00ff00"/></svg>';
       slide.append(shapes);
+      const rounded = document.createElement("div");
+      rounded.style.cssText =
+        "position:absolute;left:100px;top:290px;width:80px;height:50px;overflow:hidden;border-radius:12px";
+      rounded.innerHTML =
+        '<svg width="80" height="50" style="overflow:visible"><rect x="0" y="0" width="15" height="15" fill="#ff00ff"/><rect x="20" y="15" width="15" height="15" fill="#0000ff"/></svg>';
+      slide.append(rounded);
     });
     const objects = await page.evaluate(
       fs.readFileSync(
@@ -71,6 +77,14 @@ const assert = require("node:assert/strict"),
         .locator("#export-clip")
         .evaluate((el) => el.firstChild.nodeType === Node.TEXT_NODE),
       true,
+    );
+    assert.ok(
+      !objects.some((o) => o.fill === "ff00ff"),
+      "rounded corner content stays captured",
+    );
+    assert.ok(
+      objects.some((o) => o.fill === "0000ff"),
+      "inset rounded-panel content stays editable",
     );
     await page.evaluate(() => window.__slidesPPTXRestore());
     assert.equal(

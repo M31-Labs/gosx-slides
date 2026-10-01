@@ -56,15 +56,12 @@
       if (clipsX || clipsY) {
         // Curved clips cannot be represented by these native objects. Keep
         // their captured pixels; rectangular clips are safe only if contained.
-        if (
-          [
-            s.borderTopLeftRadius,
-            s.borderTopRightRadius,
-            s.borderBottomLeftRadius,
-            s.borderBottomRightRadius,
-          ].some((radius) => radius && radius !== "0px" && radius !== "0px 0px")
-        )
-          return false;
+        const radii = [
+          s.borderTopLeftRadius,
+          s.borderTopRightRadius,
+          s.borderBottomLeftRadius,
+          s.borderBottomRightRadius,
+        ];
         const box = p.getBoundingClientRect(),
           sx = box.width / (p.offsetWidth || p.clientWidth || box.width || 1),
           sy =
@@ -73,12 +70,34 @@
           top = box.top + p.clientTop * sy,
           right = left + p.clientWidth * sx,
           bottom = top + p.clientHeight * sy;
+        // The central inset stays inside every rounded corner. Keep edge
+        // content captured while ordinary inset diagram shapes stay editable.
+        let insetX = 0,
+          insetY = 0;
+        for (const radius of radii) {
+          if (!radius) continue;
+          const parts = radius.trim().split(/\s+/);
+          if (parts.some((part) => !/^\d*\.?\d+(?:px|%)$/.test(part)))
+            return false;
+          const rx = parts[0],
+            ry = parts[1] || rx;
+          insetX = Math.max(
+            insetX,
+            parseFloat(rx) * (rx.endsWith("%") ? (right - left) / 100 : sx),
+          );
+          insetY = Math.max(
+            insetY,
+            parseFloat(ry) * (ry.endsWith("%") ? (bottom - top) / 100 : sy),
+          );
+        }
+
         if (
           (clipsX &&
-            (objectRect.left < left - 0.01 ||
-              objectRect.right > right + 0.01)) ||
+            (objectRect.left < left + insetX - 0.01 ||
+              objectRect.right > right - insetX + 0.01)) ||
           (clipsY &&
-            (objectRect.top < top - 0.01 || objectRect.bottom > bottom + 0.01))
+            (objectRect.top < top + insetY - 0.01 ||
+              objectRect.bottom > bottom - insetY + 0.01))
         )
           return false;
       }
