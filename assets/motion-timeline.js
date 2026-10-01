@@ -6,6 +6,32 @@
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let lastSlide = null, lastStep = -1;
   let paused = false, panel = null, selected = null, refreshTimer = null;
+  const history = [], future = []; let sourceDraft = null, saving = false;
+  const editable = !!document.querySelector('meta[name="slides-edit"]');
+  const keys = ['preset','duration','delay','easing','replay'];
+  const attribute = key => (key === 'replay' ? 'data-slides-motion-' : 'data-gosx-motion-') + key;
+  function snapshot() { return items().map(el => keys.map(key => el.getAttribute(attribute(key)))); }
+  function remember() { history.push(snapshot()); if (history.length > 100) history.shift(); future.length = 0; }
+  function restore(state) { items().forEach((el,i) => keys.forEach((key,j) => { const value = state[i]?.[j]; if (value == null) el.removeAttribute(attribute(key)); else el.setAttribute(attribute(key), value); })); fill(); drawTracks(); replay(); }
+  function undo() { if (!history.length) return; future.push(snapshot()); restore(history.pop()); }
+  function redo() { if (!future.length) return; history.push(snapshot()); restore(future.pop()); }
+  function status(message) { panel.querySelector('[data-motion-status]').textContent = message; }
+  async function loadDraft() { if (!editable) return; sourceDraft=null; panel.querySelector('[data-motion-save]').disabled=true; status('Loading deck source…'); try { const response = await fetch('/_slides/source?motion=1', {cache:'no-store'}); const data = await response.json(); if (!response.ok) throw new Error(data.error); if (data.revision !== deck.dataset.sourceRevision) throw new Error('Source changed; reload the deck before saving motion edits.'); sourceDraft = data; panel.querySelector('[data-motion-save]').disabled=false; status('Edits can be saved to deck.md.'); } catch (error) { sourceDraft = null; status(error.message); } }
+  async function saveDraft() {
+    if (!sourceDraft || saving) return; saving = true; const button = panel.querySelector('[data-motion-save]'); button.disabled = true;
+    try {
+      const bytes = new TextEncoder().encode(sourceDraft.source), patches = [];
+      items(deck).forEach(el => { const range = sourceDraft.motions.find(row => row.start === Number(el.dataset.slidesMotionSource)); if (!range) throw new Error('Could not locate this motion directive; reload the deck.'); const attrs = {...range.attrs}; keys.forEach(key => { const value = el.getAttribute(attribute(key)); if (value != null && value !== '') attrs[key] = value; }); const changes = {}; keys.forEach(key => { const value=el.getAttribute(attribute(key));if(value!=null&&value!=='')changes[key]=value; });const seen=new Set();let opening=range.opening.replace(/([A-Za-z][A-Za-z0-9_-]*)\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s}]+)/g,(match,key)=>{if(!(key in changes))return match;seen.add(key);return key+'='+JSON.stringify(changes[key]);});const missing=Object.entries(changes).filter(([key])=>!seen.has(key)).map(([key,value])=>key+'='+JSON.stringify(value)).join(' ');if(missing){const end=opening.lastIndexOf('}');opening=end<0?opening.trimEnd()+' {'+missing+'}':opening.slice(0,end).trimEnd()+' '+missing+opening.slice(end);} patches.push({...range, opening}); });
+      let source = '', offset = 0; patches.sort((a,b) => a.start-b.start).forEach(p => { source += new TextDecoder().decode(bytes.slice(offset,p.start)) + p.opening; offset=p.end; }); source += new TextDecoder().decode(bytes.slice(offset));
+      const response = await fetch('/_slides/source', {method:'PUT',headers:{'Content-Type':'application/json','X-Slides-Token':sourceDraft.token},body:JSON.stringify({source,revision:sourceDraft.revision})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Save failed'); status('Saved deck.md'); location.reload();
+    } catch(error) { status(error.message); } finally { saving = false; button.disabled = false; }
+  }
+  function change(key,value) { if (!selected || selected.getAttribute(attribute(key)) === value) return; if (key === 'duration' || key === 'delay') { const n=Number(value); if (!Number.isFinite(n) || n < (key==='duration'?1:0) || n>600000) return; } remember(); selected.setAttribute(attribute(key),value); fill(); drawTracks(); replay(); }
+  function drawTracks() {
+    if (!panel) return; const tracklist=panel.querySelector('[data-motion-tracks]'); tracklist.replaceChildren(); const elements=items(); const span=Math.max(1000,...elements.map(el=>number(el,'delay',0)+number(el,'duration',220)));
+    elements.forEach((el,i)=>{const row=document.createElement('div');row.className='slides-motion-track';const select=document.createElement('button');select.type='button';select.textContent=el.dataset.slidesMotionCue || el.textContent.trim().slice(0,30) || 'Element '+(i+1);select.onclick=()=>{selected=el;panel.querySelector('[data-motion-element]').value=i;fill();};row.appendChild(select);const lane=document.createElement('div');lane.className='slides-motion-lane';const bar=document.createElement('button');bar.type='button';bar.className='slides-motion-bar';bar.style.left=(number(el,'delay',0)/span*100)+'%';bar.style.width=Math.max(2,number(el,'duration',220)/span*100)+'%';bar.textContent=number(el,'duration',220)+' ms';bar.setAttribute('aria-label',select.textContent+' delay '+number(el,'delay',0)+' milliseconds; arrow keys adjust delay');bar.onkeydown=event=>{if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;event.preventDefault();event.stopPropagation();selected=el;change('delay',String(Math.max(0,Math.min(600000,number(el,'delay',0)+(event.key==='ArrowRight'?1:-1)*(event.shiftKey?100:10)))));};
+      bar.onpointerdown=event=>{if(event.button!==0)return;event.preventDefault();selected=el;const start=event.clientX,resize=event.clientX>=bar.getBoundingClientRect().right-10,key=resize?'duration':'delay',initial=number(el,key,resize?220:0),width=lane.getBoundingClientRect().width;remember();bar.setPointerCapture(event.pointerId);bar.onpointermove=move=>{if(!bar.hasPointerCapture(move.pointerId))return;const value=Math.max(resize?1:0,Math.min(600000,Math.round((initial+(move.clientX-start)/width*span)/10)*10));el.setAttribute(attribute(key),String(value));if(resize){bar.style.width=Math.max(2,value/span*100)+'%';bar.textContent=value+' ms';}else{bar.style.left=value/span*100+'%';}fill();};bar.onpointerup=up=>{bar.releasePointerCapture(up.pointerId);drawTracks();replay();};bar.onpointercancel=()=>{drawTracks();};};lane.appendChild(bar);row.appendChild(lane);tracklist.appendChild(row);});
+  }
   function active() { return deck.querySelector('.slide.deck-active'); }
   function items(slide) { return Array.from((slide || active()).querySelectorAll('[data-slides-motion-replay]')); }
   function frames(el) {
@@ -30,14 +56,14 @@
     // Scene mounting replaces its children; controls must live in an ancestor scope.
     const scope = document.createElement("div"); scope.style.display = "contents"; scope.setAttribute("data-gosx-scene3d-control-scope", ""); mount.before(scope); scope.appendChild(mount); const toggle = document.createElement("button"); toggle.type = "button"; toggle.hidden = true; toggle.setAttribute("data-gosx-scene3d-animation-toggle", ""); toggle.setAttribute("data-slides-motion-graphics-toggle", ""); toggle.setAttribute("aria-label", "Toggle scene animation"); scope.appendChild(toggle);
   });
-  function pause() { paused = true; graphicsPause(true); animations().forEach(a => a.pause()); updatePanel(); }
-  function play() { paused = false; graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
-  function seek(ms) { paused = true; animations().forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
-  function duration() { return animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0); }
-  function reverse() { paused = false; animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
-  function run(el, delay) {
+  function pause() { paused = true; window.SlidesDiagramMotion?.pause(); graphicsPause(true); animations().forEach(a => a.pause()); updatePanel(); }
+  function play() { paused = false; window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
+  function seek(ms) { paused = true; window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
+  function duration() { return Math.max(window.SlidesDiagramMotion?.duration() || 0, animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0)); }
+  function reverse() { paused = false; window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function run(el, delay, force) {
     const old = records.get(el); if (old) old.cancel();
-    if (played.has(el) && el.dataset.slidesMotionReplay === "once") return;
+    if (!force && played.has(el) && el.dataset.slidesMotionReplay === "once") return;
     played.add(el);
     if (reduce.matches && el.dataset.gosxMotionRespectReduced !== 'false') return;
     const api = window.__gosx && window.__gosx.motion;
@@ -46,7 +72,7 @@
     // Native GoSX splitting stays available for ordinary entrances. Cued groups
     // preserve their child markup and widgets rather than rebuilding text/DOM.
     const animation = el.animate(frames(el), { duration: number(el, 'duration', 220), delay,
-      easing: el.dataset.gosxMotionEasing || 'ease-out', fill: 'both' });
+      easing: CSS.supports('animation-timing-function',el.dataset.gosxMotionEasing || '') ? el.dataset.gosxMotionEasing : 'ease-out', fill: 'both' });
     records.set(el, animation);
     el.dataset.gosxMotionState = 'running';
     animation.finished.then(() => { if (records.get(el) === animation) el.dataset.gosxMotionState = 'finished'; }, () => {});
@@ -87,7 +113,7 @@
       } else {
         if (el.dataset.slidesAuthoredInert !== 'true') el.inert = false;
         if (el.dataset.slidesAuthoredAria) el.setAttribute('aria-hidden', el.dataset.slidesAuthoredAria); else el.removeAttribute('aria-hidden');
-        if (!was || replay || (el.dataset.slidesMotionReplay === "step" && (lastSlide !== slide || lastStep !== step))) run(el, delay(el));
+        if (!was || replay || (el.dataset.slidesMotionReplay === "step" && (lastSlide !== slide || lastStep !== step))) run(el, delay(el), replay);
       }
     });
     lastSlide = slide; lastStep = step;
@@ -96,14 +122,15 @@
   // Claim cued entrances before the deferred GoSX bootstrap mounts them.
   deck.querySelectorAll('[data-slides-motion-cue], [data-slides-motion-step]').forEach(el => el.removeAttribute('data-gosx-motion'));
   function replay() {
+    window.SlidesDiagramMotion?.replay();
     items().forEach(el => {
       if (el.hasAttribute('data-slides-motion-step')) return;
       const api = window.__gosx && window.__gosx.motion;
-      if (api) { api.dispose(el); el.removeAttribute('data-gosx-motion-revealed'); api.observe(el); }
+      if (api) api.dispose(el); run(el, number(el, 'delay', 0), true);
     });
     sync(true);
   }
-  deck.addEventListener('slides:change', () => { paused = false; graphicsPause(false); sync(false); if (panel && panel.open) panel.close(); });
+  deck.addEventListener('slides:change', () => { paused = false; history.length = future.length = 0; graphicsPause(false); sync(false); if (panel && panel.open) panel.close(); });
   deck.addEventListener('slides:before-change', event => {
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
     if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); el.dataset.slidesCueVisible = 'false'; });
@@ -112,7 +139,7 @@
     if (!panel || !panel.open) return;
     panel.querySelector('[data-motion-pause]').textContent = paused ? 'Play' : 'Pause';
     const slider = panel.querySelector('[data-motion-seek]'); slider.max = String(Math.max(1, duration()));
-    slider.value = String(Math.max(0, ...animations().map(a => Number(a.currentTime) || 0)));
+    slider.value = String(Math.max(window.SlidesDiagramMotion?.state().time || 0, 0, ...animations().map(a => Number(a.currentTime) || 0)));
     panel.querySelector('[data-motion-time]').textContent = Math.round(Number(slider.value)) + ' / ' + Math.round(duration()) + ' ms';
   }
   function open() {
@@ -120,12 +147,12 @@
       panel = document.createElement('dialog'); panel.className = 'slides-author-panel';
       panel.setAttribute('aria-labelledby', 'slides-motion-title');
       panel.innerHTML = '<header><h2 id="slides-motion-title">Motion studio</h2><button type="button" data-motion-close aria-label="Close motion studio">×</button></header>' +
-        '<p>Preview this slide’s timing. Edits are temporary; copy the directive into your deck.</p>' +
+        '<p>Edit element timings, replay and easing. Drag a bar to adjust delay; drag its right edge to resize duration.</p>' +
         '<label>Element<select data-motion-element></select></label>' +
         '<div class="slides-author-fields"><label>Preset<select data-motion-preset><option>fade</option><option>slide-up</option><option>slide-down</option><option>slide-left</option><option>slide-right</option><option>zoom-in</option></select></label>' +
         '<label>Duration (ms)<input data-motion-duration type="number" min="1" max="600000"></label><label>Delay (ms)<input data-motion-delay type="number" min="0" max="600000"></label>' +
-        '<label>Easing<select data-motion-easing><option>ease-out</option><option>ease-in-out</option><option>linear</option><option>ease</option></select></label></div>' +
-        '<div class="slides-author-actions"><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><button type="button" data-motion-copy>Copy directive</button></div>' +
+        '<label>Replay<select data-motion-replay-mode><option value="slide">Every slide visit</option><option value="step">Every step</option><option value="once">Once</option></select></label><label>Easing<select data-motion-easing><option>ease-out</option><option>ease-in-out</option><option>linear</option><option>ease</option></select></label></div>' +
+        '<div data-motion-tracks aria-label="Element timing tracks"></div><div class="slides-author-actions"><button type="button" data-motion-undo>Undo</button><button type="button" data-motion-redo>Redo</button><button type="button" data-motion-save>Save to deck.md</button><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><button type="button" data-motion-copy>Copy directive</button></div>' +
         '<label>Element timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
       deck.appendChild(panel);
       panel.querySelector('[data-motion-close]').onclick = () => panel.close();
@@ -133,12 +160,12 @@
       panel.querySelector('[data-motion-replay]').onclick = replay;
       panel.querySelector('[data-motion-reverse]').onclick = reverse;
       panel.querySelector('[data-motion-seek]').oninput = event => seek(event.target.value);
+      panel.querySelector('[data-motion-undo]').onclick = undo; panel.querySelector('[data-motion-redo]').onclick = redo; panel.querySelector('[data-motion-save]').onclick = saveDraft; panel.querySelector('[data-motion-save]').hidden = !editable; panel.querySelector('[data-motion-replay-mode]').onchange = event => change('replay', event.target.value);
+      panel.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.target.matches('input')) { event.preventDefault(); event.shiftKey ? redo() : undo(); } });
       const selector = panel.querySelector('[data-motion-element]');
       selector.onchange = () => { selected = items()[Number(selector.value)]; fill(); };
       for (const key of ['preset', 'duration', 'delay', 'easing']) panel.querySelector('[data-motion-' + key + ']').onchange = event => {
-        if (!selected) return;
-        if (key === 'duration' || key === 'delay') { const n = Number(event.target.value); if (!Number.isFinite(n) || n < 0 || n > 600000) return; }
-        selected.setAttribute('data-gosx-motion-' + key, event.target.value); replay();
+        change(key, event.target.value);
       };
       panel.querySelector('[data-motion-copy]').onclick = async () => {
         if (!selected) return;
@@ -155,9 +182,10 @@
     }
     const selector = panel.querySelector('[data-motion-element]'); selector.replaceChildren();
     items().forEach((el, i) => { const option = document.createElement('option'); option.value = i; option.textContent = el.dataset.slidesMotionCue || el.id || el.textContent.trim().slice(0, 55) || 'Element ' + (i + 1); selector.appendChild(option); });
-    selected = items()[0]; fill(); if (panel.open) return; panel.showModal(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
+    selected = items()[0]; fill(); drawTracks(); loadDraft(); if (panel.open) return; panel.showModal(); replay(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
   }
   function fill() {
+    panel.querySelector('[data-motion-replay-mode]').disabled = !selected; panel.querySelector('[data-motion-replay-mode]').value = selected?.dataset.slidesMotionReplay || 'slide';
     for (const key of ['preset', 'duration', 'delay', 'easing']) { const input = panel.querySelector('[data-motion-' + key + ']'); input.disabled = !selected; const value = selected ? selected.getAttribute('data-gosx-motion-' + key) || (key === "easing" ? "ease-out" : "") : "";
       if (input.tagName === "SELECT" && value && !Array.from(input.options).some(option => option.value === value)) { const option = document.createElement("option"); option.value = option.textContent = value; input.appendChild(option); }
       input.value = value; }
@@ -166,6 +194,6 @@
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable], dialog, [role]')) return;
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });
-  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, state: () => ({ paused, time: Math.max(0, ...animations().map(a => Number(a.currentTime) || 0)), duration: duration() }) };
+  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, state: () => ({ paused, time: Math.max(window.SlidesDiagramMotion?.state().time || 0, 0, ...animations().map(a => Number(a.currentTime) || 0)), duration: duration() }) };
   sync(false);
 })();

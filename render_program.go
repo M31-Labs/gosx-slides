@@ -243,6 +243,7 @@ func exprFuncs(diagramTheme, deckDir string) map[string]any {
 		// HTML-escaped. Pure server-side: no JavaScript, no CDN.
 		diagramNamespace: map[string]any{
 			diagramRenderFunc: slidesDiagram{deckTheme: diagramTheme}.Render,
+			"Morph":           slidesDiagram{deckTheme: diagramTheme}.Morph,
 		},
 		// htmlNS backs the generated `{__slidesHTML.Raw(literal)}` call that
 		// slidegen lowers a raw HTML literal to. rawHTMLNode sanitizes the

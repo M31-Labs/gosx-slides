@@ -1,0 +1,6 @@
+stateDiagram-v2
+ [*] --> Idle
+ Idle --> Working: start
+ Working --> Idle: retry
+ Working --> Done: finish
+ Done --> [*]

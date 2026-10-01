@@ -8,7 +8,7 @@ require (
 	golang.org/x/net v0.52.0
 	m31labs.dev/gosx v0.57.1
 	m31labs.dev/mdpp v0.4.8
-	m31labs.dev/sirena v0.5.0
+	m31labs.dev/sirena v0.5.1-0.20261001085559-0c4a0ba91160
 )
 
 require (

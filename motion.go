@@ -46,7 +46,7 @@ func deckHasManagedMotion(deck *IslandDeck) bool {
 func lowerMotionDirectiveGSX(n *mdpp.Node) string {
 	attrs := motionDirectiveAttrs(n)
 	var b strings.Builder
-	b.WriteString("<Motion")
+	b.WriteString("<Motion data-slides-motion-source=" + strconv.Quote(strconv.Itoa(n.Range.StartByte)))
 	b.WriteString(" data-slides-motion-replay=" + strconv.Quote(attrs["replay"]))
 	for _, key := range []string{"preset", "trigger", "duration", "delay", "easing", "distance", "respect-reduced-motion"} {
 		if value := attrs[key]; value != "" {
@@ -88,7 +88,7 @@ func lowerMotionDirectiveNode(n *mdpp.Node, children []gosx.Node) gosx.Node {
 	if value, err := strconv.ParseBool(attrs["respect-reduced-motion"]); err == nil {
 		props.RespectReducedMotion = &value
 	}
-	extra := gosx.Attrs(gosx.Attr("class", n.Attr("class")), gosx.Attr("id", n.Attr("id")), gosx.Attr("data-slides-motion-replay", attrs["replay"]))
+	extra := gosx.Attrs(gosx.Attr("data-slides-motion-source", n.Range.StartByte), gosx.Attr("class", n.Attr("class")), gosx.Attr("id", n.Attr("id")), gosx.Attr("data-slides-motion-replay", attrs["replay"]))
 	for _, key := range []string{"split", "stagger"} {
 		if value := attrs[key]; value != "" {
 			extra = append(extra, gosx.Attr("data-gosx-motion-"+key, value))

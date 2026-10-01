@@ -22,12 +22,13 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format  string  // "spa" (default), "single", or "pdf"
-	Capture bool    // capture live graphics through Chrome for single/PDF
-	Steps   bool    // include every reveal/cue state in captured output
-	Seconds float64 // video hold time per state (default 2)
-	FPS     int     // video sampling rate (default 15)
-	OutDir  string  // output directory (default "dist"); for pdf, may be a .pdf path
+	Format   string  // "spa" (default), "single", or "pdf"
+	Editable bool    // native text and supported SVG objects in PPTX
+	Capture  bool    // capture live graphics through Chrome for single/PDF
+	Steps    bool    // include every reveal/cue state in captured output
+	Seconds  float64 // video hold time per state (default 2)
+	FPS      int     // video sampling rate (default 15)
+	OutDir   string  // output directory (default "dist"); for pdf, may be a .pdf path
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -49,6 +50,9 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if opts.Editable && format != "pptx" {
+		return fmt.Errorf("--editable requires --format pptx")
+	}
 	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
 		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, video, or pptx)", opts.Format)
 	}

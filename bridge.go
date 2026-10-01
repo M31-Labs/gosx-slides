@@ -101,6 +101,7 @@ func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 	// NodeSlide layer (idempotent) before we walk it.
 	repairDeckHeadings(doc)
 	retainDiagramFenceOptions(doc)
+	retainMotionFenceOptions(doc)
 	mdpp.SplitSlides(doc)
 
 	deck := &IslandDeck{
