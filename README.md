@@ -53,6 +53,11 @@ and recoverable saves. Stale source produces a conflict while keeping your draft
 Pause/play also controls active native shader and Scene3D clocks. Scrubbing and
 reversing support DOM and diagram SVG animations; native Scene3D poses use their
 absolute click steps. Saving requires the local `--edit` authoring server.
+Pause is preserved across click steps and replay, including graphics that finish
+mounting later. Scrubbing or reversing freezes native graphics clocks until Play,
+including across click steps. Click-step
+navigation keeps the studio and undo history open; entering another slide resets
+the transport and closes the studio.
 
 **Persistent source editing:** `slides serve my-deck --edit`, then press **E**
 or click **Edit**. Save validates the deck and its components, stages the new

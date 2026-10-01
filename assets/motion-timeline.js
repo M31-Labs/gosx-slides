@@ -5,7 +5,7 @@
   const records = new WeakMap(), played = new WeakSet();
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let lastSlide = null, lastStep = -1;
-  let paused = false, panel = null, selected = null, refreshTimer = null;
+  let paused = false, graphicsFrozen = false, panel = null, selected = null, refreshTimer = null;
   const history = [], future = []; let sourceDraft = null, saving = false;
   const editable = !!document.querySelector('meta[name="slides-edit"]');
   const keys = ['preset','duration','delay','easing','replay'];
@@ -56,11 +56,28 @@
     // Scene mounting replaces its children; controls must live in an ancestor scope.
     const scope = document.createElement("div"); scope.style.display = "contents"; scope.setAttribute("data-gosx-scene3d-control-scope", ""); mount.before(scope); scope.appendChild(mount); const toggle = document.createElement("button"); toggle.type = "button"; toggle.hidden = true; toggle.setAttribute("data-gosx-scene3d-animation-toggle", ""); toggle.setAttribute("data-slides-motion-graphics-toggle", ""); toggle.setAttribute("aria-label", "Toggle scene animation"); scope.appendChild(toggle);
   });
-  function pause() { paused = true; window.SlidesDiagramMotion?.pause(); graphicsPause(true); animations().forEach(a => a.pause()); updatePanel(); }
-  function play() { paused = false; window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
-  function seek(ms) { paused = true; window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
+  function pauseActive() {
+    window.SlidesDiagramMotion?.pause();
+    graphicsPause(true);
+    animations().forEach(a => a.pause());
+  }
+  // Deferred engines and step replays inherit Pause or the native clock freeze
+  // used during reverse. Disconnect whenever the transport resumes forward.
+  const pauseObserver = new MutationObserver(() => {
+    if (paused) pauseActive();
+    else if (graphicsFrozen) graphicsPause(true);
+  });
+  function setTransport(isPaused, freezeGraphics) {
+    paused = isPaused; graphicsFrozen = freezeGraphics;
+    pauseObserver.disconnect();
+    if (isPaused || freezeGraphics) pauseObserver.observe(deck, {subtree: true, attributes: true,
+      attributeFilter: ['data-gosx-scene3d-ready', 'data-gosx-scene3d-animation-state', 'data-gosx-motion-state']});
+  }
+  function pause() { setTransport(true, true); pauseActive(); updatePanel(); }
+  function play() { setTransport(false, false); window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
+  function seek(ms) { setTransport(true, true); pauseActive(); window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
   function duration() { return Math.max(window.SlidesDiagramMotion?.duration() || 0, animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0)); }
-  function reverse() { paused = false; window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function reverse() { setTransport(false, true); graphicsPause(true); window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
   function run(el, delay, force) {
     const old = records.get(el); if (old) old.cancel();
     if (!force && played.has(el) && el.dataset.slidesMotionReplay === "once") return;
@@ -130,7 +147,15 @@
     });
     sync(true);
   }
-  deck.addEventListener('slides:change', () => { paused = false; history.length = future.length = 0; graphicsPause(false); sync(false); if (panel && panel.open) panel.close(); });
+  deck.addEventListener('slides:change', () => {
+    const entered = lastSlide !== active();
+    if (entered) {
+      setTransport(false, false); history.length = future.length = 0;
+      if (panel && panel.open) panel.close();
+    }
+    graphicsPause(graphicsFrozen); sync(false);
+    if (paused) pauseActive();
+  });
   deck.addEventListener('slides:before-change', event => {
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
     if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); el.dataset.slidesCueVisible = 'false'; });
