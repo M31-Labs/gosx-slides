@@ -2,9 +2,21 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestBenchmarkBudgetRejectsMisspelledCeilings(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "budget.json")
+	if err := os.WriteFile(p, []byte(`{"readyMilis":1000}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"bench", "--budget", p}); err == nil || !strings.Contains(err.Error(), "unknown field") {
+		t.Fatal("misspelled ceiling accepted", err)
+	}
+}
 
 func TestTakeStringFlag(t *testing.T) {
 	cases := []struct {

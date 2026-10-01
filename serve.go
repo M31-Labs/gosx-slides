@@ -370,6 +370,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.Attrs(
 			gosx.Attr("class", "deck"),
 			gosx.Attr("data-theme", theme),
+			gosx.Attr("data-source-revision", sourceRevision(d.Source)),
 			// data-dev gates the dev-only overflow badge; data-transition picks the
 			// slide enter animation (fade | none) — both read by navScript.
 			gosx.Attr("data-dev", boolAttr(dev)),
@@ -403,7 +404,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"</script>"),
 	)
 }
 

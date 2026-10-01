@@ -257,6 +257,10 @@ func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*co
 	if name == "motion" {
 		return lowerMotionDirectiveNode(n, children)
 	}
+	if name == "diagram-morph" {
+		source, kind, theme, duration, easing := diagramMorphArgs(n)
+		return (slidesDiagram{deckTheme: diagramTheme}).Morph(source, kind, theme, duration, easing)
+	}
 	if name == "code-morph" {
 		var codes []gosx.Node
 		for _, child := range n.Children {

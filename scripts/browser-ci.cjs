@@ -24,6 +24,9 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');
   try {await withServer(editDir,8120,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
 
+  const storyDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-story-'));
+  try{fs.cpSync('examples/storytelling-lab',storyDir,{recursive:true});await withServer(storyDir,8126,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'storytelling-browser.cjs'),url,path.join(storyDir,'deck.md')],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'storytelling browser failed');script('pptx-editable-browser.cjs',url);},['--edit']);}finally{fs.rmSync(storyDir,{recursive:true,force:true})}
+
   await withServer('examples/navigation-lab',8111,url=>script('navigation-browser.cjs',url));
   await withServer('examples/authoring-lab',8112,url=>script('authoring-browser.cjs',url));
   await withServer('examples/shader-lab',8113,async url=>{
@@ -61,7 +64,10 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
     const result=spawnSync(binary,args,{stdio:'inherit',env:process.env});assert.equal(result.status,0,'capture export failed');
   }
   assert.ok(fs.readFileSync(path.join(out,'steps.pptx')).subarray(0,2).equals(Buffer.from('PK')));
-  const bench=spawnSync(binary,['bench','examples/authoring-lab','--runs','1'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0);
+  const editable=path.join(out,'editable.pptx');
+  const editableExport=spawnSync(binary,['export','examples/storytelling-lab','--format','pptx','--editable','--out',editable],{stdio:'inherit',env:process.env});assert.equal(editableExport.status,0,'editable PPTX export failed');
+  const editableXML=spawnSync('unzip',['-p',editable,'ppt/slides/slide5.xml'],{encoding:'utf8'});assert.equal(editableXML.status,0,'editable PPTX XML missing');assert.ok(editableXML.stdout.includes('<p:txBody>')&&editableXML.stdout.includes('<a:custGeom>')&&editableXML.stdout.includes('<a:alpha val="15000"/>'),'radar must retain editable labels, geometry and translucency');
+  const bench=spawnSync(binary,['bench','examples/authoring-lab','--runs','1','--budget','scripts/performance-budget.json'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0 && report.runs[0].frameP95Millis>0);
   const pdf=fs.readFileSync(path.join(out,'steps.pdf'));
   assert.ok(pdf.subarray(0,4).equals(Buffer.from('%PDF')));
   assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,11,'every authored code/cue state must be a PDF page');

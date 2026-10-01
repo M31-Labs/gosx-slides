@@ -348,7 +348,7 @@ func navScript() string {
     var max = Math.max(0, (JSON.parse(slides[i].getAttribute("data-slide-cues") || "[]")).length - 1);
     var motions = slides[i].querySelectorAll("[data-slides-motion-step]");
     for (var q = 0; q < motions.length; q++) max = Math.max(max, Number(motions[q].getAttribute("data-slides-motion-step")) || 0);
-    var pres = slides[i].querySelectorAll('pre[data-steps]:not(.slides-code-morph pre), .slide-graphic[data-steps], .slides-code-morph[data-steps]');
+    var pres = slides[i].querySelectorAll('pre[data-steps]:not(.slides-code-morph pre), .slide-graphic[data-steps], .slides-code-morph[data-steps], .slides-diagram-morph[data-steps]');
     for (var p = 0; p < pres.length; p++) {
       var n = parseInt(pres[p].getAttribute('data-steps'), 10) || 0;
       if (n > max) max = n;

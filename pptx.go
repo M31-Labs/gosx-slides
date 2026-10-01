@@ -55,12 +55,15 @@ func pptRel(id, kind, target string) string {
 	return `<Relationship Id="` + id + `" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/` + kind + `" Target="` + target + `"/>`
 }
 func (p *pptxWriter) add(png []byte, title, notes string) error {
+	return p.addEditable(png, title, notes, nil)
+}
+func (p *pptxWriter) addEditable(png []byte, title, notes string, objects []pptxObject) error {
 	p.count++
 	n := p.count
 	if err := p.part(fmt.Sprintf("ppt/media/slide%d.png", n), png); err != nil {
 		return err
 	}
-	slide := `<p:sld ` + pptNamespaces + `><p:cSld name="` + html.EscapeString(title) + `"><p:spTree>` + pptGroup + `<p:pic><p:nvPicPr><p:cNvPr id="2" name="` + html.EscapeString(title) + `" descr="Captured slide"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
+	slide := `<p:sld ` + pptNamespaces + `><p:cSld name="` + html.EscapeString(title) + `"><p:spTree>` + pptGroup + `<p:pic><p:nvPicPr><p:cNvPr id="2" name="` + html.EscapeString(title) + `" descr="Captured slide"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>` + pptxObjectsXML(objects) + `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
 	if err := p.xml(fmt.Sprintf("ppt/slides/slide%d.xml", n), slide); err != nil {
 		return err
 	}

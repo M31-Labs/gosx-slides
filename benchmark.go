@@ -19,6 +19,8 @@ type BrowserSample struct {
 	HeapBytes       int64   `json:"heapBytes"`
 	DOMNodes        int64   `json:"domNodes"`
 	TransferBytes   int64   `json:"transferBytes"`
+	FrameP95Millis  float64 `json:"frameP95Millis"`
+	FrameMaxMillis  float64 `json:"frameMaxMillis"`
 	HydratedIslands int     `json:"hydratedIslands"`
 }
 
@@ -90,5 +92,10 @@ func benchmarkSample(url string) (BrowserSample, error) {
 			sample.DOMNodes = int64(m.Value)
 		}
 	}
+	var frames struct{ P95, Max float64 }
+	if err = browser.eval(`new Promise(resolve=>{const gaps=[];let previous;function frame(now){if(previous!=null)gaps.push(now-previous);previous=now;if(gaps.length<36){requestAnimationFrame(frame);return;}gaps.sort((a,b)=>a-b);resolve({P95:gaps[Math.ceil(gaps.length*.95)-1],Max:gaps.at(-1)});}window.SlidesMotion?.replay();requestAnimationFrame(frame);})`, &frames); err != nil {
+		return sample, err
+	}
+	sample.FrameP95Millis, sample.FrameMaxMillis = frames.P95, frames.Max
 	return sample, nil
 }

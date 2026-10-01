@@ -336,7 +336,19 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			if err = browser.eval(`if(window.SlidesMotion) SlidesMotion.seek(SlidesMotion.duration());true`, nil); err != nil {
 				return err
 			}
+			var editableObjects []pptxObject
+			if pptx != nil && opts.Editable {
+				if err = browser.eval(pptxEditableScript, &editableObjects); err != nil {
+					return err
+				}
+			}
 			pixels, err := browser.png()
+			if pptx != nil && opts.Editable {
+				restoreErr := browser.eval(`window.__slidesPPTXRestore?.();true`, nil)
+				if err == nil {
+					err = restoreErr
+				}
+			}
 			if err != nil {
 				return err
 			}
@@ -353,7 +365,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				label += fmt.Sprintf(" — step %d", step)
 			}
 			if pptx != nil {
-				if err = pptx.add(pixels, label, extractSlideNotes(slide)); err != nil {
+				if err = pptx.addEditable(pixels, label, extractSlideNotes(slide), editableObjects); err != nil {
 					return err
 				}
 				pageCount++

@@ -108,7 +108,16 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 			return
 		}
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode(map[string]string{"source": string(src), "revision": sourceRevision(src), "token": token})
+			if r.URL.Query().Get("motion") == "1" {
+				loaded, parseErr := parseIslandDeck(deck.Dir, src)
+				if parseErr != nil {
+					fail(422, parseErr.Error())
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]any{"source": string(src), "revision": sourceRevision(src), "token": token, "motions": sourceMotionRanges(loaded)})
+			} else {
+				json.NewEncoder(w).Encode(map[string]string{"source": string(src), "revision": sourceRevision(src), "token": token})
+			}
 			return
 		}
 		var input struct {

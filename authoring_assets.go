@@ -27,3 +27,9 @@ var editingScript string
 
 //go:embed assets/editing.css
 var editingStyle string
+
+//go:embed assets/diagram-motion.js
+var diagramMotionScript string
+
+//go:embed assets/pptx-editable.js
+var pptxEditableScript string

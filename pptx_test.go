@@ -92,3 +92,24 @@ func TestPPTXPackageRelationshipsNotesAndImages(t *testing.T) {
 		t.Fatal("aspect changed")
 	}
 }
+func TestEditablePPTXObjects(t *testing.T) {
+	opacity := 0.15
+	objects := []pptxObject{{Kind: "text", Text: "Hello <&> editable", X: 120, Y: 60, Width: 400, Height: 48, FontSize: 32, FontFamily: "Arial", Color: "112233", Bold: true}, {Kind: "roundRect", X: 80, Y: 200, Width: 160, Height: 60, Fill: "abcdef", Stroke: "112233", StrokeWidth: 2}, {Kind: "path", X: 200, Y: 200, Width: 80, Height: 60, Stroke: "123456", StrokeWidth: 2, Path: []pptxPathCommand{{Command: "M", Points: []float64{0, 0}}, {Command: "C", Points: []float64{20, 0, 60, 60, 80, 60}}}}}
+	objects[1].FillAlpha = &opacity
+	body := pptxObjectsXML(objects)
+	d := xml.NewDecoder(strings.NewReader(`<root xmlns:a="a" xmlns:p="p">` + body + `</root>`))
+	for {
+		_, err := d.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, want := range []string{`<p:sp>`, `Hello &lt;&amp;&gt; editable`, `sz="2400"`, `x="1143000"`, `prst="roundRect"`, `<a:cubicBezTo>`, `val="ABCDEF"`, `<a:alpha val="15000"/>`} {
+		if !strings.Contains(body, want) {
+			t.Fatal("missing native object", want)
+		}
+	}
+}

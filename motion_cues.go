@@ -107,6 +107,9 @@ func slideMotionClicks(slide IslandSlide) int {
 		named[name] = i
 	}
 	for _, node := range slide.Node.Find(mdpp.NodeContainerDirective) {
+		if node.Attr("name") == "diagram-morph" {
+			budget = max(budget, len(node.Find(mdpp.NodeDiagram))-1)
+		}
 		if node.Attr("name") == "code-morph" {
 			budget = max(budget, len(node.Find(mdpp.NodeCodeBlock))-1)
 		}

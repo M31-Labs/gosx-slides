@@ -705,6 +705,9 @@ func lowerContainerDirectiveGSX(n *mdpp.Node) string {
 	if name == "motion" {
 		return lowerMotionDirectiveGSX(n)
 	}
+	if name == "diagram-morph" {
+		return lowerDiagramMorphGSX(n)
+	}
 	if name == "code-morph" {
 		return lowerCodeMorphGSX(n)
 	}

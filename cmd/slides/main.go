@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,7 +14,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.5.0"
+var version = "v0.6.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -201,11 +203,36 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		budgetPath, rest, err := takeStringFlag(rest, "budget", "")
+		if err != nil {
+			return err
+		}
+		var budget slides.BrowserBudget
+		if budgetPath != "" {
+			data, readErr := os.ReadFile(budgetPath)
+			if readErr != nil {
+				return readErr
+			}
+			decoder := json.NewDecoder(bytes.NewReader(data))
+			decoder.DisallowUnknownFields()
+			if err = decoder.Decode(&budget); err != nil {
+				return err
+			}
+			if err = decoder.Decode(new(any)); err != io.EOF {
+				return fmt.Errorf("budget must contain one JSON object")
+			}
+			if err = budget.Validate(); err != nil {
+				return err
+			}
+		}
 		report, err := slides.BenchmarkBrowser(deckDir(rest), runs)
 		if err != nil {
 			return err
 		}
-		return json.NewEncoder(os.Stdout).Encode(report)
+		if err = json.NewEncoder(os.Stdout).Encode(report); err != nil {
+			return err
+		}
+		return report.CheckBudget(budget)
 	case "build":
 		out, rest, err := takeStringFlag(args[1:], "out", "dist")
 		if err != nil {
@@ -223,6 +250,7 @@ func run(args []string) error {
 		}
 		capture, rest := takeBoolFlag(rest, "capture")
 		steps, rest := takeBoolFlag(rest, "steps")
+		editable, rest := takeBoolFlag(rest, "editable")
 		secondsText, rest, err := takeStringFlag(rest, "seconds", "2")
 		if err != nil {
 			return err
@@ -239,7 +267,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Seconds: seconds, FPS: fps})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Seconds: seconds, FPS: fps})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
@@ -366,6 +394,7 @@ Commands:
   build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
   export [deck-dir] --format spa|single|pdf|frames|video|pptx [--out dist]
     --capture    Render live graphics in single/PDF snapshots (needs Chrome)
+    --editable   Export native text and supported SVG shapes in PPTX
     --steps      Capture every click state (implies capture)
     --seconds 2  Seconds per video state; --fps 15 (video needs ffmpeg)
   check [deck-dir]                                       title / slide / click / notes / layout counts

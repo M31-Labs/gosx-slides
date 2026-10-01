@@ -45,12 +45,14 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 
 ## Motion, authoring, and exports
 
-Try `slides serve examples/authoring-lab`. **M** opens the motion studio: preview
-preset, duration, delay, and easing; pause, replay, reverse, or scrub the element
-timeline, then copy a directive back into Markdown. Motion-studio preview edits last for the
-current page session. Use the source editor below to persist directives. Pause/play also controls active native shader and Scene3D
-clocks; element scrubbing and reversing affect DOM animations. Scene3D poses are
-controlled by their absolute click steps.
+Try `slides serve examples/storytelling-lab --edit` (or `examples/authoring-lab`).
+**M** opens the motion studio. Edit presets, duration, delay, easing and replay;
+drag timeline bars and resize their right edges. Undo/Redo restores preview edits,
+and **Save to deck.md** persists them through source validation, revision checks
+and recoverable saves. Stale source produces a conflict while keeping your draft.
+Pause/play also controls active native shader and Scene3D clocks. Scrubbing and
+reversing support DOM and diagram SVG animations; native Scene3D poses use their
+absolute click steps. Saving requires the local `--edit` authoring server.
 
 **Persistent source editing:** `slides serve my-deck --edit`, then press **E**
 or click **Edit**. Save validates the deck and its components, stages the new
@@ -77,7 +79,8 @@ updates are batched, with bounded stroke and point storage.
 **PowerPoint:** `slides export my-deck --format pptx --steps --out deck.pptx`.
 Chrome captures the actual rendered graphics into 16:9 image slides; `--steps`
 emits every click state. Speaker notes are editable text. Slide content is a
-captured image, so DOM text and shapes are not individually editable in PowerPoint.
+captured image by default. Add `--editable` for native text and supported SVG shapes
+over captured graphics; see the detailed export limits below.
 The PPTX writer streams image parts and needs no JavaScript or office toolchain.
 
 **Browser measurements:** `slides bench my-deck --runs 3` emits JSON with server
@@ -85,8 +88,11 @@ setup time, fresh-profile browser readiness, resource transfer bytes, JS heap,
 DOM nodes, and hydrated island count. Chrome is required. Server setup includes
 cached runtime staging; browser timing starts at navigation and includes runtime
 activation plus active graphic readiness. Transfer includes the shared WASM;
-measure the same deck and browser when comparing releases. The command reports
-startup, not frame-rate performance.
+measure the same deck and browser when comparing releases. The command also reports p95/max requestAnimationFrame intervals from a 36-frame
+replay sample on the opening slide; these are machine-dependent intervals, not GPU
+frame-rate guarantees. `--budget scripts/performance-budget.json` exits nonzero
+when startup, transfer, heap, DOM or frame-interval ceilings are exceeded. The
+existing browser CI job enforces those budgets without an extra workflow.
 
 Give a slide an ID and ordered cues in its YAML fence:
 
@@ -431,3 +437,61 @@ Depends on `m31labs.dev/gosx` and `m31labs.dev/mdpp` as public releases (no
 their own `go.mod` that serve from any directory.
 
 Full details in [AGENTS.md](AGENTS.md#architecture-for-extending-it).
+
+### Diagram stories and editable PowerPoint
+
+Try `slides serve examples/storytelling-lab --edit` for animated chart values,
+stable diagram actors, radar/Sankey layouts and native Scene3D scatter tours.
+Sixteen Sirena families are available through `sirena diagram=…` fences.
+
+````md
+:::diagram-morph {diagram=bar duration=1000 easing=ease-in-out}
+```sirena
+service adoption { value: 18 }
+```
+
+```sirena
+service adoption { value: 84 }
+service breadth { value: 56 }
+```
+:::
+````
+
+Each fence is an absolute pose. Navigation steps and cue anchors choose poses;
+matching `data-morph-id` actors and edges interpolate compatible SVG geometry.
+Added actors fade in; incompatible geometry takes the destination shape. Backward
+steps, seek and reverse are deterministic. Reduced motion selects the exact pose
+without animation. Storyboards reserve graph slots, bar rows and chart domains
+through Sirena's bounded 2–32-state API. Flat architecture/state/class/ER/mindmap,
+bar, line/scatter and radar stories are supported; radar axis order must match.
+Use `duration` (0–10000 ms) and `easing` on the container. The motion studio can
+scrub SVG and DOM animation and pause/play native scenes; GPU clocks do not support
+DOM-style seeking or reverse.
+
+```sh
+slides export examples/storytelling-lab --format pptx --editable --steps --out dist
+```
+
+`--editable` adds native PowerPoint text and ordinary SVG rectangles, ellipses,
+polylines and supported paths over a captured background. Converted content is
+hidden during background capture to avoid duplicated text. SVG labels become
+editable Arial text; other text uses its declared font and installed-font fallback.
+SVG fill/stroke opacity is preserved. Shaders/3D, rotated/clipped content,
+translucent groups and unsupported SVG geometry retain
+their captured pixels. Arrow-marked paths remain captured to preserve arrowheads.
+The default PPTX export keeps whole-slide images. Speaker notes remain editable.
+
+For a repeatable Sirena/Mermaid comparison, install the pinned development
+dependencies with `npm ci`, install Sirena v0.6+, then run:
+
+```sh
+node scripts/compare-diagrams.cjs > comparison.json
+```
+
+Both engines receive the same five flowchart/sequence/state/class/mindmap sources.
+Two warm-ups precede seven measured iterations. Sirena reports Go parse/layout/SVG
+time and allocations; Mermaid 12 reports its browser render pipeline. Process and
+library startup, network and paint are excluded. Output bytes and SVG DOM counts
+are reported separately. Execution backends and fonts differ, so the report does
+not imply overall presentation performance or feature parity. See the
+[Mermaid API](https://mermaid.js.org/config/usage.html) for its render contract.

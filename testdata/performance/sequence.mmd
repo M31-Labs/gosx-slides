@@ -1,0 +1,8 @@
+sequenceDiagram
+ participant Browser
+ participant API
+ participant Store
+ Browser->>API: Request
+ API->>Store: Read
+ Store-->>API: Result
+ API-->>Browser: Response
