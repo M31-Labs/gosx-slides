@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -126,15 +127,52 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 			fail(409, "deck.md changed during validation; reload source")
 			return
 		}
-		file, err := os.CreateTemp(deck.Dir, ".slides-edit-*")
+		save, err := stageSourceEdit(path, input.Source, info.Mode().Perm())
 		if err != nil {
 			fail(500, "could not prepare save")
 			return
 		}
-		name := file.Name()
-		defer os.Remove(name)
-		if err = file.Chmod(info.Mode().Perm()); err == nil {
-			_, err = file.WriteString(input.Source)
+		defer save.cleanup()
+		err = save.capture(input.Revision)
+		if err == nil {
+			err = save.publish(input.Revision)
+		}
+		if err != nil {
+			var conflict *sourceEditConflict
+			if errors.As(err, &conflict) {
+				fail(409, err.Error())
+			} else {
+				fail(500, err.Error())
+			}
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"revision": sourceRevision([]byte(input.Source)), "message": "Saved deck.md"})
+	}))
+	return nil
+}
+
+// Keep the displaced inode, including edits from an already-open external file
+// descriptor. Portable Go has no hash-conditional rename, so publishing uses a
+// no-overwrite hard link after capture. Never discard a captured revision.
+type stagedSourceEdit struct{ path, dir, prepared, previous string }
+
+type sourceEditConflict struct{ recovery string }
+
+func (e *sourceEditConflict) Error() string {
+	return "deck.md changed during save; reload source. Previous source retained at " + e.recovery
+}
+
+func stageSourceEdit(path, source string, mode os.FileMode) (*stagedSourceEdit, error) {
+	dir, err := os.MkdirTemp(filepath.Dir(path), ".slides-history-*")
+	if err != nil {
+		return nil, err
+	}
+	save := &stagedSourceEdit{path: path, dir: dir, prepared: filepath.Join(dir, "next.md"), previous: filepath.Join(dir, DeckFileName)}
+	file, err := os.OpenFile(save.prepared, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if err == nil {
+		err = file.Chmod(mode)
+		if err == nil {
+			_, err = file.WriteString(source)
 		}
 		if err == nil {
 			err = file.Sync()
@@ -143,14 +181,66 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 		if err == nil {
 			err = closeErr
 		}
-		if err == nil {
-			err = os.Rename(name, path)
+	}
+	if err != nil {
+		save.cleanup()
+		return nil, err
+	}
+	// Establish filesystem support before moving the author's current source.
+	probe := filepath.Join(dir, "link-check")
+	if err := os.Link(save.prepared, probe); err != nil {
+		save.cleanup()
+		return nil, err
+	}
+	os.Remove(probe)
+	return save, nil
+}
+
+func (s *stagedSourceEdit) cleanup() {
+	os.Remove(filepath.Join(s.dir, "link-check"))
+	os.Remove(s.prepared)
+	os.Remove(s.dir) // Removes only empty directories; retained revisions survive.
+}
+
+func (s *stagedSourceEdit) matches(revision string) bool {
+	info, err := os.Lstat(s.previous)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	file, err := os.Open(s.previous)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	src, err := io.ReadAll(io.LimitReader(file, maxSourceBytes+1))
+	return err == nil && len(src) <= maxSourceBytes && sourceRevision(src) == revision
+}
+
+func (s *stagedSourceEdit) conflict() error {
+	return &sourceEditConflict{recovery: filepath.Join(filepath.Base(s.dir), DeckFileName)}
+}
+
+func (s *stagedSourceEdit) capture(revision string) error {
+	if err := os.Rename(s.path, s.previous); err != nil {
+		return fmt.Errorf("could not capture deck.md for save: %w", err)
+	}
+	if !s.matches(revision) {
+		os.Link(s.previous, s.path) // Restore only if another writer has not recreated it.
+		return s.conflict()
+	}
+	return nil
+}
+
+func (s *stagedSourceEdit) publish(revision string) error {
+	if err := os.Link(s.prepared, s.path); err != nil {
+		os.Link(s.previous, s.path) // Fail closed; never overwrite to recover.
+		if errors.Is(err, os.ErrExist) {
+			return s.conflict()
 		}
-		if err != nil {
-			fail(500, "could not save deck.md")
-			return
-		}
-		json.NewEncoder(w).Encode(map[string]string{"revision": sourceRevision([]byte(input.Source)), "message": "Saved deck.md"})
-	}))
+		return fmt.Errorf("could not publish deck.md; previous source retained at %s: %w", filepath.Join(filepath.Base(s.dir), DeckFileName), err)
+	}
+	if !s.matches(revision) {
+		return s.conflict()
+	}
 	return nil
 }

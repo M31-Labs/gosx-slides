@@ -53,9 +53,15 @@ clocks; element scrubbing and reversing affect DOM animations. Scene3D poses are
 controlled by their absolute click steps.
 
 **Persistent source editing:** `slides serve my-deck --edit`, then press **E**
-or click **Edit**. Save validates the deck and its components, writes `deck.md`
-atomically, and reloads the preview at the current anchor. Stale edits report a
-conflict; **Reload source** loads the latest file. The editor accepts up to 1 MiB
+or click **Edit**. Save validates the deck and its components, stages the new
+source, and reloads the preview at the current anchor. Stale or concurrent edits
+report a conflict; **Reload source** loads the latest file. Each save retains the
+displaced source in `.slides-history-*/deck.md`, including writes through an
+already-open file. Publishing refuses to overwrite a file recreated by another
+editor. The source path is briefly absent between capture and publication;
+filesystems without hard-link support reject saves before moving the source.
+Recovery files remain until you remove them after reconciling your edits.
+The editor accepts up to 1 MiB
 and refuses symlinked source files. Browser editing is available in plain serve;
 use `--watch` separately for filesystem hot-swap.
 

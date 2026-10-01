@@ -3,6 +3,7 @@ package slides
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -63,6 +64,14 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	if string(saved) != updated {
 		t.Fatal("source was not persisted")
 	}
+	previous, err := filepath.Glob(filepath.Join(dir, ".slides-history-*", DeckFileName))
+	if err != nil || len(previous) != 1 {
+		t.Fatal("save did not retain the displaced revision", previous, err)
+	}
+	recovery, err := os.ReadFile(previous[0])
+	if err != nil || string(recovery) != initial {
+		t.Fatal("saved recovery differs from displaced source", err)
+	}
 	info, _ := os.Stat(path)
 	if info.Mode().Perm() != 0640 {
 		t.Fatal("changed file permissions")
@@ -85,6 +94,84 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 		if w.Code == 200 {
 			t.Fatal("editing exposed without enabled server")
 		}
+	}
+}
+
+func TestSourceSavePreservesConcurrentExternalWrites(t *testing.T) {
+	const initial = "# Original\n"
+	const external = "# External\n"
+	const browser = "# Browser\n"
+	for _, scenario := range []string{"in-place before capture", "replacement before capture", "recreated after capture", "open writer after capture"} {
+		t.Run(scenario, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, DeckFileName)
+			if err := os.WriteFile(path, []byte(initial), 0640); err != nil {
+				t.Fatal(err)
+			}
+			save, err := stageSourceEdit(path, browser, 0640)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer save.cleanup()
+			write := func(path string) {
+				t.Helper()
+				if err := os.WriteFile(path, []byte(external), 0640); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var conflict error
+			wantCurrent, wantPrevious := external, external
+			switch scenario {
+			case "in-place before capture":
+				write(path) // Interleaves after validation and candidate fsync.
+				conflict = save.capture(sourceRevision([]byte(initial)))
+			case "replacement before capture":
+				other := filepath.Join(dir, "external.md")
+				write(other)
+				if err := os.Rename(other, path); err != nil {
+					t.Fatal(err)
+				}
+				conflict = save.capture(sourceRevision([]byte(initial)))
+			case "recreated after capture":
+				if err := save.capture(sourceRevision([]byte(initial))); err != nil {
+					t.Fatal(err)
+				}
+				write(path) // Must not be clobbered by publication or rollback.
+				conflict = save.publish(sourceRevision([]byte(initial)))
+				wantPrevious = initial
+			case "open writer after capture":
+				file, err := os.OpenFile(path, os.O_WRONLY, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer file.Close()
+				if err := save.capture(sourceRevision([]byte(initial))); err != nil {
+					t.Fatal(err)
+				}
+				if err := file.Truncate(0); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := file.WriteString(external); err != nil {
+					t.Fatal(err)
+				}
+				conflict = save.publish(sourceRevision([]byte(initial)))
+				wantCurrent = browser
+			}
+			var typed *sourceEditConflict
+			if !errors.As(conflict, &typed) || !strings.Contains(conflict.Error(), filepath.Base(save.dir)) {
+				t.Fatal("concurrent write did not surface a recoverable conflict", conflict)
+			}
+			save.cleanup()
+			for name, want := range map[string]string{path: wantCurrent, save.previous: wantPrevious} {
+				got, err := os.ReadFile(name)
+				if err != nil || string(got) != want {
+					t.Fatalf("%s: got %q, want %q (%v)", name, got, want, err)
+				}
+			}
+			if _, err := os.Stat(save.prepared); !errors.Is(err, os.ErrNotExist) {
+				t.Fatal("candidate temp file remained", err)
+			}
+		})
 	}
 }
 func TestSourceEditorServesNewComponent(t *testing.T) {
