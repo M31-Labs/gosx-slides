@@ -1,6 +1,7 @@
 const {chromium} = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const {PNG} = require('pngjs');
 
 (async () => {
   const browser = await chromium.launch({args:['--enable-unsafe-swiftshader'],
@@ -36,6 +37,15 @@ const fs = require('node:fs');
     const command = (pose,key) => pose.commands.find(([k])=>k===key)[1];
     assert.equal(command(middle,'2:api').data.z,.6);
     assert.equal(command(final,'2:api').data.z,1.2);
+    // Object counts and successful draw calls do not prove visible geometry.
+    // Pearl's authored violet/mint range is distinct from the other actors.
+    const pixels = PNG.sync.read(await page.locator('.deck-active .slide-graphic canvas').first().screenshot());
+    let pearlPixels = 0;
+    for(let i=0;i<pixels.data.length;i+=4) {
+      const [r,g,b,a] = pixels.data.subarray(i,i+4);
+      if(a>0&&r>=70&&r<=130&&g>=70&&g<=240&&b>=170&&b<=255) pearlPixels++;
+    }
+    assert.ok(pearlPixels>=200,`the API shader box must paint visible pixels (${pearlPixels} found)`);
     assert.notDeepEqual(command(middle,'0:edge:0').data.props.points,command(final,'0:edge:0').data.props.points,'routes must follow actors during interpolation');
     assert.ok(middle.code.some(([opacity])=>Number(opacity)>0 && Number(opacity)<1),'code lines share the playhead');
     assert.deepEqual(await sample(600),middle,'repeated seeks must reconstruct the rendered pose');
