@@ -11,6 +11,9 @@ const {PNG} = require('pngjs');
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(process.argv[2] + '#request/accepted', {waitUntil:'domcontentloaded'});
     await page.waitForFunction(() => document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady === 'true');
+    if(process.env.SLIDES_SCENE_RENDERER) {
+      assert.equal(await page.evaluate(()=>__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).renderer),process.env.SLIDES_SCENE_RENDERER,'the requested GPU backend must actually render');
+    }
     await page.evaluate(async () => {
       SlidesMotion.pause(); await SlidesMotion.settled();
       const handle = document.querySelector('.deck-active .slide-graphic').__gosxScene3DHandle;
@@ -95,6 +98,32 @@ const {PNG} = require('pngjs');
     assert.deepEqual(await codeSample(reversePose.state.time),reversePose.pose,'reverse transport must sample the same authored segment as seek');
     assert.deepEqual(await codeSample(600),codeMiddle);
     await codePage.close();
+    const alignment = async target => {
+      await target.evaluate(async()=>{
+        await SlidesMotion.settled();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      });
+      const bounds = await target.evaluate(()=>{
+        const mount=document.querySelector('.deck-active .slide-graphic');
+        const canvas=mount.querySelector('canvas'),layer=mount.querySelector('.gosx-scene-label').parentElement;
+        const box=element=>{const r=element.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
+        return {mount:box(mount),canvas:box(canvas),layer:box(layer)};
+      });
+      for(const key of ['left','top','width','height']) {
+        assert.ok(Math.abs(bounds.canvas[key]-bounds.layer[key])<=1,`scene label plane must match canvas ${key}: ${JSON.stringify(bounds)}`);
+      }
+      for(const key of ['left','top']) assert.ok(bounds.canvas[key]>=bounds.mount[key]-1,`canvas ${key} must stay inside its mount`);
+      for(const key of ['right','bottom']) assert.ok(bounds.canvas[key]<=bounds.mount[key]+1,`canvas ${key} must stay inside its mount`);
+    };
+    for(const viewport of [{width:1440,height:900},{width:1280,height:720},{width:1440,height:900}]) {
+      await page.setViewportSize(viewport);
+      for(const step of [0,1,2,3]) {
+        await page.evaluate(async step=>{SlidesNav.show(1,step,true);SlidesMotion.seek(1200);await SlidesMotion.settled()},step);
+        await alignment(page);
+      }
+    }
+    await page.evaluate(()=>SlidesNav.show(1,1,true));
+    assert.deepEqual((await sample(600)).code,middle.code,'resize and cue changes must preserve the canonical code midpoint');
     const mobile = await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
     mobile.on('pageerror',e=>errors.push(e.message));
     await mobile.goto(process.argv[2]+'#request/accepted',{waitUntil:'domcontentloaded'});
@@ -104,6 +133,7 @@ const {PNG} = require('pngjs');
     assert.equal(await mobile.evaluate(()=>document.querySelector('.deck-active .slide-graphic').__gosxScene3DHandle.getAnimationClock().timeSeconds),0);
     assert.equal(await mobile.evaluate(()=>document.querySelector('.deck-active').scrollHeight>document.querySelector('.deck-active').clientHeight),false,'mobile slide must fit');
     assert.equal(await mobile.locator('.deck-active .path').textContent(),'Browser → API → Queue → Worker → Database');
+    await alignment(mobile);
     assert.deepEqual(errors,[]);
     if(process.env.SLIDES_SCREENSHOT_DIR) {
       fs.mkdirSync(process.env.SLIDES_SCREENSHOT_DIR,{recursive:true});
@@ -111,6 +141,6 @@ const {PNG} = require('pngjs');
       await page.screenshot({path:process.env.SLIDES_SCREENSHOT_DIR+'/request-desktop.png'});
       await mobile.screenshot({path:process.env.SLIDES_SCREENSHOT_DIR+'/request-mobile.png'});
     }
-    console.log('PASS shared camera/geometry/labels/code/shader clock, canonical code pairs and paused backward first paint, repeatable seeks/reverse, retained resources, named cues and reduced-motion mobile');
+    console.log('PASS shared camera/geometry/labels/code/shader clock, canonical code pairs and paused backward first paint, repeatable seeks/reverse, retained resources, named cues, fitted canvas/label alignment across resize and reduced-motion mobile');
   } finally {await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

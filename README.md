@@ -10,7 +10,7 @@ Download a binary for Linux, macOS, or Windows from the
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.7.1 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.7.2 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -202,7 +202,7 @@ families alongside semantic Scene3D steps. Mermaid ingestion supports flowcharts
 
 ### Native shaders and Scene3D
 
-GoSX v0.57.3's native graphics engine is available directly in Markdown:
+GoSX v0.57.4's native graphics engine is available directly in Markdown:
 
 ```md
 <Shader Src="shaders/ink.sel" Shape="torus" Label="Shader illustration" />
@@ -312,7 +312,7 @@ slide timing and staggered text.
 
 ### Upgrade and performance inventory
 
-The current dependency baseline is GoSX **v0.57.3**, mdpp **v0.5.0**,
+The current dependency baseline is GoSX **v0.57.4**, mdpp **v0.5.0**,
 gotreesitter **v0.55.1**, and Sirena **v0.7.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
@@ -321,6 +321,11 @@ without a separate renderer or frontend build system.
 The v0.7.1 patch restores custom shader shapes beside retained Scene3D meshes
 on WebGPU, including the API box in `examples/request-recovery`. Browser
 regression checks verify visible shader pixels on both WebGPU and WebGL.
+
+The v0.7.2 patch keeps Scene3D canvases and projected labels aligned when a
+slide scales to fit. Canvases stay inside their mounts through cue changes and
+desktop resizing. The request-recovery example uses closer authored camera
+views so actors and their labels are easier to read.
 
 Production servers now compile the deck once at startup. A 20-slide server
 benchmark improved from **11.06 ms to 0.29–1.00 ms per request**, with allocated bytes
