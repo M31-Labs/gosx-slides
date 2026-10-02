@@ -39,3 +39,36 @@ main.deck .slides-author-panel [data-scene-studio] fieldset{border:0;padding:0;m
 main.deck .slides-scene-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
 main.deck .slides-author-panel :disabled{opacity:.55;cursor:default}
 @media(max-width:420px){main.deck .slides-scene-fields{grid-template-columns:1fr}}
+
+/* Authoring reserves a live stage; only the inspector's fields scroll. */
+main.deck .slides-author-panel [hidden]{display:none!important}
+main.deck .slides-motion-studio:not([open]){display:none!important}
+main.deck .slides-motion-studio[open]{position:fixed;inset:16px 16px 16px auto;margin:0;width:400px;height:calc(100dvh - 32px);max-height:none;padding:0;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;z-index:100}
+main.deck .slides-motion-studio header{padding:16px 18px 12px;flex:none;align-items:flex-start}
+main.deck[data-theme] .slides-motion-studio h2{font-size:20px;line-height:1.3}
+main.deck .slides-studio-eyebrow{color:#81c6ff;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+main.deck .slides-motion-studio [data-studio-context]{font-size:12px;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+main.deck .slides-motion-studio input,main.deck .slides-motion-studio select,main.deck .slides-motion-studio button{padding:7px 9px;font-size:13px}
+main.deck .slides-motion-studio input,main.deck .slides-motion-studio select{width:100%;box-sizing:border-box}
+main.deck .slides-motion-studio [aria-invalid="true"]{border-color:#ffb3a7}
+main.deck .slides-motion-studio label{font-size:12px;margin:9px 0;gap:4px}
+main.deck .slides-motion-studio h3{font:600 14px/1.4 system-ui,sans-serif;color:inherit;margin:18px 0 8px}
+main.deck .slides-motion-studio p.slides-studio-hint,main.deck .slides-motion-studio .slides-studio-hint{font-size:12px;line-height:1.5;color:#bac7d9;margin:4px 0 10px}
+main.deck .slides-studio-transport{padding:0 18px 12px;border-bottom:1px solid #42536c;flex:none}
+main.deck .slides-studio-transport .slides-author-actions{margin:0;align-items:center}
+main.deck .slides-studio-transport output{font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
+main.deck .slides-motion-studio .slides-studio-seek{margin:8px 0 0}
+main.deck .slides-motion-studio .slides-studio-seek input{height:20px}
+main.deck .slides-studio-tabs{display:flex;padding:8px 18px;gap:8px;flex:none}
+main.deck .slides-studio-tabs button{flex:1}
+main.deck .slides-studio-tabs [aria-selected="true"]{background:#306194;border-color:#81c6ff}
+main.deck .slides-motion-studio [data-studio-body]{flex:1;min-height:0;overflow:hidden}
+main.deck .slides-motion-studio [role="tabpanel"]{display:flex;flex-direction:column;height:100%;min-height:0;border:0;padding:0;margin:0}
+main.deck .slides-studio-scroll{padding:0 18px 14px;overflow:auto;overscroll-behavior:contain;flex:1;min-height:0;scrollbar-gutter:stable}
+main.deck .slides-motion-studio fieldset{border:0;padding:0;min-width:0;margin:0}
+main.deck .slides-motion-studio footer{padding:10px 18px 14px;border-top:1px solid #42536c;flex:none;background:#111a28}
+main.deck .slides-motion-studio footer .slides-author-actions{margin:0}
+main.deck .slides-motion-studio footer output{font-size:12px;margin-top:8px;overflow-wrap:anywhere}
+main.deck .slides-motion-studio .slides-author-fields,main.deck .slides-motion-studio .slides-scene-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+main.deck[data-studio-open] .deck-controls,main.deck[data-studio-open] .deck-counter,main.deck[data-studio-open] .deck-progress{visibility:hidden;pointer-events:none}
+@media(max-width:899px){main.deck .slides-motion-studio[open]{inset:auto 8px 8px;width:calc(100vw - 16px);height:60dvh;border-radius:16px}main.deck .slides-motion-studio header{padding:10px 14px 8px}main.deck .slides-studio-transport{padding:0 14px 8px}main.deck .slides-studio-tabs{padding:6px 14px}main.deck .slides-studio-scroll{padding:0 14px 12px}main.deck .slides-motion-studio footer{padding:8px 14px 10px}}

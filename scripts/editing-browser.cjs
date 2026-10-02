@@ -36,7 +36,23 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   assert.equal(savedScene.status,200,savedScene.body);
   await page.setViewportSize({width:1440,height:900});await page.goto(url+'?scene-studio=1#request/accepted',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady==='true');
-  await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]')?.textContent.startsWith('Edit the current cue'));
+  await page.evaluate(()=>{SlidesMotion.seek(450);SlidesMotion.open()});await page.waitForFunction(()=>document.querySelector('[data-scene-status]')?.textContent.startsWith('Edit the current cue'));
+  assert.equal(await page.evaluate(()=>SlidesMotion.state().time),450,'opening the inspector preserves the pose');
+  assert.equal(await page.evaluate(()=>document.querySelector('.slides-motion-studio').matches(':modal')),false,'the slide remains interactive');
+  const checkStage=async(mobile=false)=>{
+   await page.waitForTimeout(180);
+   const stage=await page.locator('.deck-active').boundingBox(),panel=await page.locator('.slides-motion-studio').boundingBox(),viewport=page.viewportSize();
+   assert.ok(stage.x>=12&&stage.y>=12,'theme margins must not shift the preview');
+   assert.ok(stage.x+stage.width<= (mobile?viewport.width-12:panel.x-12),'slide fits beside the inspector');
+   assert.ok(stage.y+stage.height<= (mobile?panel.y-12:viewport.height-12),'slide fits above the mobile sheet');
+   const canvas=await page.locator('.deck-active .slide-graphic canvas').boundingBox();
+   assert.ok(canvas.x>=stage.x&&canvas.x+canvas.width<=stage.x+stage.width+1,'native canvas fits the preview');
+  };
+  await checkStage();
+  assert.equal(await page.locator('[data-scene-surface]').isVisible(),false,'a single scene does not need a picker');
+  assert.equal(await page.locator('[data-motion-element]').isVisible(),false,'scene and element controls have separate tabs');
+  await page.getByRole('tab',{name:'Elements',exact:true}).click();assert.equal(await page.locator('[data-motion-element]').isVisible(),true);
+  await page.keyboard.press('ArrowLeft');assert.equal(await page.getByRole('tab',{name:'Scene',exact:true}).getAttribute('aria-selected'),'true');
   await page.evaluate(async()=>{SlidesMotion.seek(1200);await SlidesMotion.settled()});
   const editField=async(name,value)=>{const input=page.locator('[data-scene-'+name+']');await input.fill(value);await input.dispatchEvent('change');await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));};
   await editField('camera-fov','36');
@@ -46,10 +62,17 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'steps.json'),'utf8'))[1].camera.fov,40,'preview must not save');
   await page.getByRole('button',{name:'Close motion studio',exact:true}).click();await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Edit the current cue')).catch(async error=>{throw new Error(error.message+'; scene status: '+await page.locator('[data-scene-status]').textContent()+'; errors: '+JSON.stringify(errors));});
   assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'2','closing and reopening keeps the draft');
-  await page.getByRole('button',{name:'Undo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  assert.equal(await page.locator('[data-scene-actor]').inputValue(),'api','reopening keeps the actor selection');
+  await page.locator('[data-scene-actor]').focus();await page.keyboard.press('Control+z');await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
   assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'');
-  await page.getByRole('button',{name:'Redo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  await page.keyboard.press('Control+Shift+z');await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
   assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'2');
+  await page.getByRole('button',{name:'Reset actor',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'');
+  await page.getByRole('button',{name:'Undo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  const fov=page.locator('[data-scene-camera-fov]');await fov.fill('180');await fov.dispatchEvent('change');
+  assert.equal(await fov.getAttribute('aria-invalid'),'true');assert.equal(await page.locator('[data-scene-save]').isDisabled(),true,'invalid fields block save');
+  await editField('camera-fov','36');
   await editField('duration','900');await editField('duration','0');
   await page.evaluate(async()=>{SlidesMotion.seek(0);await SlidesMotion.settled()});
   assert.equal(await page.evaluate(()=>__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).camera.fov),36,'explicit zero settles the destination');
@@ -66,7 +89,10 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   assert.equal(audit.result.poses,7);assert.equal(audit.changes,0,'scan must not navigate or broadcast');assert.deepEqual(audit.after,audit.before,'scan restores the paused playhead and camera');
   await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]')?.textContent.startsWith('Edit the current cue'));await editField('camera-fov','38');
   fs.appendFileSync(path.join(dir,'steps.json'),'\n');await page.getByRole('button',{name:'Save scene cues',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.includes('changed'));assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'steps.json'),'utf8'))[1].camera.fov,36,'stale save must preserve external edit');
-  await page.setViewportSize({width:390,height:844});const sceneBounds=await page.locator('dialog:visible').boundingBox();assert.ok(sceneBounds.x>=0&&sceneBounds.x+sceneBounds.width<=390,'mobile scene studio fits');
+  await page.setViewportSize({width:390,height:844});await checkStage(true);const sceneBounds=await page.locator('dialog:visible').boundingBox();assert.ok(sceneBounds.x>=0&&sceneBounds.x+sceneBounds.width<=390,'mobile scene studio fits');
+  await page.locator('[data-scene-actor-x]').scrollIntoViewIfNeeded();
+  const transport=await page.locator('.slides-studio-transport').boundingBox();assert.ok(transport.y>=sceneBounds.y&&transport.y+transport.height<844,'transport stays visible while fields scroll');
+  await page.locator('.deck-active .slide-graphic').click();await page.keyboard.press('Escape');assert.equal(await page.locator('.slides-motion-studio').isVisible(),false,'Escape closes even from the live preview');assert.equal(await page.locator('main.deck').getAttribute('data-studio-open'),null);
   assert.deepEqual(errors,[]);console.log('Editing browser passed: source save/conflicts, drawing, scene camera/actor preview/undo/save/zero timing, cue navigation, audit restore and mobile.');
  } finally {await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
