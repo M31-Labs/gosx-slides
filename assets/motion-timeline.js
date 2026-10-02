@@ -455,11 +455,11 @@
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable], dialog, [role]')) return;
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });
-  function restore(state) {
+  function restoreTransport(state) {
     stopClock(); setTransport(state.paused, state.paused || state.direction < 0);
     direction = state.direction; time = Math.max(0,Math.min(duration(),state.time));
     graphicsPause(graphicsFrozen); if (paused) pauseActive(); sample(); startClock(); updatePanel();
   }
-  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, restore, state: () => ({paused, time, direction, duration: duration()}) };
+  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, restore: restoreTransport, state: () => ({paused, time, direction, duration: duration()}) };
   setTransport(false, false); sync(false); startClock();
 })();
