@@ -439,11 +439,11 @@
         try { await navigator.clipboard.writeText(':::motion {' + fields.join(' ') + '}\nYour content\n:::'); panel.querySelector('[data-motion-status]').textContent = 'Copied'; }
         catch (_) { panel.querySelector('[data-motion-status]').textContent = 'Clipboard unavailable'; }
       };
-      panel.addEventListener('close', () => { clearInterval(refreshTimer); refreshTimer = null; });
+      panel.addEventListener('close', () => { if (panel.open) return; clearInterval(refreshTimer); refreshTimer = null; });
     }
     const selector = panel.querySelector('[data-motion-element]'); selector.replaceChildren();
     items().forEach((el, i) => { const option = document.createElement('option'); option.value = i; option.textContent = motionLabel(el, i); selector.appendChild(option); });
-    selected = items()[0]; fill(); drawTracks(); loadDraft(); if (panel.open) return; panel.showModal(); replay(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
+    selected = items()[0]; fill(); drawTracks(); loadDraft(); if (panel.open) return; clearInterval(refreshTimer); panel.showModal(); window.SlidesSceneStudio?.open(panel); replay(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
   }
   function fill() {
     panel.querySelector('[data-motion-replay-mode]').disabled = !selected; panel.querySelector('[data-motion-replay-mode]').value = selected?.dataset.slidesMotionReplay || 'slide';
@@ -455,6 +455,11 @@
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable], dialog, [role]')) return;
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });
-  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, state: () => ({paused, time, direction, duration: duration()}) };
+  function restore(state) {
+    stopClock(); setTransport(state.paused, state.paused || state.direction < 0);
+    direction = state.direction; time = Math.max(0,Math.min(duration(),state.time));
+    graphicsPause(graphicsFrozen); if (paused) pauseActive(); sample(); startClock(); updatePanel();
+  }
+  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, restore, state: () => ({paused, time, direction, duration: duration()}) };
   setTransport(false, false); sync(false); startClock();
 })();

@@ -33,3 +33,9 @@ main.deck .slides-motion-bar{position:absolute;height:100%;padding:2px 6px!impor
 main.deck .slides-diagram-morph>[hidden]{display:none!important}
 main.deck .slides-motion-bar::after{content:"";position:absolute;right:3px;top:8px;bottom:8px;border-right:2px solid #acd8ff}
 main.deck .slides-motion-warning{grid-column:1/-1;color:#f3c98d;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+main.deck .slides-author-panel [data-scene-studio]{border-top:1px solid #42536c;margin-top:20px;padding-top:12px}
+main.deck .slides-author-panel [data-scene-studio] h3,main.deck .slides-author-panel [data-scene-studio] h4{font:600 16px/1.4 system-ui,sans-serif;color:inherit;margin:12px 0}
+main.deck .slides-author-panel [data-scene-studio] fieldset{border:0;padding:0;min-width:0;margin:0}
+main.deck .slides-scene-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+main.deck .slides-author-panel :disabled{opacity:.55;cursor:default}
+@media(max-width:420px){main.deck .slides-scene-fields{grid-template-columns:1fr}}

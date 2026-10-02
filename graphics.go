@@ -104,6 +104,7 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 		return engine.Config{}, err
 	}
 	var payload map[string]any
+	var authoredRevision, authoredInputs string
 	if ref.Name == "Shader" {
 		material, _, err := scene.CompileSelenaMaterial(data, scene.SelenaMaterialOptions{Material: graphicString(props, "Material", ""), Standard: scene.StandardMaterial{Color: "#ffffff"}})
 		if err != nil {
@@ -150,6 +151,29 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 		if err := json.Unmarshal(config.Props, &payload); err != nil {
 			return engine.Config{}, err
 		}
+	} else if strings.EqualFold(filepath.Ext(src), ".sir") {
+		var steps []byte
+		if name := graphicString(props, "Steps", ""); name != "" {
+			steps, err = readGraphicFile(dir, name)
+			if err != nil {
+				return engine.Config{}, err
+			}
+		}
+		payload, err = compileSirenaGraphic(dir, props, data, steps)
+		if err != nil {
+			return engine.Config{}, fmt.Errorf("scene %s: %w", src, err)
+		}
+		authoredRevision = sourceRevision(steps)
+		inputs := []string{sourceRevision(data)}
+		if shader := graphicString(props, "Shader", ""); shader != "" {
+			raw, err := readGraphicFile(dir, shader)
+			if err != nil {
+				return engine.Config{}, err
+			}
+			inputs = append(inputs, sourceRevision(raw))
+		}
+		raw, _ := json.Marshal(inputs)
+		authoredInputs = sourceRevision(raw)
 	} else {
 		if err := json.Unmarshal(data, &payload); err != nil {
 			return engine.Config{}, fmt.Errorf("scene %s: %w", src, err)
@@ -249,6 +273,12 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 	}
 	for key, value := range stepAttrs {
 		cfg.MountAttrs[key] = value
+	}
+	if ref.Name == "Scene3D" && strings.EqualFold(filepath.Ext(src), ".sir") && graphicString(props, "Steps", "") != "" {
+		cfg.MountAttrs["data-slide-scene-source"] = sceneGraphicID(ref)
+		cfg.MountAttrs["data-slide-scene-steps-source"] = graphicString(props, "Steps", "")
+		cfg.MountAttrs["data-slide-scene-revision"] = authoredRevision
+		cfg.MountAttrs["data-slide-scene-inputs"] = authoredInputs
 	}
 	if background, _ := props["Background"].(bool); background {
 		cfg.MountAttrs["class"] = "deck-graphics-background"

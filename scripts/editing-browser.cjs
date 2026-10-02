@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
 (async () => {
- const browser = await chromium.launch({...(process.env.SLIDES_BROWSER ? {executablePath:process.env.SLIDES_BROWSER} : {})});
+ const browser = await chromium.launch({args:['--enable-unsafe-swiftshader'],...(process.env.SLIDES_BROWSER ? {executablePath:process.env.SLIDES_BROWSER} : {})});
  try {
   const page = await browser.newPage({viewport:{width:1280,height:720}}), errors=[];
   page.on('pageerror',e=>errors.push(e.message));
@@ -26,6 +27,46 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   assert.ok(fs.readFileSync(sourcePath,'utf8').includes('external edit'));
   await page.getByRole('button',{name:'Close source editor',exact:true}).click();
   await page.setViewportSize({width:390,height:844});await page.keyboard.press('e');await page.getByRole('status').filter({hasText:'Ready to edit'}).waitFor();const bounds=await page.locator('.slides-source-panel').boundingBox();assert.ok(bounds.x>=0 && bounds.x+bounds.width<=391,'mobile source editor exceeds viewport');
-  assert.deepEqual(errors,[]);console.log('Editing browser passed: save, validation, conflict, pen, laser, navigation.');
+  await page.getByRole('button',{name:'Close source editor',exact:true}).click();
+  // Exercise the embedded scene studio in this existing CI authoring lane.
+  const example=path.join(__dirname,'../examples/request-recovery'), dir=path.dirname(sourcePath);
+  for(const name of ['request.sir','steps.json','material.sel','deck.css']) fs.copyFileSync(path.join(example,name),path.join(dir,name));
+  const sceneDeck=fs.readFileSync(path.join(example,'deck.md'),'utf8');
+  const savedScene=await page.evaluate(async source=>{const state=await (await fetch('/_slides/source')).json();const response=await fetch('/_slides/source',{method:'PUT',headers:{'Content-Type':'application/json','X-Slides-Token':state.token},body:JSON.stringify({source,revision:state.revision})});return {status:response.status,body:await response.text()};},sceneDeck);
+  assert.equal(savedScene.status,200,savedScene.body);
+  await page.setViewportSize({width:1440,height:900});await page.goto(url+'?scene-studio=1#request/accepted',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady==='true');
+  await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]')?.textContent.startsWith('Edit the current cue'));
+  await page.evaluate(async()=>{SlidesMotion.seek(1200);await SlidesMotion.settled()});
+  const editField=async(name,value)=>{const input=page.locator('[data-scene-'+name+']');await input.fill(value);await input.dispatchEvent('change');await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));};
+  await editField('camera-fov','36');
+  await page.locator('[data-scene-actor]').selectOption('api');await editField('actor-x','2');
+  await page.evaluate(async()=>{SlidesMotion.seek(1200);await SlidesMotion.settled()});
+  assert.equal(await page.evaluate(()=>__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).camera.fov),36);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'steps.json'),'utf8'))[1].camera.fov,40,'preview must not save');
+  await page.getByRole('button',{name:'Close motion studio',exact:true}).click();await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Edit the current cue')).catch(async error=>{throw new Error(error.message+'; scene status: '+await page.locator('[data-scene-status]').textContent()+'; errors: '+JSON.stringify(errors));});
+  assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'2','closing and reopening keeps the draft');
+  await page.getByRole('button',{name:'Undo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'');
+  await page.getByRole('button',{name:'Redo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  assert.equal(await page.locator('[data-scene-actor-x]').inputValue(),'2');
+  await editField('duration','900');await editField('duration','0');
+  await page.evaluate(async()=>{SlidesMotion.seek(0);await SlidesMotion.settled()});
+  assert.equal(await page.evaluate(()=>__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).camera.fov),36,'explicit zero settles the destination');
+  await page.getByRole('button',{name:'Undo scene',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.startsWith('Preview ready'));
+  await page.locator('[data-scene-cue]').selectOption('2');assert.equal(await page.evaluate(()=>SlidesNav.current()),2);assert.equal(await page.evaluate(()=>SlidesNav.step()),2);
+  await page.locator('[data-scene-cue]').selectOption('1');
+  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Save scene cues',exact:true}).click()]);
+  const persisted=JSON.parse(fs.readFileSync(path.join(dir,'steps.json'),'utf8'));
+  assert.equal(persisted[1].camera.fov,36);assert.equal(persisted[1].patches.find(patch=>patch.target==='api').x,2);assert.equal(persisted[1].durationMs,900);
+  assert.ok(fs.readdirSync(dir).filter(name=>name.startsWith('.slides-history-')).some(name=>fs.existsSync(path.join(dir,name,'steps.json'))),'save keeps cue recovery');
+  assert.equal(fs.readFileSync(sourcePath,'utf8'),sceneDeck,'scene edits preserve deck source');
+  await page.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady==='true');
+  const audit=await page.evaluate(async()=>{SlidesMotion.seek(450);await SlidesMotion.settled();const before={state:SlidesMotion.state(),hash:location.hash,step:SlidesNav.step(),camera:__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).camera};let changes=0;const track=()=>changes++;document.querySelector('main.deck').addEventListener('slides:change',track);const result=await SlidesReadability.scan();document.querySelector('main.deck').removeEventListener('slides:change',track);return {before,after:{state:SlidesMotion.state(),hash:location.hash,step:SlidesNav.step(),camera:__gosx_scene3d_debug.inspect(document.querySelector('.deck-active .slide-graphic').id).camera},result,changes};});
+  assert.equal(audit.result.poses,7);assert.equal(audit.changes,0,'scan must not navigate or broadcast');assert.deepEqual(audit.after,audit.before,'scan restores the paused playhead and camera');
+  await page.evaluate(()=>SlidesMotion.open());await page.waitForFunction(()=>document.querySelector('[data-scene-status]')?.textContent.startsWith('Edit the current cue'));await editField('camera-fov','38');
+  fs.appendFileSync(path.join(dir,'steps.json'),'\n');await page.getByRole('button',{name:'Save scene cues',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-scene-status]').textContent.includes('changed'));assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'steps.json'),'utf8'))[1].camera.fov,36,'stale save must preserve external edit');
+  await page.setViewportSize({width:390,height:844});const sceneBounds=await page.locator('dialog:visible').boundingBox();assert.ok(sceneBounds.x>=0&&sceneBounds.x+sceneBounds.width<=390,'mobile scene studio fits');
+  assert.deepEqual(errors,[]);console.log('Editing browser passed: source save/conflicts, drawing, scene camera/actor preview/undo/save/zero timing, cue navigation, audit restore and mobile.');
  } finally {await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -10,7 +10,7 @@ Download a binary for Linux, macOS, or Windows from the
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.7.2 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.8.0 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -49,6 +49,11 @@ Try `slides serve examples/storytelling-lab --edit` (or `examples/authoring-lab`
 drag timeline bars and resize their right edges. Undo/Redo restores preview edits,
 and **Save to deck.md** persists them through source validation, revision checks
 and recoverable saves. Stale source produces a conflict while keeping your draft.
+For authored Sirena scenes, the studio also edits camera X/Y/Z and field of view,
+actor X/Y/Z, scale and color, and each cue's duration and easing. Scene Undo/Redo
+restores previews; **Save scene cues** persists the declared Steps JSON with
+revision checks and a retained previous file. Labels, routes and arrowheads are
+regenerated with their actors. Blank actor fields restore the original layout.
 The shared transport samples DOM entrances, split text, diagram SVG, native
 Scene3D keyframes, cameras and shader time from one playhead. Pause/play, seek,
 reverse and replay reconstruct absolute poses; revisiting a timestamp gives the
@@ -160,7 +165,11 @@ when appropriate. Wrap successive code fences in `:::code-morph` to advance
 versions with arrow keys: unchanged lines move and added lines fade in.
 
 **R** opens a readability report for the current viewport, highlighting small
-text and low contrast on solid backgrounds. Gradient and translucent backgrounds
+text (including SVG), low contrast on solid backgrounds, and hidden, clipped or
+truncated Scene3D labels. **Scan scene cues** samples scene endpoints and midpoints
+without navigating the slide or broadcasting cue changes, then restores the
+playhead and playback state. Scans stop at 64 poses and report that limit.
+Gradient and translucent backgrounds
 need visual inspection. `layout: split`, `:::cards`, and `:::card` provide simple
 responsive layout recipes. The [authoring lab](examples/authoring-lab/README.md)
 is a copyable starting point.
@@ -233,6 +242,20 @@ be used directly as `<Scene3D Src="request.scene.json" />`. Try
 then restore the whole diagram before advancing to the next slide. Backward
 navigation and direct seeks apply absolute frames, and hidden surfaces pause.
 The click budget appears in `check`, `inspect`, and the presenter run sheet.
+
+For editable camera and actor cues, use the authored source directly:
+
+```md
+<Scene3D Src="request.sir" View="Request" Steps="steps.json"
+         Shader="material.sel" Material="Pearl" Targets="api" />
+```
+
+This compiles through Sirena's native Go adapter without a separate CLI process.
+`View` selects an explicit view; otherwise the first declared view is used, or
+all elements when no view exists. Sources are self-contained (workspace imports
+require a precompiled scene). Serve with `--edit` and press **M**. Existing SceneIR
+JSON stays supported; cue editing requires the `.sir` plus `Steps` form. Source
+and cue files each have a 1 MiB authoring limit and at most 128 cues.
 
 Custom Scene3D props can include `slideSteps: {"version":1,"frames":[...]}`,
 where each frame has a `label` and an array of native GoSX `commands`. Frame zero

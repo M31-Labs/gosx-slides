@@ -36,3 +36,6 @@ var pptxEditableScript string
 
 //go:embed assets/graphics-motion.js
 var graphicsMotionScript string
+
+//go:embed assets/scene-studio.js
+var sceneStudioScript string

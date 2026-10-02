@@ -14,7 +14,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.7.2"
+var version = "v0.8.0"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {

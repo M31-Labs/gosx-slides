@@ -57,6 +57,7 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 	token := hex.EncodeToString(random[:])
 	path := filepath.Join(deck.Dir, DeckFileName)
 	var mu sync.Mutex
+	mountSceneEditor(app, deck, token, &mu)
 	app.Mount("/_slides/source", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
@@ -253,7 +254,7 @@ type stagedSourceEdit struct{ path, dir, prepared, previous string }
 type sourceEditConflict struct{ recovery string }
 
 func (e *sourceEditConflict) Error() string {
-	return "deck.md changed during save; reload source. Previous source retained at " + e.recovery
+	return filepath.Base(e.recovery) + " changed during save; reload source. Previous source retained at " + e.recovery
 }
 
 func stageSourceEdit(path, source string, mode os.FileMode) (*stagedSourceEdit, error) {
@@ -261,7 +262,7 @@ func stageSourceEdit(path, source string, mode os.FileMode) (*stagedSourceEdit, 
 	if err != nil {
 		return nil, err
 	}
-	save := &stagedSourceEdit{path: path, dir: dir, prepared: filepath.Join(dir, "next.md"), previous: filepath.Join(dir, DeckFileName)}
+	save := &stagedSourceEdit{path: path, dir: dir, prepared: filepath.Join(dir, "next.md"), previous: filepath.Join(dir, filepath.Base(path))}
 	file, err := os.OpenFile(save.prepared, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err == nil {
 		err = file.Chmod(mode)
@@ -311,12 +312,12 @@ func (s *stagedSourceEdit) matches(revision string) bool {
 }
 
 func (s *stagedSourceEdit) conflict() error {
-	return &sourceEditConflict{recovery: filepath.Join(filepath.Base(s.dir), DeckFileName)}
+	return &sourceEditConflict{recovery: filepath.Join(filepath.Base(s.dir), filepath.Base(s.path))}
 }
 
 func (s *stagedSourceEdit) capture(revision string) error {
 	if err := os.Rename(s.path, s.previous); err != nil {
-		return fmt.Errorf("could not capture deck.md for save: %w", err)
+		return fmt.Errorf("could not capture %s for save: %w", filepath.Base(s.path), err)
 	}
 	if !s.matches(revision) {
 		os.Link(s.previous, s.path) // Restore only if another writer has not recreated it.
@@ -331,7 +332,7 @@ func (s *stagedSourceEdit) publish(revision string) error {
 		if errors.Is(err, os.ErrExist) {
 			return s.conflict()
 		}
-		return fmt.Errorf("could not publish deck.md; previous source retained at %s: %w", filepath.Join(filepath.Base(s.dir), DeckFileName), err)
+		return fmt.Errorf("could not publish %s; previous source retained at %s: %w", filepath.Base(s.path), filepath.Join(filepath.Base(s.dir), filepath.Base(s.path)), err)
 	}
 	if !s.matches(revision) {
 		return s.conflict()
