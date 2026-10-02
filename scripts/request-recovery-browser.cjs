@@ -46,6 +46,45 @@ const fs = require('node:fs');
     await page.evaluate(()=>SlidesNav.show(1,0,true)); const reset = await sample(1200);
     assert.equal(reset.camera.z,11); assert.equal(command(reset,'2:worker').data.z,0);
     assert.deepEqual(reset.counts,middle.counts,'seeking must retain scene resource counts');
+    // Keep only the authored code group: native entrances must not incidentally
+    // resample new code records and hide a paused-navigation ordering bug.
+    const codePage = await browser.newPage({viewport:{width:1440,height:900}});
+    codePage.on('pageerror',e=>errors.push(e.message));
+    await codePage.goto(process.argv[2]+'#request/accepted',{waitUntil:'domcontentloaded'});
+    await codePage.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady==='true');
+    await codePage.evaluate(async()=>{
+      SlidesMotion.pause(); await SlidesMotion.settled();
+      const slide=document.querySelector('.deck-active'),group=slide.querySelector('.slides-code-morph');
+      slide.replaceChildren(group);
+      window.codePose=()=>Array.from(group.querySelectorAll('pre:not([hidden]) .ts-line')).map(e=>[e.textContent,getComputedStyle(e).opacity,getComputedStyle(e).transform]);
+      SlidesNav.show(1,0,true); SlidesNav.show(1,1,true);
+    });
+    const codeSample=ms=>codePage.evaluate(ms=>{SlidesMotion.seek(ms);return codePose()},ms);
+    const codeStart=await codeSample(0),codeMiddle=await codeSample(600),codeEnd=await codeSample(1200);
+    assert.notDeepEqual(codeStart,codeMiddle);
+    assert.notDeepEqual(codeMiddle,codeEnd);
+    for(const from of [2,3]) {
+      const backward=await codePage.evaluate(async from=>{
+        SlidesNav.show(1,from,true); SlidesMotion.seek(1200);
+        SlidesNav.show(1,1,true);
+        const immediate=codePose(),state=SlidesMotion.state();
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        return {immediate,painted:codePose(),state};
+      },from);
+      assert.equal(backward.state.time,1200);
+      assert.deepEqual(backward.immediate,codeEnd,'paused backward navigation must select the final code pose before incidental sampling');
+      assert.deepEqual(backward.painted,codeEnd,'the first painted backward destination must remain settled');
+      assert.deepEqual(await codeSample(600),codeMiddle,'step1 midpoint must not depend on the previous authored block');
+      assert.deepEqual(await codeSample(0),codeStart,'step1 source must remain the canonical authored block0');
+    }
+    await codeSample(1200);
+    await codePage.evaluate(()=>SlidesMotion.reverse());
+    await codePage.waitForFunction(()=>SlidesMotion.state().time<1000&&SlidesMotion.state().time>0);
+    const reversePose=await codePage.evaluate(()=>{SlidesMotion.pause();return {state:SlidesMotion.state(),pose:codePose()}});
+    assert.equal(reversePose.state.direction,-1);
+    assert.deepEqual(await codeSample(reversePose.state.time),reversePose.pose,'reverse transport must sample the same authored segment as seek');
+    assert.deepEqual(await codeSample(600),codeMiddle);
+    await codePage.close();
     const mobile = await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
     mobile.on('pageerror',e=>errors.push(e.message));
     await mobile.goto(process.argv[2]+'#request/accepted',{waitUntil:'domcontentloaded'});
@@ -62,6 +101,6 @@ const fs = require('node:fs');
       await page.screenshot({path:process.env.SLIDES_SCREENSHOT_DIR+'/request-desktop.png'});
       await mobile.screenshot({path:process.env.SLIDES_SCREENSHOT_DIR+'/request-mobile.png'});
     }
-    console.log('PASS shared camera/geometry/labels/code/shader clock, repeatable seeks, retained resources, named cues and reduced-motion mobile');
+    console.log('PASS shared camera/geometry/labels/code/shader clock, canonical code pairs and paused backward first paint, repeatable seeks/reverse, retained resources, named cues and reduced-motion mobile');
   } finally {await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

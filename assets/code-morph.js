@@ -37,6 +37,10 @@
       activeBlocks.set(group, next);
       records.set(group, animations);
     });
+    // The shared timeline chooses this step's time before our change listener.
+    // Sample new records now, including paused backward/direct navigation, so
+    // they cannot paint the canonical source pose while the playhead is at end.
+    if (window.SlidesMotion) window.SlidesCodeMotion.seek(SlidesMotion.state().time);
   }
   window.SlidesCodeMotion = {
     seek(ms) { groups().forEach(group => (records.get(group) || []).forEach(a => { a.pause(); a.currentTime = Math.max(0, Math.min(length(group), ms)); })); },

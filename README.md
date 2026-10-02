@@ -66,7 +66,10 @@ edited as motion. Source editing requires LF line endings.
 
 Try the [request, failure and recovery demo](examples/request-recovery/README.md)
 for coordinated actor, route, label, camera and code changes. `:::code-morph {duration=1200 easing=ease-in-out}` sets code
-transition timing; supported easing names match graphic keyframes. Captured stills
+transition timing; supported easing names match graphic keyframes. Each step
+samples its preceding authored code block into its selected block, regardless
+of navigation history. Backward navigation settles the destination immediately;
+seek and reverse replay that same authored pair. Captured stills
 settle the final pose; video samples explicit timestamps and waits for commands
 and paint before capturing.
 
