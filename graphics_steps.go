@@ -12,8 +12,10 @@ type graphicTimeline struct {
 	Frames  []graphicFrame `json:"frames"`
 }
 type graphicFrame struct {
-	Label    string          `json:"label"`
-	Commands []scene.Command `json:"commands"`
+	Label      string          `json:"label"`
+	DurationMS *int            `json:"durationMs,omitempty"`
+	Easing     string          `json:"easing,omitempty"`
+	Commands   []scene.Command `json:"commands"`
 }
 
 // Keyframes are authored absolute command batches. Keep explanatory metadata
@@ -50,6 +52,14 @@ func graphicStepAttrs(payload map[string]any) (map[string]any, error) {
 		}
 	}
 	for index, frame := range timeline.Frames {
+		if frame.DurationMS != nil && (*frame.DurationMS < 0 || *frame.DurationMS > 600000) {
+			return nil, fmt.Errorf("graphic durationMs must be between 0 and 600000")
+		}
+		switch frame.Easing {
+		case "", "linear", "ease", "ease-in", "ease-out", "ease-in-out":
+		default:
+			return nil, fmt.Errorf("unknown graphic easing %q", frame.Easing)
+		}
 		if frame.Commands == nil {
 			timeline.Frames[index].Commands = []scene.Command{}
 		}
@@ -76,52 +86,7 @@ func graphicStepAttrs(payload map[string]any) (map[string]any, error) {
 	return map[string]any{"data-slide-steps": string(data), "data-steps": len(timeline.Frames) - 1}, nil
 }
 
-func graphicsStepScript() string {
-	return `(function () {
-  function start() {
-    var deck = document.querySelector('main.deck');
-    if (!deck || !document.querySelector('#gosx-manifest')) return;
-    var controllers = Array.prototype.map.call(deck.querySelectorAll('.slide-graphic[data-slide-steps]'), function (mount) {
-      var frames = JSON.parse(mount.getAttribute('data-slide-steps')).frames;
-      var slide = mount.closest('[data-slide]');
-      var desired = 0, applied = -1, busy = false, timer = null, attempts = 0;
-      function active() { return slide && slide.classList.contains('deck-active'); }
-      function pump() {
-        timer = null;
-        if (!active() || busy || desired === applied) return;
-        var handle = mount.__gosxScene3DHandle;
-        if (!handle || !handle.__gosxScene3DCommandReady) {
-          if (++attempts <= 100) timer = setTimeout(pump, 100);
-          return;
-        }
-        attempts = 0;
-        var target = desired;
-        busy = true;
-        Promise.resolve().then(function () { return handle.applyCommands(frames[target].commands); }).then(function () {
-          applied = target;
-          mount.setAttribute('data-applied-step', String(target));
-          mount.setAttribute('aria-label', frames[target].label || 'Slide graphic');
-          mount.removeAttribute('data-slide-step-error');
-        }).catch(function (error) {
-          mount.setAttribute('data-slide-step-error', String(error.message || error));
-          applied = target;
-        }).finally(function () { busy = false; pump(); });
-      }
-      return function () {
-        if (timer) { clearTimeout(timer); timer = null; }
-        desired = Math.min(frames.length - 1, parseInt(slide && slide.getAttribute('data-active-step'), 10) || 0);
-        attempts = 0;
-        pump();
-      };
-    });
-    function update() { controllers.forEach(function (sync) { sync(); }); }
-    deck.addEventListener('slides:change', update);
-    update();
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
-})();`
-}
+func graphicsStepScript() string { return graphicsMotionScript }
 
 func graphicsClickBudgets(graphics []DeckGraphicInfo) map[string]int {
 	budgets := map[string]int{}

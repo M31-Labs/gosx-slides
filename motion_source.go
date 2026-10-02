@@ -51,7 +51,7 @@ var sourceDirectiveAttribute = regexp.MustCompile(`([A-Za-z][A-Za-z0-9_-]*)\s*=\
 // cubic-bezier/steps expressions that mdpp's info tokenization can truncate.
 func retainMotionFenceOptions(doc *mdpp.Document) {
 	for _, node := range doc.AST().Find(mdpp.NodeContainerDirective) {
-		if node.Attr("name") != "motion" && node.Attr("name") != "diagram-morph" {
+		if node.Attr("name") != "motion" && node.Attr("name") != "diagram-morph" && node.Attr("name") != "code-morph" {
 			continue
 		}
 		start := node.Range.StartByte

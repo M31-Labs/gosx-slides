@@ -2,10 +2,13 @@
   'use strict';
   const deck = document.querySelector('main.deck');
   if (!deck || !window.SlidesNav) return;
-  const records = new WeakMap(), played = new WeakSet();
+  const records = new WeakMap(), played = new WeakSet(), segments = new WeakMap();
+  const pendingUnits = new WeakMap(), unitRecords = new WeakMap();
+  let segment = 0;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let lastSlide = null, lastStep = -1;
   let paused = false, graphicsFrozen = false, panel = null, selected = null, refreshTimer = null;
+  let time = 0, direction = 1, raf = 0, lastTick = null;
   const history = [], future = []; let sourceDraft = null, saving = false;
   const editable = !!document.querySelector('meta[name="slides-edit"]');
   const keys = ['preset','duration','delay','easing','replay'];
@@ -20,10 +23,13 @@
   async function saveDraft() {
     if (!sourceDraft || saving) return; saving = true; const button = panel.querySelector('[data-motion-save]'); button.disabled = true;
     try {
-      const bytes = new TextEncoder().encode(sourceDraft.source), patches = [];
-      items(deck).forEach(el => { const range = sourceDraft.motions.find(row => row.start === Number(el.dataset.slidesMotionSource)); if (!range) throw new Error('Could not locate this motion directive; reload the deck.'); const attrs = {...range.attrs}; keys.forEach(key => { const value = el.getAttribute(attribute(key)); if (value != null && value !== '') attrs[key] = value; }); const changes = {}; keys.forEach(key => { const value=el.getAttribute(attribute(key));if(value!=null&&value!=='')changes[key]=value; });const seen=new Set();let opening=range.opening.replace(/([A-Za-z][A-Za-z0-9_-]*)\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s}]+)/g,(match,key)=>{if(!(key in changes))return match;seen.add(key);return key+'='+JSON.stringify(changes[key]);});const missing=Object.entries(changes).filter(([key])=>!seen.has(key)).map(([key,value])=>key+'='+JSON.stringify(value)).join(' ');if(missing){const end=opening.lastIndexOf('}');opening=end<0?opening.trimEnd()+' {'+missing+'}':opening.slice(0,end).trimEnd()+' '+missing+opening.slice(end);} patches.push({...range, opening}); });
-      let source = '', offset = 0; patches.sort((a,b) => a.start-b.start).forEach(p => { source += new TextDecoder().decode(bytes.slice(offset,p.start)) + p.opening; offset=p.end; }); source += new TextDecoder().decode(bytes.slice(offset));
-      const response = await fetch('/_slides/source', {method:'PUT',headers:{'Content-Type':'application/json','X-Slides-Token':sourceDraft.token},body:JSON.stringify({source,revision:sourceDraft.revision})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Save failed'); status('Saved deck.md'); location.reload();
+      const motions = items(deck).map(el => {
+        const start = Number(el.dataset.slidesMotionSource);
+        if (!sourceDraft.motions.some(row => row.start === start)) throw new Error('Could not locate this motion directive; reload the deck.');
+        const attrs = {}; keys.forEach(key => { const value = el.getAttribute(attribute(key)); if (value != null && value !== '') attrs[key] = value; });
+        return {start, attrs};
+      });
+      const response = await fetch('/_slides/source', {method:'PUT',headers:{'Content-Type':'application/json','X-Slides-Token':sourceDraft.token},body:JSON.stringify({motions,revision:sourceDraft.revision})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Save failed'); status('Saved deck.md'); location.reload();
     } catch(error) { status(error.message); } finally { saving = false; button.disabled = false; }
   }
   function change(key,value) { if (!selected || selected.getAttribute(attribute(key)) === value) return; if (key === 'duration' || key === 'delay') { const n=Number(value); if (!Number.isFinite(n) || n < (key==='duration'?1:0) || n>600000) return; } remember(); selected.setAttribute(attribute(key),value); fill(); drawTracks(); replay(); }
@@ -110,6 +116,7 @@
       !['cue', 'after', 'group'].some(key => el.hasAttribute('data-slides-motion-' + key));
   }
   function disposeMotion(el) {
+    pendingUnits.delete(el); unitRecords.delete(el);
     window.__gosx?.motion?.dispose(el);
     // Finished native units retain fill:both after their record drops them.
     if (nativeSplit(el)) el.querySelectorAll('.gosx-motion-unit').forEach(unit => unit.getAnimations().forEach(a => a.cancel()));
@@ -184,7 +191,12 @@
     }
     return starts;
   }
-  function animations() { return active().getAnimations({ subtree: true }).filter(a => a.effect); }
+  function animations() { return active().getAnimations({ subtree: true }).filter(a => {
+    if (!a.effect) return false;
+    const el = a.effect.target?.closest('[data-slides-motion-replay]');
+    if (el?.dataset.slidesMotionStep && Number(el.dataset.slidesMotionStep) !== SlidesNav.step()) return false;
+    return !(el?.dataset.slidesMotionReplay === 'once' && segments.has(a) && segments.get(a) !== segment);
+  }); }
   function graphicsPause(value) {
     deck.querySelectorAll(".slide.deck-active .slide-graphic, .deck-graphics-background.deck-background-active").forEach(mount => { const scope = mount.closest("[data-gosx-scene3d-control-scope]"); const toggle = scope && scope.querySelector("[data-gosx-scene3d-animation-toggle]"); if (toggle && !toggle.disabled && (mount.dataset.gosxScene3dAnimationState === "paused") !== value) toggle.click(); });
   }
@@ -201,23 +213,105 @@
   // Deferred engines and step replays inherit Pause or the native clock freeze
   // used during reverse. Disconnect whenever the transport resumes forward.
   const pauseObserver = new MutationObserver(() => {
+    claimUnits();
     if (paused) pauseActive();
     else if (graphicsFrozen) graphicsPause(true);
+    sample();
+    if (!paused && !raf && ((direction > 0 && time < duration()) || (direction < 0 && time > 0))) startClock();
   });
   function setTransport(isPaused, freezeGraphics) {
     paused = isPaused; graphicsFrozen = freezeGraphics;
     pauseObserver.disconnect();
-    if (isPaused || freezeGraphics) pauseObserver.observe(deck, {subtree: true, attributes: true,
+    pauseObserver.observe(deck, {subtree: true, attributes: true,
       attributeFilter: ['data-gosx-scene3d-ready', 'data-gosx-scene3d-animation-state', 'data-gosx-motion-state']});
   }
-  function pause() { setTransport(true, true); pauseActive(); updatePanel(); }
-  function play() { setTransport(false, false); window.SlidesDiagramMotion?.play(); graphicsPause(false); animations().forEach(a => a.play()); updatePanel(); }
-  function seek(ms) { setTransport(true, true); pauseActive(); window.SlidesDiagramMotion?.seek(Number(ms)||0); animations().forEach(a => { a.currentTime = Math.max(0, Math.min(duration(), Number(ms) || 0)); }); updatePanel(); }
-  function duration() { return Math.max(window.SlidesDiagramMotion?.duration() || 0, animations().reduce((n, a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n, end) : n; }, 0)); }
-  function reverse() { setTransport(false, true); graphicsPause(true); window.SlidesDiagramMotion?.reverse(); animations().filter(a => Number.isFinite(Number(a.effect.getComputedTiming().endTime))).forEach(a => { if (a.currentTime === 0) a.currentTime = a.effect.getComputedTiming().endTime; a.reverse(); }); updatePanel(); }
+  function nativeMounts() { return Array.from(deck.querySelectorAll('.slide.deck-active .slide-graphic, .deck-graphics-background.deck-background-active')); }
+  function sample() {
+    window.SlidesCodeMotion?.seek(time);
+    window.SlidesDiagramMotion?.seek(time);
+    window.SlidesGraphicsMotion?.seek(time);
+    animations().forEach(a => {
+      a.pause(); a.currentTime = time;
+      const el = a.effect.target?.closest('[data-slides-motion-replay]');
+      if (el && records.get(el) === a) { const state = time >= Number(a.effect.getComputedTiming().endTime) ? 'finished' : 'running'; if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state; }
+    });
+    items().forEach(el => {
+      const list = unitRecords.get(el); if (!list?.length) return;
+      const state = time >= Number(list[list.length-1].effect.getComputedTiming().endTime) ? 'finished' : 'running';
+      if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state;
+    });
+    nativeMounts().forEach(mount => {
+      const handle = mount.__gosxScene3DHandle;
+      if (handle?.setAnimationClock) {
+        const seconds = reduce.matches ? 0 : time / 1000, clock = handle.getAnimationClock?.();
+        if (!clock || clock.timeSeconds !== seconds || !clock.paused) handle.setAnimationClock({timeSeconds: seconds});
+      }
+    });
+  }
+  function stopClock() { cancelAnimationFrame(raf); raf = 0; lastTick = null; }
+  function tick(now) {
+    raf = 0;
+    if (paused || document.hidden) return;
+    if (lastTick != null) time = Math.max(0, Math.min(duration(), time + Math.min(250, now - lastTick) * direction));
+    lastTick = now; sample(); updatePanel();
+    if ((direction > 0 && time < duration()) || (direction < 0 && time > 0)) raf = requestAnimationFrame(tick);
+    else lastTick = null;
+  }
+  function startClock() { stopClock(); if (!paused) { if (reduce.matches) { time = duration(); sample(); updatePanel(); } else raf = requestAnimationFrame(tick); } }
+  function pause() { stopClock(); setTransport(true, true); pauseActive(); sample(); updatePanel(); }
+  function play() { setTransport(false, false); graphicsPause(false); direction = 1; startClock(); updatePanel(); }
+  function seek(ms) { stopClock(); setTransport(true, true); pauseActive(); time = Math.max(0, Math.min(duration(), Number(ms) || 0)); sample(); updatePanel(); }
+  function duration() {
+    const native = nativeMounts().length ? Number(active().dataset.motionDuration) || 10000 : 0;
+    return Math.max(native, window.SlidesCodeMotion?.duration() || 0, window.SlidesGraphicsMotion?.duration() || 0, window.SlidesDiagramMotion?.duration() || 0,
+      animations().reduce((n,a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n,end) : n; },0));
+  }
+  function reverse() { setTransport(false, true); graphicsPause(true); if (time === 0) time = duration(); direction = -1; sample(); startClock(); updatePanel(); }
+  // Capture waits for the latest command batch and two paint boundaries. Seek
+  // never uses elapsed wall time, so video frame rate cannot change the pose.
+  async function settled() {
+    await window.SlidesGraphicsMotion?.settled();
+    if (paused) {
+      const clock = (reduce.matches ? 0 : time / 1000).toFixed(3), deadline = performance.now() + 3000;
+      // Command acceptance can precede a paced native frame. Wait for its
+      // published clock and render queue before counting paint boundaries.
+      while (nativeMounts().some(mount => mount.__gosxScene3DHandle?.setAnimationClock &&
+        (mount.dataset.gosxScene3dAnimationClock !== clock || window.__gosx_scene3d_debug?.inspect(mount.id)?.renderLoop.scheduled))) {
+        if (performance.now() > deadline) throw new Error('Graphic frame did not settle');
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+  document.addEventListener('gosx:ready', () => {
+    items().filter(el => pendingUnits.has(el)).forEach(el => window.__gosx?.motion?.observe(el));
+    claimUnits();
+    sample(); startClock();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopClock(); else startClock(); });
+  reduce.addEventListener('change', () => { if (reduce.matches) { stopClock(); time = duration(); sample(); updatePanel(); } else startClock(); });
+  function claimUnits() {
+    items().forEach(el => {
+      if (!pendingUnits.has(el)) return;
+      const units = Array.from(el.querySelectorAll('.gosx-motion-unit'));
+      if (!units.length) return;
+      const delay = pendingUnits.get(el); pendingUnits.delete(el);
+      // GoSX builds the text units. The story transport owns their animations
+      // so completed entrances remain seekable instead of committing styles.
+      window.__gosx?.motion?.dispose(el); el.removeAttribute('data-gosx-motion');
+      units.forEach(unit => unit.getAnimations().forEach(a => a.cancel()));
+      const list = units.map((unit, i) => {
+        const a = unit.animate(frames(el), {duration: number(el, 'duration', 220),
+          delay: delay + i * number(el, 'stagger', 0),
+          easing: CSS.supports('animation-timing-function', el.dataset.gosxMotionEasing || '') ? el.dataset.gosxMotionEasing : 'ease-out', fill: 'both'});
+        a.pause(); a.currentTime = time; segments.set(a, segment); return a;
+      });
+      unitRecords.set(el, list); el.dataset.gosxMotionState = 'running';
+    });
+  }
   function run(el, delay, force) {
-    const old = records.get(el); if (old) old.cancel();
     if (!force && played.has(el) && el.dataset.slidesMotionReplay === "once") return;
+    const old = records.get(el); if (old) old.cancel();
     played.add(el);
     if (reduce.matches && el.dataset.gosxMotionRespectReduced !== 'false') return;
     const api = window.__gosx && window.__gosx.motion;
@@ -227,17 +321,21 @@
       // Explicit steps own visibility; native GoSX still owns the text units.
       // Keep its marker so later timing edits refresh rather than dispose them.
       el.setAttribute('data-gosx-motion', '');
+      if (el.hasAttribute('data-slides-motion-step')) el.setAttribute('data-gosx-motion-trigger', 'load');
       el.removeAttribute('data-gosx-motion-revealed');
-      if (api) api.observe(el); return;
+      pendingUnits.set(el, delay);
+      if (el.querySelector('.gosx-motion-unit')) claimUnits();
+      else if (api) api.observe(el);
+      return;
     }
     // Native GoSX splitting stays available for ordinary entrances. Cued groups
     // preserve their child markup and widgets rather than rebuilding text/DOM.
     const animation = el.animate(frames(el), { duration: number(el, 'duration', 220), delay,
       easing: CSS.supports('animation-timing-function',el.dataset.gosxMotionEasing || '') ? el.dataset.gosxMotionEasing : 'ease-out', fill: 'both' });
-    records.set(el, animation);
+    records.set(el, animation); segments.set(animation, segment);
     el.dataset.gosxMotionState = 'running';
     animation.finished.then(() => { if (records.get(el) === animation) el.dataset.gosxMotionState = 'finished'; }, () => {});
-    if (paused) animation.pause();
+    animation.pause();
     if (split) el.dataset.slidesMotionNotice = 'Cue groups preserve markup; use staggered cue groups for rich content.';
   }
   function sync(replay) {
@@ -275,18 +373,26 @@
       if (el.hasAttribute('data-slides-motion-step')) return;
       run(el, number(el, 'delay', 0), true);
     });
-    sync(true);
+    segment++; sync(true); time = 0; direction = 1; sample(); startClock();
   }
   deck.addEventListener('slides:change', () => {
-    const entered = lastSlide !== active();
+    const entered = lastSlide !== active(), previousStep = lastStep, changed = entered || lastStep !== SlidesNav.step();
     if (entered) {
       setTransport(false, false); history.length = future.length = 0;
       if (panel && panel.open) panel.close();
     }
+    if (changed) segment++;
     graphicsPause(graphicsFrozen); sync(false);
-    if (paused) pauseActive();
+    if (changed) {
+      direction = 1; time = 0;
+      // Previous steps and direct anchors land on their exact destination.
+      if ((entered && SlidesNav.step() > 0) || SlidesNav.step() < previousStep || Math.abs(SlidesNav.step()-previousStep)>1) time = duration();
+      startClock();
+    }
+    if (paused) { pauseActive(); sample(); }
   });
   deck.addEventListener('slides:before-change', event => {
+    stopClock();
     const previous = deck.querySelector('.slide[data-slide="' + event.detail.from + '"]');
     if (previous) items(previous).forEach(el => { const a = records.get(el); if (a) a.cancel(); if (controlled(el) && nativeSplit(el)) { disposeMotion(el); el.removeAttribute('data-gosx-motion'); } el.dataset.slidesCueVisible = 'false'; });
   });
@@ -294,7 +400,7 @@
     if (!panel || !panel.open) return;
     panel.querySelector('[data-motion-pause]').textContent = paused ? 'Play' : 'Pause';
     const slider = panel.querySelector('[data-motion-seek]'); slider.max = String(Math.max(1, duration()));
-    slider.value = String(Math.max(window.SlidesDiagramMotion?.state().time || 0, 0, ...animations().map(a => Number(a.currentTime) || 0)));
+    slider.value = String(time);
     panel.querySelector('[data-motion-time]').textContent = Math.round(Number(slider.value)) + ' / ' + Math.round(duration()) + ' ms';
   }
   function open() {
@@ -308,7 +414,7 @@
         '<label>Duration (ms)<input data-motion-duration type="number" min="1" max="600000"></label><label>Delay (ms)<input data-motion-delay type="number" min="0" max="600000"></label>' +
         '<label>Replay<select data-motion-replay-mode><option value="slide">Every slide visit</option><option value="step">Every step</option><option value="once">Once</option></select></label><label>Easing<select data-motion-easing><option>ease-out</option><option>ease-in-out</option><option>linear</option><option>ease</option></select></label></div>' +
         '<div data-motion-tracks aria-label="Element timing tracks"></div><div class="slides-author-actions"><button type="button" data-motion-undo>Undo</button><button type="button" data-motion-redo>Redo</button><button type="button" data-motion-save>Save to deck.md</button><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><button type="button" data-motion-copy>Copy directive</button></div>' +
-        '<label>Element timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
+        '<label>Story timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
       deck.appendChild(panel);
       panel.querySelector('[data-motion-close]').onclick = () => panel.close();
       panel.querySelector('[data-motion-pause]').onclick = () => paused ? play() : pause();
@@ -349,6 +455,6 @@
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable], dialog, [role]')) return;
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });
-  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, state: () => ({ paused, time: Math.max(window.SlidesDiagramMotion?.state().time || 0, 0, ...animations().map(a => Number(a.currentTime) || 0)), duration: duration() }) };
-  sync(false);
+  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, state: () => ({paused, time, direction, duration: duration()}) };
+  setTransport(false, false); sync(false); startClock();
 })();

@@ -97,6 +97,69 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	}
 }
 
+func TestFocusedMotionSavePreservesSourceAndRejectsStaleTargets(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DeckFileName)
+	initial := "# Café\n\n```text\n:::motion {duration=10}\n```\n\n:::motion {  duration='800'   easing=\"ease-out\" cue=beat }\nKeep **this body** and its spacing.\n:::\n"
+	if err := os.WriteFile(path, []byte(initial), 0640); err != nil {
+		t.Fatal(err)
+	}
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := deck.NewServer(ServeOptions{Edit: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := app.Build()
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("GET", "http://localhost/_slides/source?motion=1", nil))
+	var state struct{ Token, Revision string }
+	if err := json.Unmarshal(w.Body.Bytes(), &state); err != nil {
+		t.Fatal(err)
+	}
+	start := strings.LastIndex(initial, ":::motion")
+	edit := map[string]any{"start": start, "attrs": map[string]string{"duration": "1100", "replay": "once"}}
+	put := func(input map[string]any) int {
+		data, _ := json.Marshal(input)
+		req := httptest.NewRequest("PUT", "http://localhost/_slides/source", bytes.NewReader(data))
+		req.Header.Set("Origin", "http://localhost")
+		req.Header.Set("X-Slides-Token", state.Token)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w.Code
+	}
+	for _, edits := range [][]any{
+		{map[string]any{"start": strings.Index(initial, ":::motion"), "attrs": map[string]string{"duration": "1100"}}},
+		{edit, edit},
+		{map[string]any{"start": start, "attrs": map[string]string{"cue": "renamed"}}},
+	} {
+		if code := put(map[string]any{"motions": edits, "revision": state.Revision}); code != 400 {
+			t.Fatalf("invalid motion targets: %d", code)
+		}
+		saved, _ := os.ReadFile(path)
+		if string(saved) != initial {
+			t.Fatal("rejected motion edit changed source")
+		}
+	}
+	if code := put(map[string]any{"motions": []any{edit}, "source": "# Mixed", "revision": state.Revision}); code != 400 {
+		t.Fatal(code)
+	}
+	if code := put(map[string]any{"motions": []any{edit}, "revision": state.Revision}); code != 200 {
+		t.Fatal(code)
+	}
+	saved, _ := os.ReadFile(path)
+	want := strings.Replace(initial, "duration='800'", "duration='1100'", 1)
+	want = strings.Replace(want, "cue=beat }", "cue=beat  replay=\"once\"}", 1)
+	if string(saved) != want {
+		t.Fatalf("formatting changed:\ngot %s\nwant %s", saved, want)
+	}
+	if code := put(map[string]any{"motions": []any{edit}, "revision": state.Revision}); code != 409 {
+		t.Fatalf("stale motion edit: %d", code)
+	}
+}
+
 func TestSourceSavePreservesConcurrentExternalWrites(t *testing.T) {
 	const initial = "# Original\n"
 	const external = "# External\n"

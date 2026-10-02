@@ -77,6 +77,9 @@ func slideIdentityAttrs(slide IslandSlide) map[string]string {
 	if n, err := strconv.Atoi(fmt.Sprint(slideFrontmatterValues(slide)["morph-duration"])); err == nil && n >= 0 && n <= 600000 {
 		attrs["data-morph-duration"] = strconv.Itoa(n)
 	}
+	if n, err := strconv.Atoi(fmt.Sprint(slideFrontmatterValues(slide)["motion-duration"])); err == nil && n > 0 && n <= 600000 {
+		attrs["data-motion-duration"] = strconv.Itoa(n)
+	}
 	if names := slideCueNames(slide); len(names) > 0 {
 		data, _ := json.Marshal(names)
 		attrs["data-slide-cues"] = string(data)

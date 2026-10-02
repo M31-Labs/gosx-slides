@@ -313,7 +313,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				}
 				start := time.Now()
 				for frame := 0; frame < frameCount; frame++ {
-					if err = browser.eval(fmt.Sprintf(`if(window.SlidesMotion) SlidesMotion.seek(%d);true`, frame*1000/opts.FPS), nil); err != nil {
+					if err = browser.eval(fmt.Sprintf(`(async()=>{if(window.SlidesMotion){SlidesMotion.seek(%d);await SlidesMotion.settled();}return true;})()`, frame*1000/opts.FPS), nil); err != nil {
 						return err
 					}
 					pixels, err := browser.png()
@@ -333,7 +333,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				}
 				continue
 			}
-			if err = browser.eval(`if(window.SlidesMotion) SlidesMotion.seek(SlidesMotion.duration());true`, nil); err != nil {
+			if err = browser.eval(`(async()=>{if(window.SlidesMotion){SlidesMotion.seek(SlidesMotion.duration());await SlidesMotion.settled();}return true;})()`, nil); err != nil {
 				return err
 			}
 			var editableObjects []pptxObject

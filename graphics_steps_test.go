@@ -45,6 +45,9 @@ func TestGraphicKeyframesValidation(t *testing.T) {
 		{"target", `{"version":1,"frames":[{"commands":[{"kind":2,"objectId":"missing","data":{"x":1}}]}]}`},
 		{"kind", `{"version":1,"frames":[{"commands":[{"kind":99,"data":{}}]}]}`},
 		{"data", `{"version":1,"frames":[{"commands":[{"kind":5}]}]}`},
+		{"negative duration", `{"version":1,"frames":[{"durationMs":-1}]}`},
+		{"long duration", `{"version":1,"frames":[{"durationMs":600001}]}`},
+		{"invalid easing", `{"version":1,"frames":[{"easing":"not-a-curve"}]}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var payload map[string]any
@@ -69,5 +72,23 @@ func TestGraphicKeyframesValidation(t *testing.T) {
 	attrs, err := graphicStepAttrs(payload)
 	if err != nil || !strings.Contains(attrs["data-slide-steps"].(string), `"commands":[]`) {
 		t.Fatalf("empty frame must carry an empty command array: %v, %v", attrs, err)
+	}
+}
+
+func TestGraphicKeyframeTimingSurvivesTransport(t *testing.T) {
+	payload := map[string]any{"slideSteps": json.RawMessage(`{"version":1,"frames":[{"label":"Start","durationMs":0},{"label":"Move","durationMs":1200,"easing":"ease-in-out"}]}`)}
+	attrs, err := graphicStepAttrs(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var timeline graphicTimeline
+	if err := json.Unmarshal([]byte(attrs["data-slide-steps"].(string)), &timeline); err != nil {
+		t.Fatal(err)
+	}
+	if timeline.Frames[0].DurationMS == nil || *timeline.Frames[0].DurationMS != 0 || *timeline.Frames[1].DurationMS != 1200 || timeline.Frames[1].Easing != "ease-in-out" {
+		t.Fatalf("lost authored timing: %+v", timeline)
+	}
+	if _, exists := payload["slideSteps"]; exists {
+		t.Fatal("timing metadata leaked into engine props")
 	}
 }

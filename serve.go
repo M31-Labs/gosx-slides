@@ -847,15 +847,23 @@ func StageIslandPrograms(deckDir string) error {
 // so projectDir must be (or live inside) a Go module that requires gosx — for a
 // scaffolded deck that is the generated go.mod (scaffold_real.go).
 //
-// Both the module-mode list and its fallback run with GOFLAGS=-mod=mod so a
-// freshly-scaffolded deck (go.mod present, go.sum not yet populated) can resolve
-// and download gosx on its first serve. For the in-repo case this is a no-op.
+// Default resolution honors an active workspace. A writable module fallback
+// lets a freshly scaffolded deck (go.mod present, go.sum not yet populated)
+// resolve and download gosx on its first serve.
 func resolveGoSXRoot(projectDir string) (string, error) {
-	listEnv := append(execEnvWithoutGoFlags(), "GOFLAGS=-mod=mod")
+	// Workspace mode rejects -mod=mod. First use Go's default resolution so
+	// an active go.work can supply the runtime; retry writable module mode
+	// only when a standalone scaffold needs its initial dependency download.
+	listEnv := execEnvWithoutGoFlags()
 	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", gosxModuleImportPath)
 	cmd.Dir = projectDir
 	cmd.Env = listEnv
 	out, err := cmd.Output()
+	if err != nil {
+		listEnv = append(listEnv, "GOFLAGS=-mod=mod")
+		cmd.Env = listEnv
+		out, err = cmd.Output()
+	}
 	if err != nil {
 		// Fall back to a non-module `go list` for older layouts.
 		cmd2 := exec.Command("go", "list", "-f", "{{.Dir}}", gosxModuleImportPath)
