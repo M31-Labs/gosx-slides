@@ -57,14 +57,16 @@
     const deck = document.querySelector('main.deck');
     if (!deck || !document.querySelector('#gosx-manifest')) return;
     const controllers = Array.from(deck.querySelectorAll('.slide-graphic[data-slide-steps]')).map(mount => {
-      const frames = JSON.parse(mount.dataset.slideSteps).frames, slide = mount.closest('[data-slide]');
+      let frames = JSON.parse(mount.dataset.slideSteps).frames;
+      const slide = mount.closest('[data-slide]');
       let index = 0, desired = frames[0].commands, pending = null, timer = null, attempts = 0, revision = 0, owner = null, last = new Map(), error = null;
       const active = () => slide?.classList.contains('deck-active');
       const length = () => index === 0 ? 0 : frames[index].durationMs ?? 600;
-      const ease = frames.map(frame => {
+      const easing = frames => frames.map(frame => {
         const effect = new KeyframeEffect(null,[{}],{duration:1,fill:'both',easing:frame.easing || 'ease-in-out'}), animation = new Animation(effect);
         return t => { animation.currentTime = t; return effect.getComputedTiming().progress ?? t; };
       });
+      let ease = easing(frames);
       function pump() {
         timer = null;
         if (!active() || pending) return;
@@ -85,11 +87,23 @@
         desired = sampleCommands(frames[Math.max(0,index-1)].commands,frames[index].commands,ease[index](t)); revision++; pump();
       }
       return {mount, active, length, seek,
+        frames: () => frames,
+        inspect(frame,progress) {
+          const target = Math.max(0,Math.min(frames.length-1,frame));
+          desired = sampleCommands(frames[Math.max(0,target-1)].commands,frames[target].commands,ease[target](progress)); revision++; pump();
+        },
+        replace(timeline) {
+          if (timeline.version !== 1 || timeline.frames?.length !== frames.length) throw new Error('Cue count changed; reload the deck.');
+          frames = timeline.frames; ease = easing(frames); this.sync();
+        },
         sync() { if (timer) clearTimeout(timer); timer = null; index = Math.max(0,Math.min(frames.length-1,Number(slide?.dataset.activeStep)||0)); desired = frames[index].commands; revision++; attempts = 0; pump(); },
         async settled() { while (pending) await pending; if (error) throw error; if (active() && !owner) throw new Error('Graphic surface is not ready'); }
       };
     });
     window.SlidesGraphicsMotion = {
+      current() { return controllers.filter(c=>c.active()).map(c=>({mount:c.mount,frames:c.frames()})); },
+      inspect(frame,progress) { controllers.filter(c=>c.active()).forEach(c=>c.inspect(frame,progress)); },
+      replace(mount,timeline) { const controller = controllers.find(c=>c.mount===mount); if (!controller) throw new Error('Scene is unavailable'); controller.replace(timeline); },
       seek(ms) { controllers.filter(c=>c.active()).forEach(c=>c.seek(ms)); },
       duration() { return Math.max(0,...controllers.filter(c=>c.active()).map(c=>c.length())); },
       async settled() { await Promise.all(controllers.filter(c=>c.active()).map(c=>c.settled())); }

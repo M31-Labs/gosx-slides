@@ -29,7 +29,7 @@ motion-duration: 1200
 
 # Keep every stage in view.
 
-<Scene3D Src="request.scene.json" Label="Request path with animated focus, attached edges and camera" />
+<Scene3D Src="request.sir" View="Request" Steps="steps.json" Shader="material.sel" Material="Pearl" Targets="api" Label="Request path with animated focus, attached edges and camera" />
 
 <p class="path">Browser → API → Queue → Worker → Database</p>
 
