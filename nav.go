@@ -289,7 +289,22 @@ func navScript() string {
       if (needed > natural) natural = needed;
     }
     var overflows = natural > avail + 1;
-    if (overflows) s.style.transform = 'scale(' + (avail / natural).toFixed(4) + ')';
+    s.style.transformOrigin = '';
+    var studio = deck.querySelector('.slides-motion-studio[open]');
+    if (studio) {
+      // Keep the slide's authored layout and native canvas in one lane. Fit its
+      // full surface beside the inspector (or above the mobile sheet).
+      var bounds = studio.getBoundingClientRect(), docked = bounds.top < 24;
+      var width = docked ? bounds.left - 32 : window.innerWidth - 32;
+      var height = docked ? window.innerHeight - 32 : bounds.top - 32;
+      var naturalWidth = Math.max(s.offsetWidth, s.scrollWidth);
+      var scale = Math.max(0.01, Math.min(1, width / naturalWidth, height / natural));
+      var origin = s.getBoundingClientRect();
+      var x = 16 + (width - naturalWidth * scale) / 2 - origin.left;
+      var y = 16 + (height - natural * scale) / 2 - origin.top;
+      s.style.transformOrigin = '0 0';
+      s.style.transform = 'translate(' + x.toFixed(2) + 'px,' + y.toFixed(2) + 'px) scale(' + scale.toFixed(4) + ')';
+    } else if (overflows) s.style.transform = 'scale(' + (avail / natural).toFixed(4) + ')';
     // The badge is diagnostic chrome: presenter window only (and only in dev
     // serve). The audience deck auto-scales silently.
     overflowBadge.style.display = (dev && present && overflows) ? 'block' : 'none';
@@ -302,6 +317,7 @@ func navScript() string {
   var fitTimer = null;
   window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 120); });
   window.addEventListener('load', fitSlide); // re-fit once webfonts settle
+  deck.addEventListener('slides:studio-layout', fitSlide);
 
   var controls = document.createElement('nav'); controls.className = 'deck-controls'; controls.setAttribute('aria-label', 'Presentation controls');
   function control(label, text, action) {

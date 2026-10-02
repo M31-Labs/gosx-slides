@@ -13,13 +13,24 @@
   const editable = !!document.querySelector('meta[name="slides-edit"]');
   const keys = ['preset','duration','delay','easing','replay'];
   const attribute = key => (key === 'replay' ? 'data-slides-motion-' : 'data-gosx-motion-') + key;
+  const savedElements = new WeakMap();
+  items(deck).forEach(el => savedElements.set(el, keys.map(key => el.getAttribute(attribute(key)))));
+  let returnFocus = null, studioTab = null;
+  const dirty = () => items(deck).some(el => keys.some((key,i) => el.getAttribute(attribute(key)) !== savedElements.get(el)?.[i]));
+  function buttons() {
+    if (!panel) return;
+    panel.querySelector('[data-motion-undo]').disabled = !history.length;
+    panel.querySelector('[data-motion-redo]').disabled = !future.length;
+    panel.querySelector('[data-motion-save]').disabled = saving || !sourceDraft || !dirty() || !!panel.querySelector('[data-motion-elements] [aria-invalid="true"]');
+    panel.querySelector('[data-motion-copy]').disabled = !selected;
+  }
   function snapshot() { return items().map(el => keys.map(key => el.getAttribute(attribute(key)))); }
   function remember() { history.push(snapshot()); if (history.length > 100) history.shift(); future.length = 0; }
-  function restore(state) { items().forEach((el,i) => keys.forEach((key,j) => { const value = state[i]?.[j]; if (value == null) el.removeAttribute(attribute(key)); else el.setAttribute(attribute(key), value); })); fill(); drawTracks(); replay(); }
+  function restore(state) { items().forEach((el,i) => keys.forEach((key,j) => { const value = state[i]?.[j]; if (value == null) el.removeAttribute(attribute(key)); else el.setAttribute(attribute(key), value); })); fill(); drawTracks(); replay(); status(dirty() ? 'Unsaved element edits.' : 'Element timings match deck.md.'); }
   function undo() { if (!history.length) return; future.push(snapshot()); restore(history.pop()); }
   function redo() { if (!future.length) return; history.push(snapshot()); restore(future.pop()); }
   function status(message) { panel.querySelector('[data-motion-status]').textContent = message; }
-  async function loadDraft() { if (!editable) return; sourceDraft=null; panel.querySelector('[data-motion-save]').disabled=true; status('Loading deck source…'); try { const response = await fetch('/_slides/source?motion=1', {cache:'no-store'}); const data = await response.json(); if (!response.ok) throw new Error(data.error); if (data.revision !== deck.dataset.sourceRevision) throw new Error('Source changed; reload the deck before saving motion edits.'); sourceDraft = data; panel.querySelector('[data-motion-save]').disabled=false; status('Edits can be saved to deck.md.'); } catch (error) { sourceDraft = null; status(error.message); } }
+  async function loadDraft() { if (!editable) { status('Preview edits. Start with --edit to save them.'); return; } sourceDraft=null; buttons(); status('Loading deck source…'); try { const response = await fetch('/_slides/source?motion=1', {cache:'no-store'}); const data = await response.json(); if (!response.ok) throw new Error(data.error); if (data.revision !== deck.dataset.sourceRevision) throw new Error('Source changed; reload the deck before saving motion edits.'); sourceDraft = data; buttons(); status(dirty() ? 'Edits can be saved to deck.md. Unsaved element edits.' : 'Edits can be saved to deck.md.'); } catch (error) { sourceDraft = null; buttons(); status(error.message); } }
   async function saveDraft() {
     if (!sourceDraft || saving) return; saving = true; const button = panel.querySelector('[data-motion-save]'); button.disabled = true;
     try {
@@ -30,9 +41,9 @@
         return {start, attrs};
       });
       const response = await fetch('/_slides/source', {method:'PUT',headers:{'Content-Type':'application/json','X-Slides-Token':sourceDraft.token},body:JSON.stringify({motions,revision:sourceDraft.revision})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Save failed'); status('Saved deck.md'); location.reload();
-    } catch(error) { status(error.message); } finally { saving = false; button.disabled = false; }
+    } catch(error) { status(error.message); } finally { saving = false; buttons(); }
   }
-  function change(key,value) { if (!selected || selected.getAttribute(attribute(key)) === value) return; if (key === 'duration' || key === 'delay') { const n=Number(value); if (!Number.isFinite(n) || n < (key==='duration'?1:0) || n>600000) return; } remember(); selected.setAttribute(attribute(key),value); fill(); drawTracks(); replay(); }
+  function change(key,value) { if (!selected || selected.getAttribute(attribute(key)) === value) return; if (key === 'duration' || key === 'delay') { const n=Number(value); if (value === '' || !Number.isFinite(n) || n < (key==='duration'?1:0) || n>600000) { status('Enter a valid ' + key + ' in milliseconds.'); return; } } remember(); selected.setAttribute(attribute(key),value); fill(); drawTracks(); replay(); status('Unsaved element edits.'); }
   function motionLabel(el, index) {
     const text = el.textContent.trim().replace(/\s+/g, ' ').slice(0, 55);
     return el.dataset.slidesMotionCue ? el.dataset.slidesMotionCue + ': ' + text : el.id || text || 'Element ' + (index + 1);
@@ -403,29 +414,70 @@
     slider.value = String(time);
     panel.querySelector('[data-motion-time]').textContent = Math.round(Number(slider.value)) + ' / ' + Math.round(duration()) + ' ms';
   }
+  function layoutStudio() {
+    deck.toggleAttribute('data-studio-open', !!panel?.open);
+    deck.dispatchEvent(new Event('slides:studio-layout'));
+  }
+  function selectTab(name) {
+    studioTab = name;
+    panel.querySelectorAll('[data-studio-tab]').forEach(button => {
+      const active = button.dataset.studioTab === name;
+      button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
+    });
+    panel.querySelector('[data-motion-elements]').hidden = name !== 'elements';
+    const scene = panel.querySelector('[data-scene-studio]'); if (scene) scene.hidden = name !== 'scene';
+  }
+  function closeStudio() {
+    panel.close(); layoutStudio();
+    if (panel.contains(document.activeElement)) document.activeElement.blur();
+    if (returnFocus?.isConnected && returnFocus.getClientRects().length) returnFocus.focus({preventScroll:true});
+  }
   function open() {
+    if (panel?.open) return;
     if (!panel) {
-      panel = document.createElement('dialog'); panel.className = 'slides-author-panel';
+      panel = document.createElement('dialog'); panel.className = 'slides-author-panel slides-motion-studio';
       panel.setAttribute('aria-labelledby', 'slides-motion-title');
-      panel.innerHTML = '<header><h2 id="slides-motion-title">Motion studio</h2><button type="button" data-motion-close aria-label="Close motion studio">×</button></header>' +
-        '<p>Edit element timings, replay and easing. Drag a bar to adjust delay; drag its right edge to resize duration. Tracks include dependencies and staggering, with start times relative to each click step.</p>' +
+      panel.setAttribute('aria-modal', 'false');
+      panel.innerHTML = '<header><div><span class="slides-studio-eyebrow">Live preview</span><h2 id="slides-motion-title">Motion studio</h2><output data-studio-context></output></div><button type="button" data-motion-close aria-label="Close motion studio">×</button></header>' +
+        '<div class="slides-studio-transport" aria-label="Playback"><div class="slides-author-actions"><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><output data-motion-time></output></div><label class="slides-studio-seek">Story timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label></div>' +
+        '<div class="slides-studio-tabs" role="tablist" aria-label="Motion controls"><button type="button" role="tab" id="slides-studio-scene-tab" data-studio-tab="scene" aria-controls="slides-studio-scene">Scene</button><button type="button" role="tab" id="slides-studio-elements-tab" data-studio-tab="elements" aria-controls="slides-studio-elements">Elements</button></div>' +
+        '<div data-studio-body><section id="slides-studio-elements" data-motion-elements role="tabpanel" aria-labelledby="slides-studio-elements-tab"><div class="slides-studio-scroll"><p data-motion-empty hidden>No motion elements on this slide. Add a motion block to give content an entrance.</p><fieldset data-motion-fields>' +
         '<label>Element<select data-motion-element></select></label>' +
         '<div class="slides-author-fields"><label>Preset<select data-motion-preset><option>fade</option><option>slide-up</option><option>slide-down</option><option>slide-left</option><option>slide-right</option><option>zoom-in</option></select></label>' +
         '<label>Duration (ms)<input data-motion-duration type="number" min="1" max="600000"></label><label>Delay (ms)<input data-motion-delay type="number" min="0" max="600000"></label>' +
         '<label>Replay<select data-motion-replay-mode><option value="slide">Every slide visit</option><option value="step">Every step</option><option value="once">Once</option></select></label><label>Easing<select data-motion-easing><option>ease-out</option><option>ease-in-out</option><option>linear</option><option>ease</option></select></label></div>' +
-        '<div data-motion-tracks aria-label="Element timing tracks"></div><div class="slides-author-actions"><button type="button" data-motion-undo>Undo</button><button type="button" data-motion-redo>Redo</button><button type="button" data-motion-save>Save to deck.md</button><button type="button" data-motion-pause>Pause</button><button type="button" data-motion-replay>Replay</button><button type="button" data-motion-reverse>Reverse</button><button type="button" data-motion-copy>Copy directive</button></div>' +
-        '<label>Story timeline<input data-motion-seek type="range" min="0" max="1" value="0" aria-label="Motion time"></label><output data-motion-time></output><output data-motion-status aria-live="polite"></output>';
+        '<h3>Timing tracks</h3><p class="slides-studio-hint">Drag to move; resize from the right edge. Arrow keys adjust delay; Shift makes larger changes.</p><div data-motion-tracks aria-label="Element timing tracks"></div></fieldset></div><footer><div class="slides-author-actions"><button type="button" data-motion-undo>Undo</button><button type="button" data-motion-redo>Redo</button><button type="button" data-motion-save>Save to deck.md</button><button type="button" data-motion-copy>Copy directive</button></div><output data-motion-status aria-live="polite"></output></footer></section></div>';
       deck.appendChild(panel);
-      panel.querySelector('[data-motion-close]').onclick = () => panel.close();
+      panel.querySelector('[data-motion-close]').onclick = closeStudio;
       panel.querySelector('[data-motion-pause]').onclick = () => paused ? play() : pause();
       panel.querySelector('[data-motion-replay]').onclick = replay;
       panel.querySelector('[data-motion-reverse]').onclick = reverse;
       panel.querySelector('[data-motion-seek]').oninput = event => seek(event.target.value);
       panel.querySelector('[data-motion-undo]').onclick = undo; panel.querySelector('[data-motion-redo]').onclick = redo; panel.querySelector('[data-motion-save]').onclick = saveDraft; panel.querySelector('[data-motion-save]').hidden = !editable; panel.querySelector('[data-motion-replay-mode]').onchange = event => change('replay', event.target.value);
-      panel.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.target.matches('input')) { event.preventDefault(); event.shiftKey ? redo() : undo(); } });
+      panel.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeStudio(); return; }
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.target.closest('input,textarea,[contenteditable]')) {
+          event.preventDefault();
+          if (studioTab === 'scene') window.SlidesSceneStudio?.[event.shiftKey ? 'redo' : 'undo']();
+          else event.shiftKey ? redo() : undo();
+        }
+      });
+      const tabs = Array.from(panel.querySelectorAll('[data-studio-tab]'));
+      tabs.forEach(button => {
+        button.onclick = () => selectTab(button.dataset.studioTab);
+        button.onkeydown = event => {
+          if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+          event.preventDefault(); const available = tabs.filter(tab => !tab.hidden);
+          const index = available.indexOf(button), next = event.key === 'Home' ? 0 : event.key === 'End' ? available.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + available.length) % available.length;
+          available[next].click(); available[next].focus();
+        };
+      });
       const selector = panel.querySelector('[data-motion-element]');
       selector.onchange = () => { selected = items()[Number(selector.value)]; fill(); };
       for (const key of ['preset', 'duration', 'delay', 'easing']) panel.querySelector('[data-motion-' + key + ']').onchange = event => {
+        const valid = event.target.checkValidity() && event.target.value !== '';
+        event.target.setAttribute('aria-invalid', String(!valid));
+        buttons(); if (!valid) { status('Enter a valid ' + key + '.'); return; }
         change(key, event.target.value);
       };
       panel.querySelector('[data-motion-copy]').onclick = async () => {
@@ -439,19 +491,36 @@
         try { await navigator.clipboard.writeText(':::motion {' + fields.join(' ') + '}\nYour content\n:::'); panel.querySelector('[data-motion-status]').textContent = 'Copied'; }
         catch (_) { panel.querySelector('[data-motion-status]').textContent = 'Clipboard unavailable'; }
       };
-      panel.addEventListener('close', () => { if (panel.open) return; clearInterval(refreshTimer); refreshTimer = null; });
+      panel.addEventListener('close', () => { if (panel.open) return; clearInterval(refreshTimer); refreshTimer = null; layoutStudio(); });
     }
     const selector = panel.querySelector('[data-motion-element]'); selector.replaceChildren();
     items().forEach((el, i) => { const option = document.createElement('option'); option.value = i; option.textContent = motionLabel(el, i); selector.appendChild(option); });
-    selected = items()[0]; fill(); drawTracks(); loadDraft(); if (panel.open) return; clearInterval(refreshTimer); panel.showModal(); window.SlidesSceneStudio?.open(panel); replay(); updatePanel(); refreshTimer = setInterval(updatePanel, 100);
+    if (!items().includes(selected)) selected = items()[0];
+    selector.value = String(Math.max(0,items().indexOf(selected)));
+    const slide = active();
+    panel.querySelector('[data-studio-context]').textContent = 'Slide ' + SlidesNav.current() + ' · ' + (slide.dataset.slideId || slide.querySelector('h1,h2')?.textContent || 'Untitled');
+    panel.querySelector('[data-motion-empty]').hidden = !!selected;
+    panel.querySelector('[data-motion-fields]').hidden = !selected;
+    fill(); drawTracks(); loadDraft(); returnFocus = document.activeElement;
+    clearInterval(refreshTimer); panel.show(); window.SlidesSceneStudio?.open(panel);
+    const hasScene = !!window.SlidesGraphicsMotion?.current().length;
+    panel.querySelector('[data-studio-tab="scene"]').hidden = !hasScene;
+    selectTab(hasScene && (!selected || studioTab === 'scene' || !studioTab) ? 'scene' : 'elements');
+    // Native entrances can have committed their final styles before authoring
+    // begins. Reconstruct their seekable records at the existing playhead.
+    items().filter(el=>!el.hasAttribute('data-slides-motion-step') && !records.has(el) && !unitRecords.has(el)).forEach(el=>run(el,number(el,'delay',0),true));
+    layoutStudio(); pause(); updatePanel(); panel.querySelector('[data-motion-close]').focus({preventScroll:true});
+    refreshTimer = setInterval(updatePanel, 100);
   }
   function fill() {
     panel.querySelector('[data-motion-replay-mode]').disabled = !selected; panel.querySelector('[data-motion-replay-mode]').value = selected?.dataset.slidesMotionReplay || 'slide';
-    for (const key of ['preset', 'duration', 'delay', 'easing']) { const input = panel.querySelector('[data-motion-' + key + ']'); input.disabled = !selected; const value = selected ? selected.getAttribute('data-gosx-motion-' + key) || (key === "easing" ? "ease-out" : "") : "";
+    for (const key of ['preset', 'duration', 'delay', 'easing']) { const input = panel.querySelector('[data-motion-' + key + ']'); input.disabled = !selected; const value = selected ? selected.getAttribute('data-gosx-motion-' + key) || ({easing:'ease-out',preset:'fade',duration:'220',delay:'0'}[key]) : "";
       if (input.tagName === "SELECT" && value && !Array.from(input.options).some(option => option.value === value)) { const option = document.createElement("option"); option.value = option.textContent = value; input.appendChild(option); }
-      input.value = value; }
+      input.value = value; input.setAttribute('aria-invalid','false'); }
+    buttons();
   }
   document.addEventListener('keydown', event => {
+    if (!event.defaultPrevented && event.key === 'Escape' && panel?.open && !deck.querySelector('dialog:modal')) { event.preventDefault(); closeStudio(); return; }
     if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.target.closest('input, textarea, select, [contenteditable], dialog, [role]')) return;
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });

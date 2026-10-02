@@ -10,7 +10,7 @@ Download a binary for Linux, macOS, or Windows from the
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.8.0 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.8.1 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -45,7 +45,11 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 ## Motion, authoring, and exports
 
 Try `slides serve examples/storytelling-lab --edit` (or `examples/authoring-lab`).
-**M** opens the motion studio. Edit presets, duration, delay, easing and replay;
+**M** opens a docked motion studio beside a fitted live slide preview (a bottom
+sheet on mobile). Opening it preserves the current pose. Playback and seek stay
+visible while fields scroll; **Scene** and **Elements** tabs keep controls focused.
+**Escape** closes the studio. Reopening keeps your draft and selected actor or element.
+Edit presets, duration, delay, easing and replay;
 drag timeline bars and resize their right edges. Undo/Redo restores preview edits,
 and **Save to deck.md** persists them through source validation, revision checks
 and recoverable saves. Stale source produces a conflict while keeping your draft.
@@ -54,6 +58,10 @@ actor X/Y/Z, scale and color, and each cue's duration and easing. Scene Undo/Red
 restores previews; **Save scene cues** persists the declared Steps JSON with
 revision checks and a retained previous file. Labels, routes and arrowheads are
 regenerated with their actors. Blank actor fields restore the original layout.
+**Reset actor** clears position, scale and color overrides for the current cue.
+Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z undo/redo within the focused scene or element
+controls; text inputs keep their native undo. Save is enabled for unsaved, valid
+edits after the preview settles. A single scene needs no redundant scene picker.
 The shared transport samples DOM entrances, split text, diagram SVG, native
 Scene3D keyframes, cameras and shader time from one playhead. Pause/play, seek,
 reverse and replay reconstruct absolute poses; revisiting a timestamp gives the
