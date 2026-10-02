@@ -63,9 +63,9 @@ func TestNamedCueAddresses(t *testing.T) {
 }
 
 func TestCodeMorphClickBudgetAndMovedCue(t *testing.T) {
-	deck := graphicsDeck(t, "```yaml\nid: code\ncues: overview, worker\nmorph-duration: 800\n```\n\n# Code\n\n:::motion {cue=worker step=3}\nWork\n:::\n\n:::code-morph\n```go\nold()\n```\n\n```go\nnew()\n```\n:::\n", nil)
+	deck := graphicsDeck(t, "```yaml\nid: code\ncues: overview, worker\nmorph-duration: 800\nmotion-duration: 1200\n```\n\n# Code\n\n:::motion {cue=worker step=3}\nWork\n:::\n\n:::code-morph\n```go\nold()\n```\n\n```go\nnew()\n```\n:::\n", nil)
 	body := graphicsBody(t, deck)
-	if !strings.Contains(body, `data-morph-duration="800"`) || !strings.Contains(body, `slides-code-morph`) {
+	if !strings.Contains(body, `data-morph-duration="800"`) || !strings.Contains(body, `data-motion-duration="1200"`) || !strings.Contains(body, `slides-code-morph`) {
 		t.Fatal("missing authored morph controls")
 	}
 	names := slideCueNames(deck.Slides[0])

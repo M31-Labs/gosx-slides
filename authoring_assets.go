@@ -33,3 +33,6 @@ var diagramMotionScript string
 
 //go:embed assets/pptx-editable.js
 var pptxEditableScript string
+
+//go:embed assets/graphics-motion.js
+var graphicsMotionScript string

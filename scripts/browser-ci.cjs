@@ -20,6 +20,7 @@ async function withServer(deck, port, run, flags=[]) {
 }
 function script(name, url) { const result=spawnSync(process.execPath,[path.join(__dirname,name),url],{stdio:'inherit',env:process.env}); assert.equal(result.status,0,name+' failed'); }
 (async()=>{
+  const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');
   try {await withServer(editDir,8120,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
@@ -29,6 +30,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
 
   await withServer('examples/navigation-lab',8111,url=>script('navigation-browser.cjs',url));
   await withServer('testdata/motion-timing',8128,url=>script('motion-timing-browser.cjs',url));
+  await withServer('examples/request-recovery',8129,url=>script('request-recovery-browser.cjs',url));
   await withServer('examples/authoring-lab',8112,url=>script('authoring-browser.cjs',url));
   await withServer('examples/shader-lab',8113,async url=>{
     const browser=await chromium.launch({args:['--enable-unsafe-swiftshader'],...(process.env.SLIDES_BROWSER?{executablePath:process.env.SLIDES_BROWSER}:{})});
@@ -38,7 +40,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
       await page.waitForFunction(()=>document.querySelector('.deck-background-active').dataset.gosxScene3dAnimationState==='paused');
       const before=await page.locator('.deck-background-active').getAttribute('data-gosx-scene3d-animation-clock');await page.waitForTimeout(300);
       assert.equal(await page.locator('.deck-background-active').getAttribute('data-gosx-scene3d-animation-clock'),before);
-      await page.evaluate(()=>SlidesMotion.play());await page.waitForFunction(()=>document.querySelector('.deck-background-active').dataset.gosxScene3dAnimationState==='playing');assert.deepEqual(errors,[]);
+      await page.evaluate(()=>SlidesMotion.play());await page.waitForFunction(()=>Number(document.querySelector('.deck-background-active').dataset.gosxScene3dAnimationClock)>0.05);assert.deepEqual(errors,[]);
     } finally {await browser.close()}
   });
   await withServer('examples/diagram-lab',8118,async url=>{

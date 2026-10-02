@@ -5,21 +5,22 @@ go 1.26
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/odvcencio/gotreesitter v0.55.1
-	golang.org/x/net v0.52.0
-	m31labs.dev/gosx v0.57.1
-	m31labs.dev/mdpp v0.4.8
-	m31labs.dev/sirena v0.6.1
+	golang.org/x/net v0.57.0
+	m31labs.dev/gosx v0.57.2
+	m31labs.dev/mdpp v0.5.0
+	m31labs.dev/sirena v0.7.0
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
 	github.com/oklog/ulid/v2 v2.1.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

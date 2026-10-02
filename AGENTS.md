@@ -98,7 +98,7 @@ directly also works (the parent directory is used).
 
 ---
 
-## v0.4 authoring additions
+## Motion and authoring additions
 
 See [README motion and export recipes](README.md#motion-authoring-and-exports)
 and `examples/authoring-lab` for runnable examples.
@@ -106,11 +106,17 @@ and `examples/authoring-lab` for runnable examples.
 - Slide YAML `id:` and comma-separated `cues:` create stable `#id/cue` addresses.
   Motion `cue`, `step`, `after`, `group`, and `stagger` share the click budget.
   Explicit numeric steps range from 0 to 10,000. Cue names follow slide ID rules.
-- **M** previews element animation timing; **R** checks current rendered readability.
-  Edits are temporary, with copyable Markdown. GPU clocks pause/play; absolute
-  Scene3D poses use navigation steps, and scrubbing/reverse controls DOM motion.
+- **M** opens the motion studio; **R** checks current rendered readability.
+  Save timing edits to `deck.md` through parsed source ranges and revision guards
+  when serving with `--edit`. Undo/Redo preserves preview history across click steps.
+- One playhead seeks DOM entrances, split text, diagram SVG, Scene3D keyframes,
+  cameras, code morphs and native declarative shader time. `motion-duration: 1200`
+  sets a slide segment's duration in milliseconds (1–600000). Scene frames accept
+  `durationMs` (0–600000) and named CSS `easing`; zero settles immediately.
+  Stateful water, particles and event-driven glTF mixers require replay state.
 - `data-morph-id` connects matching elements between slides; `morph-duration:`
-  controls arrival timing. `:::code-morph` groups sequential code fences.
+  controls arrival timing. `:::code-morph {duration=1200 easing=ease-in-out}`
+  groups sequential code fences with authored transition timing.
 - `layout: split`, `:::cards`, and `:::card` provide responsive recipes.
 - Islands defer until active/next; `hydration: eager` restores startup hydration.
 - `--capture` uses real browser pixels for single/PDF; `--steps` captures every

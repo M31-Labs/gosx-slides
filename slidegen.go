@@ -256,7 +256,7 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 		b.WriteString(cls)
 	}
 	fmt.Fprintf(&b, `" data-slide="%d"`, slide.Index)
-	for _, key := range []string{"data-slide-id", "data-slide-cues", "data-morph-duration"} {
+	for _, key := range []string{"data-slide-id", "data-slide-cues", "data-morph-duration", "data-motion-duration"} {
 		if value := slideIdentityAttrs(slide)[key]; value != "" {
 			b.WriteString(" " + key + "={" + strconv.Quote(value) + "}")
 		}

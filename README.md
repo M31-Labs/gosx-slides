@@ -1,17 +1,16 @@
 # gosx-slides
 
-GoSX Slides v0.4 adds named motion cues, a timing studio, shared-element and
-code morphs, deferred island hydration, and live-rendered graphics exports.
-Sirena diagrams include state, class, ER, swimlane, and timeline layouts, with
-Scene3D focus, reveal, and trace steps.
+GoSX Slides v0.7 coordinates element entrances, split text, diagram SVG,
+Scene3D actors and cameras, code morphs, and shader time from one seekable
+playhead. Edit and save motion timings in the browser, navigate named story
+cues, and capture repeatable poses for images, video, PDF, or PowerPoint.
 
-The v0.4.1 patch resumes deferred widgets when a slow runtime finishes loading.
 Download a binary for Linux, macOS, or Windows from the
-[v0.4.1 release](https://github.com/M31-Labs/gosx-slides/releases/tag/v0.4.1),
+[latest release](https://github.com/M31-Labs/gosx-slides/releases/latest),
 or build the tagged source with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.4.1 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch v0.7.0 https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -50,12 +49,28 @@ Try `slides serve examples/storytelling-lab --edit` (or `examples/authoring-lab`
 drag timeline bars and resize their right edges. Undo/Redo restores preview edits,
 and **Save to deck.md** persists them through source validation, revision checks
 and recoverable saves. Stale source produces a conflict while keeping your draft.
-Pause/play also controls active native shader and Scene3D clocks. Scrubbing and
-reversing support DOM and diagram SVG animations; native Scene3D poses use their
-absolute click steps. Saving requires the local `--edit` authoring server.
-Pause is preserved across click steps and replay, including graphics that finish
-mounting later. Scrubbing or reversing freezes native graphics clocks until Play,
-including across click steps. Click-step
+The shared transport samples DOM entrances, split text, diagram SVG, native
+Scene3D keyframes, cameras and shader time from one playhead. Pause/play, seek,
+reverse and replay reconstruct absolute poses; revisiting a timestamp gives the
+same declarative state. Completed text entrances remain seekable. Pause is
+preserved across click steps and replay, including graphics that mount later.
+Native animation defaults to a 10-second segment; slide `motion-duration: 1200`
+sets its duration in milliseconds (1–600000). Keyframes use `durationMs` (0–600000)
+and `easing` (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`), with a
+600 ms default; explicit zero settles immediately. Stateful water, particle and
+event-driven glTF simulations need their own replay state.
+
+Save uses parsed directive ranges: existing spacing, quoting, other attributes
+and body content stay intact. A fake directive inside a code fence cannot be
+edited as motion. Source editing requires LF line endings.
+
+Try the [request, failure and recovery demo](examples/request-recovery/README.md)
+for coordinated actor, route, label, camera and code changes. `:::code-morph {duration=1200 easing=ease-in-out}` sets code
+transition timing; supported easing names match graphic keyframes. Captured stills
+settle the final pose; video samples explicit timestamps and waits for commands
+and paint before capturing.
+
+Click-step
 navigation keeps the studio and undo history open; entering another slide resets
 the transport and closes the studio.
 Timing tracks show the actual start and end for each click step, including `after`
@@ -184,7 +199,7 @@ families alongside semantic Scene3D steps. Mermaid ingestion supports flowcharts
 
 ### Native shaders and Scene3D
 
-GoSX v0.57.1's native graphics engine is available directly in Markdown:
+GoSX v0.57.2's native graphics engine is available directly in Markdown:
 
 ```md
 <Shader Src="shaders/ink.sel" Shape="torus" Label="Shader illustration" />
@@ -294,8 +309,8 @@ slide timing and staggered text.
 
 ### Upgrade and performance inventory
 
-The current dependency baseline is GoSX **v0.57.1**, mdpp **v0.4.8**,
-gotreesitter **v0.55.1**, and Sirena **v0.5.0**. Existing Sirena/Mermaid diagrams,
+The current dependency baseline is GoSX **v0.57.2**, mdpp **v0.5.0**,
+gotreesitter **v0.55.1**, and Sirena **v0.7.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
 without a separate renderer or frontend build system.
@@ -488,9 +503,9 @@ steps, seek and reverse are deterministic. Reduced motion selects the exact pose
 without animation. Storyboards reserve graph slots, bar rows and chart domains
 through Sirena's bounded 2–32-state API. Flat architecture/state/class/ER/mindmap,
 bar, line/scatter and radar stories are supported; radar axis order must match.
-Use `duration` (0–10000 ms) and `easing` on the container. The motion studio can
-scrub SVG and DOM animation and pause/play native scenes; GPU clocks do not support
-DOM-style seeking or reverse.
+Use `duration` (0–10000 ms) and `easing` on the container. The shared playhead
+scrubs SVG, DOM, native declarative animation and shader time together. Stateful
+simulations require their own replay state.
 
 ```sh
 slides export examples/storytelling-lab --format pptx --editable --steps --out dist

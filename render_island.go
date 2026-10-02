@@ -268,7 +268,8 @@ func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*co
 				codes = append(codes, codeBlockNode(child.Attr("language"), child.Literal, "all"))
 			}
 		}
-		return gosx.El("div", gosx.Attrs(gosx.Attr("class", "slides-code-morph"), gosx.Attr("data-steps", max(0, len(codes)-1))), gosx.Fragment(codes...))
+		duration, easing := codeMorphTiming(n)
+		return gosx.El("div", gosx.Attrs(gosx.Attr("class", "slides-code-morph"), gosx.Attr("data-code-duration", duration), gosx.Attr("data-code-easing", easing), gosx.Attr("data-steps", max(0, len(codes)-1))), gosx.Fragment(codes...))
 	}
 	if name == "details" {
 		var args []any

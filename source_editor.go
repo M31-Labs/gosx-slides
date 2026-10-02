@@ -13,12 +13,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
 	"sync"
 
 	"m31labs.dev/gosx/server"
+	"m31labs.dev/mdpp"
 )
 
 const maxSourceBytes = 1 << 20
@@ -123,6 +125,10 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 		var input struct {
 			Source   string `json:"source"`
 			Revision string `json:"revision"`
+			Motions  []struct {
+				Start int               `json:"start"`
+				Attrs map[string]string `json:"attrs"`
+			} `json:"motions"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 6*maxSourceBytes+16384)
 		decoder := json.NewDecoder(r.Body)
@@ -138,6 +144,60 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 		if input.Revision != sourceRevision(src) {
 			fail(409, "deck.md changed; reload source before saving")
 			return
+		}
+		if input.Motions != nil {
+			if input.Source != "" || len(input.Motions) > 2000 {
+				fail(400, "expected at most 2000 focused motion edits")
+				return
+			}
+			doc, parseErr := mdpp.Parse(src)
+			if parseErr != nil {
+				fail(422, parseErr.Error())
+				return
+			}
+			var edits []mdpp.SourceEdit
+			seen := map[int]bool{}
+			for _, motion := range input.Motions {
+				if seen[motion.Start] {
+					fail(400, "duplicate motion edit")
+					return
+				}
+				seen[motion.Start] = true
+				for key := range motion.Attrs {
+					switch key {
+					case "preset", "duration", "delay", "easing", "replay":
+					default:
+						fail(400, "unsupported motion attribute")
+						return
+					}
+				}
+				isMotion := false
+				doc.Root.Walk(func(n *mdpp.Node) bool {
+					if n.Type == mdpp.NodeContainerDirective && n.Range.StartByte == motion.Start && n.Attr("name") == "motion" {
+						isMotion = true
+					}
+					return true
+				})
+				if !isMotion {
+					fail(400, "motion edit must target a parsed motion directive")
+					return
+				}
+				edit, err := mdpp.EditDirectiveAttributes(doc, motion.Start, motion.Attrs)
+				if err != nil {
+					fail(422, err.Error())
+					return
+				}
+				edits = append(edits, edit)
+			}
+			sort.Slice(edits, func(i, j int) bool { return edits[i].Range.StartByte > edits[j].Range.StartByte })
+			input.Source = string(src)
+			for _, edit := range edits {
+				input.Source = input.Source[:edit.Range.StartByte] + edit.NewText + input.Source[edit.Range.EndByte:]
+			}
+			if len(input.Source) > maxSourceBytes {
+				fail(400, "authoring size limit exceeded")
+				return
+			}
 		}
 		fresh, err := parseIslandDeck(deck.Dir, []byte(input.Source))
 		if err == nil && len(fresh.Slides) == 0 {
