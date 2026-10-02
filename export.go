@@ -226,6 +226,11 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
 		return err
 	}
 	staticDoc := relativizePublicPaths(relativizeGosxPaths(doc))
+	// GoSX's lazy text-layout loader discovers preload hints before using its
+	// origin-root fallback. Keep that runtime relative to this static bundle.
+	if _, err := os.Stat(filepath.Join(dir, "build", "bootstrap-feature-textlayout.js")); err == nil {
+		staticDoc = strings.Replace(staticDoc, "</head>", `<link rel="preload" as="script" href="gosx/bootstrap-feature-textlayout.js"></head>`, 1)
+	}
 	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(staticDoc), 0o644); err != nil {
 		return err
 	}
