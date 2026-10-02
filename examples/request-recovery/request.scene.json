@@ -1133,7 +1133,7 @@
             "data": {
               "kind": "perspective",
               "z": 11,
-              "fov": 50,
+              "fov": 34,
               "near": 0.1,
               "far": 100
             }
@@ -1693,7 +1693,7 @@
             "data": {
               "kind": "perspective",
               "z": 9,
-              "fov": 45,
+              "fov": 40,
               "near": 0.1,
               "far": 100
             }
@@ -2255,7 +2255,7 @@
             "data": {
               "kind": "perspective",
               "z": 8,
-              "fov": 45,
+              "fov": 40,
               "near": 0.1,
               "far": 100
             }
@@ -2815,7 +2815,7 @@
             "data": {
               "kind": "perspective",
               "z": 11,
-              "fov": 50,
+              "fov": 34,
               "near": 0.1,
               "far": 100
             }

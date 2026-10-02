@@ -8,6 +8,9 @@ reconstructs the same pose, independent of your navigation history.
 The Scene3D material is compiled from Selena. Authored camera and actor changes
 use absolute Sirena keyframes; labels, routes and arrowheads follow their actors.
 The four click states share stable cue addresses, including `#request/failure`.
+Each state authors its camera field of view in `steps.json`, keeping the full
+path legible through fitted desktop and mobile layouts. Change `fov` to control
+the framing; changes interpolate with the same playhead as the actors and code.
 
 Regenerate the scene with Sirena v0.7.0 or newer:
 

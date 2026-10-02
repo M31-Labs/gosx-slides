@@ -1,6 +1,12 @@
 [
   {
-    "label": "The whole request path"
+    "label": "The whole request path",
+    "camera": {
+      "z": 11,
+      "near": 0.1,
+      "far": 100,
+      "fov": 34
+    }
   },
   {
     "label": "Request accepted",
@@ -15,7 +21,7 @@
     ],
     "camera": {
       "z": 9,
-      "fov": 45,
+      "fov": 40,
       "near": 0.1,
       "far": 100
     }
@@ -34,7 +40,7 @@
     ],
     "camera": {
       "z": 8,
-      "fov": 45,
+      "fov": 40,
       "near": 0.1,
       "far": 100
     }
@@ -48,6 +54,12 @@
         "target": "worker",
         "color": "#66e7bc"
       }
-    ]
+    ],
+    "camera": {
+      "z": 11,
+      "near": 0.1,
+      "far": 100,
+      "fov": 34
+    }
   }
 ]

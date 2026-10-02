@@ -6,7 +6,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/odvcencio/gotreesitter v0.55.1
 	golang.org/x/net v0.57.0
-	m31labs.dev/gosx v0.57.3
+	m31labs.dev/gosx v0.57.4
 	m31labs.dev/mdpp v0.5.0
 	m31labs.dev/sirena v0.7.0
 )
