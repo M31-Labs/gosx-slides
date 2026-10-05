@@ -58,12 +58,13 @@
   }
   function vttText(text) { return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n\s*\n/g,'\n'); }
   function sidecar(end) {
-    const hasCaptions = authored.some(slide => slide.caption), kind = hasCaptions ? 'authored' : 'navigation';
+    const hasCaptions = authored.some(slide => slide.caption || Object.values(slide.beats || {}).some(Boolean)), kind = hasCaptions ? 'authored' : 'navigation';
     let vtt = 'WEBVTT\n\nNOTE '+(hasCaptions ? 'Authored captions timed to slide navigation.' : 'Slide navigation labels; this file does not transcribe speech.')+'\n\n';
     let count = 0;
     events.forEach((event,index) => {
       const until = index+1 < events.length ? events[index+1].timeMs : end;
-      const text = hasCaptions ? authored[event.slide-1]?.caption : 'Slide '+event.slide+' · '+event.title+' · step '+event.step;
+      const slide = authored[event.slide-1], explicit = Object.hasOwn(slide?.beats || {}, event.step) ? slide.beats[event.step] : slide?.caption;
+      const text = hasCaptions ? explicit : 'Slide '+event.slide+' · '+event.title+' · step '+event.step;
       if (text && until > event.timeMs) vtt += (++count)+'\n'+timestamp(event.timeMs)+' --> '+timestamp(until)+'\n'+vttText(text)+'\n\n';
     });
     return { kind, vtt };

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -97,6 +98,9 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
+	if d.Audience != "" && (opts.Edit || opts.Collaborate || opts.Dev) {
+		return nil, fmt.Errorf("audience selection cannot be combined with editing, collaboration or watch mode")
+	}
 	if err := validateServeAccess(opts); err != nil {
 		return nil, err
 	}
@@ -128,6 +132,26 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if err != nil {
 		return nil, err
 	}
+	if d.Audience != "" {
+		app.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requested := path.Clean(r.URL.Path)
+				// Selected programs are served by the compiled API below. Cached
+				// full-deck manifests and component CSS cannot bypass that lookup.
+				for _, namespace := range []string{"/gosx/assets/islands", "/gosx/assets/css", "/gosx/css"} {
+					if requested == namespace || strings.HasPrefix(requested, namespace+"/") {
+						http.NotFound(w, r)
+						return
+					}
+				}
+				if strings.HasPrefix(requested, "/gosx/islands/") && strings.Contains(strings.TrimPrefix(requested, "/gosx/islands/"), "/") {
+					http.NotFound(w, r)
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
+		})
+	}
 	// The authoring directory contains private source, notes, tokens and state.
 	// Publish only its public/ subtree, retaining GoSX's native asset policy.
 	app.SetPublicDir("")
@@ -147,23 +171,26 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		}
 	}
 
-	if opts.Edit && !opts.Static {
-		app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
-			name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
-			fresh, err := LoadIslandDeck(d.Dir)
+	// Always own this namespace. GoSX's disk fallback must never resurrect a
+	// stale program that is no longer referenced by the selected deck.
+	app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
+		name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
+		cc := compiled
+		if opts.Dev || (opts.Edit && !opts.Static) {
+			fresh, err := LoadIslandDeckAudience(d.Dir, d.Audience)
 			if err != nil {
 				return nil, err
 			}
-			cc, _ := fresh.compileComponents()
-			component := cc[name]
-			if component == nil {
-				ctx.SetStatus(http.StatusNotFound)
-				return nil, fmt.Errorf("component %q is unavailable", name)
-			}
-			ctx.Header().Set("Cache-Control", "no-store")
-			return json.RawMessage(component.json), nil
-		})
-	}
+			cc, _ = fresh.compileComponents()
+		}
+		component := cc[name]
+		if component == nil {
+			ctx.SetStatus(http.StatusNotFound)
+			return nil, fmt.Errorf("component %q is unavailable", name)
+		}
+		ctx.Header().Set("Cache-Control", "no-store")
+		return json.RawMessage(component.json), nil
+	})
 
 	for _, name := range sortedKeys(compiled) {
 		if opts.Edit && !opts.Static {
@@ -487,6 +514,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// adds to the head — hidden slides still hydrate.
 		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
 		gosx.RawHTML(semanticStoryAssets(d)),
+		gosx.RawHTML(simulationAssets(d)),
 	)
 }
 

@@ -303,6 +303,9 @@ func SelectAudience(deck *IslandDeck, audience string) (*IslandDeck, error) {
 			}
 		}
 	}
+	if err := FilterSimulations(&out); err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 

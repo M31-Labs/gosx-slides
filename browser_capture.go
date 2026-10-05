@@ -323,7 +323,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			}
 			if opts.Format == "video" {
 				frameCount := int(math.Ceil(opts.Seconds * float64(opts.FPS)))
-				videoCaptions = append(videoCaptions, videoCaption{StartMS: videoFrames * 1000 / opts.FPS, EndMS: (videoFrames + frameCount) * 1000 / opts.FPS, Text: slideRecordingCaption(slide)})
+				videoCaptions = append(videoCaptions, videoCaption{StartMS: videoFrames * 1000 / opts.FPS, EndMS: (videoFrames + frameCount) * 1000 / opts.FPS, Text: deckRecordingCaption(deck, slide, step)})
 				videoFrames += frameCount
 				if videoFrames > 18000 {
 					return fmt.Errorf("video export supports at most 18000 frames; reduce --seconds, --fps, or steps")
