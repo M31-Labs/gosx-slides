@@ -593,7 +593,8 @@ editable Arial text; other text uses its declared font and installed-font fallba
 SVG fill/stroke opacity is preserved. Shaders/3D, rotated/clipped content,
 translucent groups and unsupported SVG geometry retain
 their captured pixels. Arrow-marked paths remain captured to preserve arrowheads.
-The default PPTX export keeps whole-slide images. Speaker notes remain editable.
+The default PPTX export keeps whole-slide images. `--notes --editable` also
+includes editable speaker notes.
 
 For a repeatable Sirena/Mermaid comparison, install the pinned development
 dependencies with `npm ci`, install Sirena v0.6+, then run:
@@ -643,6 +644,10 @@ external file conflicts and failed writes keep the local draft for explicit
 reconciliation. Use one collaboration server per deck; `.gsx` files remain local
 authoring files. Private `.slides-team.json` stores draft history and comments;
 keep it out of version control and published assets.
+
+Private file permissions use POSIX mode 0600 where supported. Windows files
+inherit the destination directory's access controls; place private decks and
+token files in a directory restricted to the serving account.
 
 ### Local recording and narrated exports
 

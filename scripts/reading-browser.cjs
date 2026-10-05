@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
+const { PNG } = require('pngjs');
 const { launchTestBrowser } = require('./test-browser.cjs');
 
 (async () => {
@@ -10,7 +11,8 @@ const { launchTestBrowser } = require('./test-browser.cjs');
   const dir = fs.mkdtempSync(path.join(path.resolve('testdata'), 'browser-reading-'));
   const out = path.join(dir, 'output');
   fs.mkdirSync(path.join(dir, 'public'));
-  fs.writeFileSync(path.join(dir, 'public', 'pixel.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64'));
+  const pixel = new PNG({width:1, height:1}); pixel.data.fill(255);
+  fs.writeFileSync(path.join(dir, 'public', 'pixel.png'), PNG.sync.write(pixel));
   fs.writeFileSync(path.join(dir, 'deck.md'), `---\ntitle: Reading fixture\noffline: true\n---\n\n# First\n\n![Pixel](/public/pixel.png)\n\n<!-- Private speaker note -->\n\n---\n\n\x60\x60\x60yaml\nreveal: true\nid: second\n\x60\x60\x60\n\n# Second\n\n- First item\n- [Second item](https://example.test/)\n\n\x60\x60\x60sirena\nservice api { label: "API" }\n\x60\x60\x60\n`);
   const server = spawn(binary, ['serve', dir, '--port', '8137'], { stdio: ['ignore', 'ignore', 'inherit'] });
   let browser, staticServer;
