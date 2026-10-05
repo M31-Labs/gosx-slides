@@ -40,6 +40,7 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 		return "", err
 	}
 	defer directory.Close()
+	allowed := exportPublicPolicy(root)
 	cache := map[string]string{}
 	pending := map[string]bool{}
 	total := 0
@@ -74,6 +75,9 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 			if err != nil || !safeDeckRelPath(filepath.ToSlash(filePath)) {
 				return "", fmt.Errorf("composition snapshot asset escapes deck: %q", raw)
 			}
+		}
+		if !allowed(filepath.FromSlash(filePath)) {
+			return "", fmt.Errorf("snapshot asset is denied by public asset policy: %q", raw)
 		}
 		count := func(encoded string) (string, error) {
 			encoded += snapshotFragment(parsed)

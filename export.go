@@ -260,6 +260,10 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string, includeNotes bool)
 			return err
 		}
 	}
+	assets, err := planSPAAssets(dir, deck, out, includeNotes)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -272,19 +276,8 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string, includeNotes bool)
 	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(staticDoc), 0o644); err != nil {
 		return err
 	}
-	// Copy the staged client runtime + island JSON into <out>/gosx, mapping the
-	// build filenames to the URL names the page references.
-	if err := copyBuildToGosx(filepath.Join(dir, "build"), filepath.Join(out, "gosx")); err != nil {
-		return fmt.Errorf("copy runtime assets: %w", err)
-	}
-	// Carry the deck's static assets (images, fonts) if any.
-	if src := filepath.Join(dir, "public"); isDir(src) {
-		if err := copyTree(src, filepath.Join(out, "public")); err != nil {
-			return fmt.Errorf("copy public: %w", err)
-		}
-	}
-	if err := copyCompositionAssets(deck, out); err != nil {
-		return fmt.Errorf("copy included/pack assets: %w", err)
+	if err := copyExportAssets(assets); err != nil {
+		return fmt.Errorf("copy export assets: %w", err)
 	}
 	if includeNotes {
 		if err := os.WriteFile(filepath.Join(out, "notes.html"), []byte(notesHTML(deck)), 0o644); err != nil {
@@ -390,25 +383,16 @@ func stripIslandRuntime(doc string) string {
 // (runtime.wasm); every other file keeps its relative path (wasm_exec.js,
 // bootstrap*.js, patch.js, islands/<Name>.json).
 func copyBuildToGosx(buildDir, destGosx string) error {
-	return filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
+	assets, err := exportTreePlan(buildDir, destGosx, true)
+	if err != nil {
+		return err
+	}
+	for _, asset := range assets {
+		if err := exportTargetPreflight(destGosx, asset.destination); err != nil {
 			return err
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-		rel, err := filepath.Rel(buildDir, path)
-		if err != nil {
-			return err
-		}
-		if rel == "gosx-runtime.wasm" {
-			rel = "runtime.wasm"
-		}
-		return copyFile(filepath.Join(destGosx, rel), path)
-	})
+	}
+	return copyExportAssets(assets)
 }
 
 func copyTree(src, dst string) error {
