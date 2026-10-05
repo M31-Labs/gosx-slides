@@ -234,9 +234,11 @@ and 18,000 video frames. Fonts and image assets must be available during capture
 
 Browser CI covers navigation, presenter sync, authoring, mobile sizing, reduced
 motion, graphics clocks, and captured exports. Its optional developer tools use
-`npm ci`, `npx playwright install chromium`, and `node scripts/browser-ci.cjs ./slides`;
-normal CLI use requires no Node installation. Tagged releases build six platform
-binaries and publish SHA-256 checksums automatically.
+`npm ci`, `npx playwright install chromium`, and `node scripts/browser-ci.cjs ./slides`.
+The suite also needs Chrome/Chromium for capture and ffmpeg/ffprobe for narrated
+video; use `SLIDES_CHROME`, `SLIDES_FFMPEG`, and `SLIDES_FFPROBE` to name binaries
+outside PATH. Normal CLI use requires no Node installation. Tagged releases
+build six platform binaries and publish SHA-256 checksums automatically.
 
 Select a native diagram layout with a fence such as `sirena class` or
 `sirena diagram=timeline`. Available layouts: architecture, sequence, radial,

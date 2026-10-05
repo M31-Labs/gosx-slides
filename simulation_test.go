@@ -256,8 +256,19 @@ func TestSimulationManifestRequiresExplicitSeedAndContainedPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(dir, "deck.md"), markdown, 0600)
-	os.WriteFile(filepath.Join(dir, "simulation.yaml"), []byte(strings.Replace(string(manifest), "    seed: 1729\n", "", 1)), 0600)
+	// Windows checkouts can use CRLF. Verify that the invalid fixture really
+	// removes the seed before testing the manifest contract.
+	manifestText := strings.ReplaceAll(string(manifest), "\r\n", "\n")
+	seedLine := "    seed: 1729\n"
+	if !strings.Contains(manifestText, seedLine) {
+		t.Fatal("simulation fixture no longer contains the expected seed")
+	}
+	if err = os.WriteFile(filepath.Join(dir, "deck.md"), markdown, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "simulation.yaml"), []byte(strings.Replace(manifestText, seedLine, "", 1)), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = LoadIslandDeck(dir); err == nil || !strings.Contains(err.Error(), "explicit seed") {
 		t.Fatalf("missing seed accepted: %v", err)
 	}

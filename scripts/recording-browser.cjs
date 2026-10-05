@@ -84,7 +84,7 @@ async function authoredBeatCaptions(browser,binary,fixture) {
     // metadata selector. Caption timing must retain the explicitly blank beat.
     const ffmpeg=process.env.SLIDES_FFMPEG || 'ffmpeg';
     const audio=spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=1.2','-ar','22050','-c:a','pcm_s16le',path.join(dir,'public','narration.wav')],{encoding:'utf8'});
-    assert.equal(audio.status,0,'creating bounded narration fixture: '+audio.stderr);
+    assert.equal(audio.status,0,'creating bounded narration fixture (install ffmpeg or set SLIDES_FFMPEG): '+(audio.error?.message || audio.stderr));
     const output=path.join(fixture,'story-narrated.webm');
     const exported=spawn(binary,['export',dir,'--format','video','--steps','--seconds','0.3','--fps','10','--narration','public/narration.wav','--out',output],{env:process.env,stdio:['ignore','pipe','pipe']});
     let log='';for(const stream of [exported.stdout,exported.stderr])stream.on('data',data=>{log=(log+data).slice(-16000);});
@@ -94,7 +94,7 @@ async function authoredBeatCaptions(browser,binary,fixture) {
     assert.deepEqual(videoCues,[{start:0,end:300,text:escaped},{start:600,end:900,text:'Second explicit story beat'},{start:900,end:1200,text:'Slide metadata fallback'}],'exported narration captions preserve authored beat timing and the empty beat');
     assert.ok(!videoVTT.includes('PRIVATE_')&&!videoVTT.includes('title is not speech'));
     const probe=spawnSync(process.env.SLIDES_FFPROBE || 'ffprobe',['-v','error','-show_streams','-of','json',output],{encoding:'utf8'});
-    assert.equal(probe.status,0,probe.stderr);const streams=JSON.parse(probe.stdout).streams;
+    assert.equal(probe.status,0,'probing narrated video (install ffprobe or set SLIDES_FFPROBE): '+(probe.error?.message || probe.stderr));const streams=JSON.parse(probe.stdout).streams;
     assert.ok(streams.some(stream=>stream.codec_type==='video')&&streams.some(stream=>stream.codec_type==='audio'),'actual exported artifact must contain video and narration streams');
   } finally {await page.close();server.kill('SIGTERM');}
 }

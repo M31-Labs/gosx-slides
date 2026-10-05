@@ -65,6 +65,12 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --ignore-scripts
+      - name: Install narration export tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
       - run: go build -o slides ./cmd/slides
       - name: Configure runner Chrome
         run: |
