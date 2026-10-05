@@ -1,0 +1,28 @@
+{
+  "name": "gosx-slides",
+  "displayName": "GoSX Slides",
+  "description": "Project files, parser diagnostics and validated saves for Markdown, GoSX, Sirena and story manifests.",
+  "version": "0.1.0",
+  "publisher": "m31-labs",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/M31-Labs/gosx-slides", "directory": "editors/vscode" },
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["Other", "Programming Languages"],
+  "main": "./extension.cjs",
+  "activationEvents": ["onView:gosxSlides.project"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false, "description": "The companion starts the configured local slides binary." }, "virtualWorkspaces": false },
+  "contributes": {
+    "commands": [
+      { "command": "gosxSlides.openProject", "title": "GoSX Slides: Open Project" },
+      { "command": "gosxSlides.refresh", "title": "GoSX Slides: Refresh Project Files" },
+      { "command": "gosxSlides.diagnose", "title": "GoSX Slides: Diagnose Project" },
+      { "command": "gosxSlides.assertStory", "title": "GoSX Slides: Assert Story" },
+      { "command": "gosxSlides.exportHandout", "title": "GoSX Slides: Export Handout" }
+    ],
+    "views": { "explorer": [{ "id": "gosxSlides.project", "name": "GoSX Slides" }] },
+    "configuration": { "title": "GoSX Slides", "properties": { "gosxSlides.binary": { "type": "string", "default": "slides", "scope": "machine", "description": "Path to a slides binary with the mcp command, on the extension host (local or Remote WSL)." } } },
+    "menus": { "view/title": [ { "command": "gosxSlides.openProject", "when": "view == gosxSlides.project", "group": "navigation" }, { "command": "gosxSlides.refresh", "when": "view == gosxSlides.project", "group": "navigation" } ] }
+  },
+  "scripts": { "test": "node --test client.test.cjs", "package": "vsce package --no-dependencies" },
+  "files": ["extension.cjs", "client.cjs", "README.md", "LICENSE"]
+}

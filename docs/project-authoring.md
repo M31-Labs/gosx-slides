@@ -92,3 +92,9 @@ Snapshot exports execute no external process. Chrome capture, live SPA,
 recording, PDF, editable Office and narrated video remain available through
 their existing CLI/browser workflows. Generated snapshot folders stay outside
 project discovery and public assets.
+
+The [VS Code companion](../editors/vscode/README.md) uses this exact protocol
+for project discovery, diagnostics and Ctrl/Cmd+S validation. Open files through
+its GoSX Slides view to opt into those saves; ordinary local file tabs retain
+native VS Code behavior. Package it as a VSIX with the official VS Code
+packager. No Marketplace publication is implied.
