@@ -1,6 +1,8 @@
 package slides
 
 import (
+	"context"
+	"encoding/base64"
 	"fmt"
 	"html"
 	"math"
@@ -10,7 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
+
+	htmlParser "golang.org/x/net/html"
 )
 
 // export_island.go is the REAL-lane static exporter. It renders the deck through
@@ -24,6 +30,7 @@ import (
 type ExportOptions struct {
 	Format   string  // "spa" (default), "single", or "pdf"
 	Editable bool    // native text and supported SVG objects in PPTX
+	Notes    bool    // include speaker notes in a reading handout (explicit opt-in)
 	Capture  bool    // capture live graphics through Chrome for single/PDF
 	Steps    bool    // include every reveal/cue state in captured output
 	Seconds  float64 // video hold time per state (default 2)
@@ -53,8 +60,11 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	if opts.Editable && format != "pptx" {
 		return fmt.Errorf("--editable requires --format pptx")
 	}
-	if format != "" && format != "spa" && format != "single" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
-		return fmt.Errorf("unknown export format %q (use spa, single, pdf, frames, video, or pptx)", opts.Format)
+	if format != "" && format != "spa" && format != "single" && format != "handout" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
+		return fmt.Errorf("unknown export format %q (use spa, single, handout, pdf, frames, video, or pptx)", opts.Format)
+	}
+	if opts.Notes && format != "handout" {
+		return fmt.Errorf("--notes requires --format handout")
 	}
 	if opts.Seconds == 0 {
 		opts.Seconds = 2
@@ -64,6 +74,9 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	}
 	if opts.Seconds < 0.1 || opts.Seconds > 60 || math.IsNaN(opts.Seconds) || math.IsInf(opts.Seconds, 0) || opts.FPS < 1 || opts.FPS > 60 {
 		return fmt.Errorf("video seconds must be 0.1–60 and fps 1–60")
+	}
+	if (opts.Capture || opts.Steps) && format == "handout" {
+		return fmt.Errorf("handout is a reading document; --capture and --steps require single, pdf, frames, video, or pptx")
 	}
 	if opts.Capture || opts.Steps || format == "frames" || format == "video" || format == "pptx" {
 		if format == "" || format == "spa" {
@@ -103,8 +116,10 @@ func ExportStatic(dir string, opts ExportOptions) error {
 		return exportSPA(dir, deck, doc, out)
 	case "single":
 		return exportSingleSnapshot(deck, doc, out)
+	case "handout":
+		return exportHandout(deck, doc, out, opts.Notes)
 	case "pdf":
-		return exportPDF(dir, doc, out)
+		return exportPDF(deck, doc, out)
 	default:
 		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
 	}
@@ -126,7 +141,7 @@ const pdfPageStyle = `<style>@page { size: 1920px 1080px; margin: 0; }</style>`
 // the PDF needs no server and no wasm. out may be a .pdf file path or a
 // directory (then <out>/deck.pdf). Chrome is an OPTIONAL dependency: when no
 // binary is found the error says exactly what to install or set.
-func exportPDF(dir, doc, out string) error {
+func exportPDF(deck *IslandDeck, doc, out string) error {
 	chrome := os.Getenv("SLIDES_CHROME")
 	if chrome == "" {
 		for _, candidate := range pdfChromeCandidates {
@@ -153,44 +168,43 @@ func exportPDF(dir, doc, out string) error {
 		}
 		pdfPath = filepath.Join(out, "deck.pdf")
 	}
-	absPDF, err := filepath.Abs(pdfPath)
+	page, err := inlineSnapshotAssets(deck, stripIslandRuntime(doc))
 	if err != nil {
 		return err
 	}
-
-	// Stage the printable page in a temp dir; @page sizing goes in ahead of
-	// </head> so Chrome prints one 16:9 slide per PDF page.
-	tmp, err := os.MkdirTemp("", "slides-pdf-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmp)
-	page := relativizePublicPaths(stripIslandRuntime(doc))
 	page = strings.Replace(page, "</head>", pdfPageStyle+"</head>", 1)
-	if src := filepath.Join(dir, "public"); isDir(src) {
-		if err := copyTree(src, filepath.Join(tmp, "public")); err != nil {
-			return fmt.Errorf("stage pdf public assets: %w", err)
-		}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, page)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	browser, err := startCaptureBrowser(ctx)
+	if err != nil {
+		return fmt.Errorf("chrome pdf print: %w", err)
 	}
-	pagePath := filepath.Join(tmp, "deck.html")
-	if err := os.WriteFile(pagePath, []byte(page), 0o644); err != nil {
+	defer browser.close()
+	if err = browser.call("Page.navigate", map[string]any{"url": server.URL}, nil); err != nil {
 		return err
 	}
-
-	cmd := exec.Command(chrome,
-		"--headless=new", "--disable-gpu", "--no-first-run",
-		"--user-data-dir="+filepath.Join(tmp, "profile"),
-		"--no-pdf-header-footer", "--virtual-time-budget=10000",
-		"--print-to-pdf="+absPDF,
-		"file://"+pagePath,
-	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("chrome pdf print failed: %w\n%s", err, output)
+	if err = browser.wait(`document.readyState === 'complete' && !!window.SlidesNav`); err != nil {
+		return err
 	}
-	if info, err := os.Stat(absPDF); err != nil || info.Size() == 0 {
-		return fmt.Errorf("chrome exited cleanly but wrote no pdf at %s", absPDF)
+	if err = browser.eval(`(async()=>{if(document.fonts)await document.fonts.ready;await Promise.all(Array.from(document.images,image=>image.decode().catch(()=>{})));return true})()`, nil); err != nil {
+		return err
 	}
-	return nil
+	var result struct {
+		Data string `json:"data"`
+	}
+	if err = browser.call("Page.printToPDF", map[string]any{"printBackground": true, "preferCSSPageSize": true, "displayHeaderFooter": false}, &result); err != nil {
+		return err
+	}
+	data, err := base64.StdEncoding.DecodeString(result.Data)
+	if err != nil || len(data) == 0 {
+		return fmt.Errorf("chrome returned an invalid PDF")
+	}
+	return os.WriteFile(pdfPath, data, 0o644)
 }
 
 // gosxAbsRefRe matches a quoted absolute /gosx/ asset reference (attribute value
@@ -253,10 +267,74 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
 }
 
 func exportSingleSnapshot(deck *IslandDeck, doc, out string) error {
+	doc, err := inlineSnapshotAssets(deck, stripIslandRuntime(doc))
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(out, "deck.html"), []byte(stripIslandRuntime(doc)), 0o644)
+	return os.WriteFile(filepath.Join(out, "deck.html"), []byte(doc), 0o644)
+}
+
+func exportHandout(deck *IslandDeck, doc, out string, withNotes bool) error {
+	doc = stripIslandRuntime(doc)
+	root, err := htmlParser.Parse(strings.NewReader(doc))
+	if err != nil {
+		return err
+	}
+	var walk func(*htmlParser.Node)
+	walk = func(node *htmlParser.Node) {
+		if node.Type == htmlParser.ElementNode && node.Data == "aside" {
+			for _, attr := range node.Attr {
+				if attr.Key == "class" && strings.Contains(" "+attr.Val+" ", " slide-notes ") {
+					node.Parent.RemoveChild(node)
+					return
+				}
+			}
+		}
+		if node.Type == htmlParser.ElementNode && node.Data == "main" {
+			for _, attr := range node.Attr {
+				if attr.Key == "class" && strings.Contains(" "+attr.Val+" ", " deck ") {
+					node.Attr = append(node.Attr, htmlParser.Attribute{Key: "data-reading", Val: "1"})
+				}
+			}
+		}
+		if node.Type == htmlParser.ElementNode && node.Data == "section" && withNotes {
+			for _, attr := range node.Attr {
+				if attr.Key != "data-slide" {
+					continue
+				}
+				index, parseErr := strconv.Atoi(attr.Val)
+				if parseErr != nil || index < 0 || index >= len(deck.Slides) {
+					continue
+				}
+				if note := extractSlideNotes(deck.Slides[index]); note != "" {
+					aside := &htmlParser.Node{Type: htmlParser.ElementNode, Data: "aside", Attr: []htmlParser.Attribute{{Key: "class", Val: "handout-notes"}, {Key: "aria-label", Val: "Speaker notes"}}}
+					aside.AppendChild(&htmlParser.Node{Type: htmlParser.TextNode, Data: note})
+					node.AppendChild(aside)
+				}
+			}
+		}
+		for child := node.FirstChild; child != nil; {
+			next := child.NextSibling
+			walk(child)
+			child = next
+		}
+	}
+	walk(root)
+	var rendered strings.Builder
+	if err = htmlParser.Render(&rendered, root); err != nil {
+		return err
+	}
+	result, err := inlineSnapshotAssets(deck, rendered.String())
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(out, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(out, "handout.html"), []byte(result), 0o644)
 }
 
 var (

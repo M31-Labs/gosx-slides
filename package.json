@@ -6,7 +6,7 @@
     "test:browser": "node scripts/browser-ci.cjs ./slides"
   },
   "devDependencies": {
-    "mermaid": "12.0.0",
+    "mermaid": "12.1.0",
     "playwright": "1.58.2",
     "pngjs": "7.0.0"
   }

@@ -20,6 +20,7 @@ async function withServer(deck, port, run, flags=[]) {
 }
 function script(name, url) { const result=spawnSync(process.execPath,[path.join(__dirname,name),url],{stdio:'inherit',env:process.env}); assert.equal(result.status,0,name+' failed'); }
 (async()=>{
+  const reading = spawnSync(process.execPath, [path.join(__dirname, 'reading-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(reading.status, 0, 'reading browser failed');
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');

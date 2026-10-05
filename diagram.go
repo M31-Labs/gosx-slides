@@ -11,6 +11,8 @@ package slides
 // inline SVG is present in the initial HTML and works with display:none slides.
 
 import (
+	"encoding/xml"
+	"io"
 	"m31labs.dev/gosx"
 	"m31labs.dev/mdpp"
 	"m31labs.dev/sirena/fence"
@@ -56,7 +58,52 @@ func renderSirenaDiagram(source, theme, view, workspaceRoot string, diagram ...s
 			gosx.Attr("data-diagram-syntax", "sirena"),
 		),
 		gosx.RawHTML(string(res.SVG)),
+		gosx.El("details", gosx.Attrs(gosx.Attr("class", "diagram-description")),
+			gosx.El("summary", gosx.Text("Diagram text")),
+			gosx.El("p", gosx.Text(diagramVisibleText(string(res.SVG)))),
+		),
 	)
+}
+
+// Publish only rendered labels. A view can omit private actors and comments;
+// a reading transcript must not disclose the original architecture source.
+func diagramVisibleText(svg string) string {
+	decoder := xml.NewDecoder(strings.NewReader(svg))
+	var labels []string
+	var label strings.Builder
+	depth := 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return strings.Join(labels, " · ")
+		}
+		switch token := token.(type) {
+		case xml.StartElement:
+			if depth > 0 {
+				depth++
+			} else if token.Name.Local == "text" || token.Name.Local == "title" || token.Name.Local == "desc" {
+				depth = 1
+			}
+		case xml.CharData:
+			if depth > 0 {
+				label.Write(token)
+			}
+		case xml.EndElement:
+			if depth > 0 {
+				depth--
+				if depth == 0 {
+					if text := strings.Join(strings.Fields(label.String()), " "); text != "" {
+						labels = append(labels, text)
+					}
+					label.Reset()
+				}
+			}
+		}
+	}
+	return strings.Join(labels, " · ")
 }
 
 // deckHasDiagram reports whether any slide in d contains at least one
