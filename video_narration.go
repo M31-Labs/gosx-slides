@@ -3,6 +3,7 @@ package slides
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -21,12 +22,14 @@ const narrationCaptionLimit = 1 << 20
 const narrationFormats = "wav,mp3,aac,flac,ogg,mov,matroska,webm"
 
 type videoNarration struct {
-	dir           string
-	audio         string
-	audioDuration float64
-	captions      []byte
-	captionEnd    float64
-	video         string
+	dir             string
+	audio           string
+	audioDuration   float64
+	captions        []byte
+	captionEnd      float64
+	video           string
+	outputStage     string
+	keepOutputStage bool
 }
 
 func validateVideoNarrationOptions(opts ExportOptions, format string) error {
@@ -146,6 +149,28 @@ func (n *videoNarration) close() {
 	if n != nil && n.dir != "" {
 		os.RemoveAll(n.dir)
 	}
+	if n != nil && n.outputStage != "" && !n.keepOutputStage {
+		os.RemoveAll(n.outputStage)
+	}
+}
+
+func (n *videoNarration) stageVideo(output string) error {
+	if err := n.stageOutput(output); err != nil {
+		return err
+	}
+	n.video = filepath.Join(n.outputStage, "silent.webm")
+	return nil
+}
+func (n *videoNarration) stageOutput(output string) error {
+	if n.outputStage != "" {
+		return nil
+	}
+	dir, err := os.MkdirTemp(filepath.Dir(output), ".slides-video-*")
+	if err != nil {
+		return fmt.Errorf("stage video output: %w", err)
+	}
+	n.outputStage = dir
+	return nil
 }
 
 type videoCaption struct {
@@ -160,21 +185,123 @@ func (n *videoNarration) finish(ctx context.Context, ffmpeg, output string, dura
 	if n.captionEnd > duration+0.001 {
 		return fmt.Errorf("caption ends at %.3fs but video is %.3fs; adjust the VTT timings or increase --seconds", n.captionEnd, duration)
 	}
-	if n.audio != "" {
-		command := exec.CommandContext(ctx, ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", n.video, "-protocol_whitelist", "file,pipe", "-format_whitelist", narrationFormats, "-i", n.audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "libopus", "-af", "apad", "-t", strconv.FormatFloat(duration, 'f', 6, 64), "-f", "webm", output)
-		if logs, err := command.CombinedOutput(); err != nil {
-			return fmt.Errorf("mux narration: %w: %.1000s", err, logs)
-		}
-	}
 	captionData := n.captions
 	if len(captionData) == 0 {
 		captionData = authoredVideoVTT(cues)
 	}
+	captionPath := strings.TrimSuffix(output, filepath.Ext(output)) + ".vtt"
+	if len(captionData) > 0 && strings.EqualFold(filepath.Clean(captionPath), filepath.Clean(output)) {
+		return fmt.Errorf("video and caption output paths must differ")
+	}
+	if err := n.stageOutput(output); err != nil {
+		return err
+	}
+	stagedVideo := filepath.Join(n.outputStage, "complete.webm")
+	if n.audio != "" {
+		command := exec.CommandContext(ctx, ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-i", n.video, "-protocol_whitelist", "file,pipe", "-format_whitelist", narrationFormats, "-i", n.audio, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "libopus", "-af", "apad", "-t", strconv.FormatFloat(duration, 'f', 6, 64), "-f", "webm", stagedVideo)
+		if logs, err := command.CombinedOutput(); err != nil {
+			return fmt.Errorf("mux narration: %w: %.1000s", err, logs)
+		}
+	} else {
+		if filepath.Dir(n.video) == n.outputStage {
+			if err := os.Rename(n.video, stagedVideo); err != nil {
+				return fmt.Errorf("stage completed video: %w", err)
+			}
+		} else {
+			// Unit callers may supply a video staged on another filesystem.
+			if err := copyNarrationVideo(n.video, stagedVideo); err != nil {
+				return err
+			}
+		}
+	}
+	files := []videoPublication{{staged: stagedVideo, target: output}}
 	if len(captionData) != 0 {
-		path := strings.TrimSuffix(output, filepath.Ext(output)) + ".vtt"
-		if err := os.WriteFile(path, captionData, 0644); err != nil {
+		stagedCaption := filepath.Join(n.outputStage, "complete.vtt")
+		if err := os.WriteFile(stagedCaption, captionData, 0644); err != nil {
 			return fmt.Errorf("write captions: %w", err)
 		}
+		files = append(files, videoPublication{staged: stagedCaption, target: captionPath})
+	}
+	if err := publishVideoFiles(n.outputStage, files, os.Rename); err != nil {
+		n.keepOutputStage = true
+		return fmt.Errorf("publish video: %w; staged files retained at %s", err, n.outputStage)
+	}
+	return nil
+}
+
+func copyNarrationVideo(source, destination string) error {
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	output, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(output, input)
+	syncErr := output.Sync()
+	closeErr := output.Close()
+	return errors.Join(copyErr, syncErr, closeErr)
+}
+
+type videoPublication struct {
+	staged, target, backup string
+	published              bool
+}
+
+// Stage both files before replacing either. Backups support rollback and Windows
+// replacement, where Rename cannot overwrite an existing destination. A failed
+// rollback retains the private stage directory for recovery instead of deleting
+// the prior files. This transaction covers operation failures, not power loss.
+func publishVideoFiles(stage string, files []videoPublication, rename func(string, string) error) error {
+	for i := range files {
+		info, err := os.Lstat(files[i].target)
+		if err == nil {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("output must be a regular file: %s", files[i].target)
+			}
+			if err = os.Chmod(files[i].staged, info.Mode().Perm()); err != nil {
+				return err
+			}
+			files[i].backup = filepath.Join(stage, fmt.Sprintf("previous-%d", i))
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	rollback := func(cause error) error {
+		var failures []error
+		for i := len(files) - 1; i >= 0; i-- {
+			if files[i].published {
+				// Retain the completed replacement for recovery as well as the
+				// previous output; no new export data is discarded on rollback.
+				if err := rename(files[i].target, files[i].staged); err != nil {
+					failures = append(failures, err)
+					continue
+				}
+			}
+			if files[i].backup != "" {
+				if _, err := os.Lstat(files[i].backup); err == nil {
+					if err = rename(files[i].backup, files[i].target); err != nil {
+						failures = append(failures, err)
+					}
+				}
+			}
+		}
+		return errors.Join(append([]error{cause}, failures...)...)
+	}
+	for i := range files {
+		if files[i].backup != "" {
+			if err := rename(files[i].target, files[i].backup); err != nil {
+				return rollback(err)
+			}
+		}
+	}
+	for i := range files {
+		if err := rename(files[i].staged, files[i].target); err != nil {
+			return rollback(err)
+		}
+		files[i].published = true
 	}
 	return nil
 }

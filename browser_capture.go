@@ -282,9 +282,10 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			path = filepath.Join(out, "deck.webm")
 		}
 		videoOutput, videoFFmpeg = path, ffmpeg
-		if narration.video != "" {
-			path = narration.video
+		if err = narration.stageVideo(path); err != nil {
+			return err
 		}
+		path = narration.video
 		video = exec.CommandContext(ctx, ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "image2pipe", "-framerate", strconv.Itoa(opts.FPS), "-vcodec", "png", "-i", "pipe:0", "-an", "-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-deadline", "realtime", path)
 		video.Stderr = &videoLog
 		pipe, err = video.StdinPipe()
