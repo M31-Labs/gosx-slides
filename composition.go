@@ -32,6 +32,7 @@ func (d *IslandDeck) SourceLocation(start, end int) (SourceLocation, bool) {
 	if d == nil || start < 0 || end < start {
 		return SourceLocation{}, false
 	}
+	start, end = originalMarkdownOffset(d.sourceCRPositions, start), originalMarkdownOffset(d.sourceCRPositions, end)
 	if len(d.sourceSegments) == 0 {
 		if end <= len(d.Source) {
 			return SourceLocation{DeckFileName, start, end}, true
@@ -92,13 +93,34 @@ func markdownComments(src []byte) ([]*mdpp.Node, error) {
 		return nil, err
 	}
 	var comments []*mdpp.Node
+	removed := markdownCRPositions(src)
 	doc.AST().Walk(func(n *mdpp.Node) bool {
 		if n.Type == mdpp.NodeHTMLBlock && strings.HasPrefix(strings.TrimSpace(n.Literal), "<!--") {
-			comments = append(comments, n)
+			original := *n
+			original.Range.StartByte = originalMarkdownOffset(removed, n.Range.StartByte)
+			original.Range.EndByte = originalMarkdownOffset(removed, n.Range.EndByte)
+			comments = append(comments, &original)
 		}
 		return true
 	})
 	return comments, nil
+}
+
+// mdpp changes CRLF to LF before assigning ranges. Retain a sparse list of
+// removed CR offsets in normalized coordinates to recover original author bytes.
+// Lone CR becomes LF without changing byte length.
+func markdownCRPositions(src []byte) []int {
+	var removed []int
+	for i := 0; i+1 < len(src); i++ {
+		if src[i] == '\r' && src[i+1] == '\n' {
+			removed = append(removed, i-len(removed))
+		}
+	}
+	return removed
+}
+
+func originalMarkdownOffset(removed []int, offset int) int {
+	return offset + sort.Search(len(removed), func(i int) bool { return removed[i] > offset })
 }
 
 func (c *composition) append(src []byte, file string, original int) error {

@@ -1,6 +1,7 @@
 package slides
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -234,14 +235,50 @@ func InstallDeckPack(deckDir, sourceDir string) (PackManifest, error) {
 	if nested, err := filepath.Rel(root, filepath.Join(deckRoot, "packs", manifest.Name)); err == nil && safeDeckRelPath(nested) {
 		return manifest, fmt.Errorf("pack install destination must be outside its source directory")
 	}
-	if err := os.MkdirAll(filepath.Join(deckDir, "packs"), 0755); err != nil {
-		return manifest, err
-	}
-	staged, err := os.MkdirTemp(filepath.Join(deckDir, "packs"), ".install-")
+	deckDirectory, err := os.OpenRoot(deckRoot)
 	if err != nil {
 		return manifest, err
 	}
-	defer os.RemoveAll(staged)
+	defer deckDirectory.Close()
+	if info, err := deckDirectory.Lstat("packs"); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return manifest, fmt.Errorf("pack installation rejects a symlinked packs directory")
+	}
+	if err := deckDirectory.MkdirAll("packs", 0755); err != nil {
+		return manifest, err
+	}
+	packsDirectory, err := deckDirectory.OpenRoot("packs")
+	if err != nil {
+		return manifest, err
+	}
+	defer packsDirectory.Close()
+	lockName := ".install-" + manifest.Name + ".lock"
+	lock, err := packsDirectory.OpenFile(lockName, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return manifest, fmt.Errorf("pack installation is already in progress: %w", err)
+	}
+	lock.Close()
+	defer packsDirectory.Remove(lockName)
+	var nonce [12]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return manifest, err
+	}
+	stagedName := fmt.Sprintf(".install-%x", nonce)
+	if err := packsDirectory.Mkdir(stagedName, 0755); err != nil {
+		return manifest, err
+	}
+	defer packsDirectory.RemoveAll(stagedName)
+	stagedDirectory, err := packsDirectory.OpenRoot(stagedName)
+	if err != nil {
+		return manifest, err
+	}
+	defer stagedDirectory.Close()
+	sourceDirectory, err := os.OpenRoot(root)
+	if err != nil {
+		return manifest, err
+	}
+	defer sourceDirectory.Close()
+	var total int64
+	files := 0
 	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -254,23 +291,47 @@ func InstallDeckPack(deckDir, sourceDir string) (PackManifest, error) {
 			return fmt.Errorf("pack install rejects symlink %s", rel)
 		}
 		if entry.IsDir() {
-			return os.MkdirAll(filepath.Join(staged, rel), 0755)
+			return stagedDirectory.MkdirAll(rel, 0755)
 		}
 		if !entry.Type().IsRegular() {
 			return fmt.Errorf("pack install rejects non-regular file %s", rel)
 		}
-		return copyFile(filepath.Join(staged, rel), path)
+		files++
+		file, err := sourceDirectory.Open(rel)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return fmt.Errorf("pack source is not a regular file: %s", rel)
+		}
+		if info.Size() > snapshotAssetLimit || files > 4096 {
+			return fmt.Errorf("pack installation exceeds file/size budget (16 MiB each, 96 MiB total, 4096 files)")
+		}
+		data, err := io.ReadAll(io.LimitReader(file, snapshotAssetLimit+1))
+		if err != nil {
+			return err
+		}
+		if len(data) > snapshotAssetLimit {
+			return fmt.Errorf("pack source grew beyond size budget")
+		}
+		total += int64(len(data))
+		if total > snapshotTotalLimit {
+			return fmt.Errorf("pack installation exceeds the 96 MiB size budget")
+		}
+		return stagedDirectory.WriteFile(rel, data, 0644)
 	})
 	if err != nil {
 		return manifest, err
 	}
-	if _, err := readPackManifest(staged); err != nil {
+	if _, err := readPackManifest(filepath.Join(deckRoot, "packs", stagedName)); err != nil {
 		return manifest, err
 	}
-	if _, err := os.Lstat(destination); !os.IsNotExist(err) {
+	if _, err := packsDirectory.Lstat(manifest.Name); !os.IsNotExist(err) {
 		return manifest, fmt.Errorf("pack destination already exists: %s", destination)
 	}
-	if err := os.Rename(staged, destination); err != nil {
+	if err := packsDirectory.Rename(stagedName, manifest.Name); err != nil {
 		return manifest, err
 	}
 	return manifest, nil

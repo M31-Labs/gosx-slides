@@ -24,6 +24,54 @@ func writeCompositionFiles(t *testing.T, dir string, files map[string]string) {
 	}
 }
 
+func TestCompositionPreservesCRLFIncludesSectionsAndSourceLocations(t *testing.T) {
+	dir := t.TempDir()
+	root := "# Root\r\n\r\n<!-- root notes -->\r\n\r\n---\r\n\r\n<!-- slides:include parts/library.md#chosen -->\r\n\r\n---\r\n\r\n# Finish\r\n\r\n![Root](/public/root.svg)\r\n"
+	fragment := "<!-- slides:section skip -->\r\n# Skip\r\n\r\n<!-- slides:section chosen -->\r\n# Chosen\r\n\r\n![Child](child.svg)\r\n\r\n<!-- child notes -->\r\n"
+	writeCompositionFiles(t, dir, map[string]string{"deck.md": root, "parts/library.md": fragment, "parts/child.svg": "<svg></svg>"})
+	deck, err := LoadIslandDeck(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(deck.Source) != root || !strings.Contains(string(deck.ExpandedSource), "# Chosen\r\n") || strings.Contains(string(deck.ExpandedSource), "# Skip") {
+		t.Fatal("CRLF content changed or wrong section selected")
+	}
+	images := deck.Document.AST().Find(mdpp.NodeImage)
+	if len(images) != 2 {
+		t.Fatalf("images = %d", len(images))
+	}
+	for i, expected := range []struct{ file, source, image string }{{"parts/library.md", fragment, "![Child](child.svg)"}, {"deck.md", root, "![Root](/public/root.svg)"}} {
+		where, ok := deck.SourceLocation(images[i].Range.StartByte, images[i].Range.EndByte)
+		if !ok || where.File != expected.file || !strings.Contains(expected.source[where.StartByte:where.EndByte], expected.image) {
+			t.Fatalf("wrong original CRLF range: %+v %v", where, ok)
+		}
+	}
+	plain, err := parseIslandDeck(dir, []byte("# Plain\r\n\r\n![Root](/public/root.svg)\r\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	image := plain.Document.AST().Find(mdpp.NodeImage)[0]
+	where, ok := plain.SourceLocation(image.Range.StartByte, image.Range.EndByte)
+	if !ok || !strings.HasPrefix(string(plain.Source[where.StartByte:where.EndByte]), "![Root](/public/root.svg)") {
+		t.Fatalf("CRLF root range = %+v", where)
+	}
+}
+
+func TestPackInstallationRejectsSymlinkedDestinationParent(t *testing.T) {
+	source, deck, outside := t.TempDir(), t.TempDir(), t.TempDir()
+	writeCompositionFiles(t, source, map[string]string{"pack.json": `{"schema":1,"name":"labs","version":"1.0.0"}`})
+	if err := os.Symlink(outside, filepath.Join(deck, "packs")); err != nil {
+		t.Skip("symlink creation unavailable", err)
+	}
+	if _, err := InstallDeckPack(deck, source); err == nil {
+		t.Fatal("installed through outside packs symlink")
+	}
+	entries, err := os.ReadDir(outside)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("outside destination modified: %v %v", entries, err)
+	}
+}
+
 func TestCompositionIncludesSourceLocationsAndAssets(t *testing.T) {
 	dir := t.TempDir()
 	root := "# Intro\n\n<!-- root notes -->\n\n---\n\n<!-- slides:include sections/chapter.md#demo -->\n\n---\n\n# Finish\n\n:::motion {preset=fade}\nRoot motion\n:::\n"

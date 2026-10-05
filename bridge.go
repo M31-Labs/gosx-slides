@@ -78,6 +78,7 @@ type IslandDeck struct {
 	Includes          []string
 	Packs             []DeckPack
 	sourceSegments    []sourceSegment
+	sourceCRPositions []int
 	componentSources  map[string]string
 	compositionAssets map[string]string
 	packLayouts       map[string]bool
@@ -119,14 +120,15 @@ func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 	retainMotionFenceOptions(doc)
 
 	deck := &IslandDeck{
-		Dir:              dir,
-		Source:           src,
-		Document:         doc,
-		ExpandedSource:   composition.out,
-		Includes:         composition.files,
-		sourceSegments:   composition.segments,
-		componentSources: map[string]string{},
-		packLayouts:      map[string]bool{},
+		Dir:               dir,
+		Source:            src,
+		Document:          doc,
+		ExpandedSource:    composition.out,
+		Includes:          composition.files,
+		sourceSegments:    composition.segments,
+		sourceCRPositions: markdownCRPositions(composition.out),
+		componentSources:  map[string]string{},
+		packLayouts:       map[string]bool{},
 	}
 	if err := deck.loadPacks(); err != nil {
 		return nil, err
