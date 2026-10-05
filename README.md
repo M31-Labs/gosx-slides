@@ -757,8 +757,14 @@ Each generated Markdown/manifest stays within the editor's 1MiB source budget.
 See [the revision tour example](examples/architecture-history/README.md).
 
 See [the semantic story example](examples/semantic-story/README.md) for the
-manifest and indexing contract. Each slide currently supports one narrative
-diagram surface; story poses and an explicit scene Steps file are exclusive.
+manifest and indexing contract, and [the multi-surface example](examples/multi-surface-story/README.md)
+for coordinated diagrams, charts and native scenes. A slide supports up to eight
+named `:::story-surface {name=topology}` regions; each contains exactly one
+diagram, morph or Sirena scene. Beat `surfaces:` poses apply independently, and
+expectations use `topology/api` to qualify actors. Single unwrapped surfaces
+retain the original manifest contract. Story poses and an explicit scene Steps
+file remain exclusive. Browser metadata excludes private source paths/ranges;
+local inspection retains them.
 
 ### Audience variants
 

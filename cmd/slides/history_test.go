@@ -3,12 +3,65 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	slides "m31labs.dev/gosx-slides"
 )
+
+func TestGitHistoryCLIRecordsActualRevisionPrivately(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("optional Git tool unavailable")
+	}
+	dir := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		data, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("fixture Git: %s %v", data, err)
+		}
+		return strings.TrimSpace(string(data))
+	}
+	git("init")
+	var commits []string
+	for _, source := range []string{"service api\n", "service api\njob worker\napi -> worker\n"} {
+		if err := os.WriteFile(filepath.Join(dir, "model.sir"), []byte(source), 0644); err != nil {
+			t.Fatal(err)
+		}
+		git("add", "model.sir")
+		git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "model")
+		commits = append(commits, git("rev-parse", "HEAD"))
+	}
+	manifest := filepath.Join(t.TempDir(), "history.yaml")
+	content := "version: 1\nsnapshots:\n  - id: initial\n    revision: HEAD~1\n    path: model.sir\n    source: PRIVATE authored metadata\n  - id: queued\n    revision: HEAD\n    path: model.sir\n"
+	if err := os.WriteFile(manifest, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "tour")
+	if err := run([]string{"tour", "history", manifest, "--repo", dir, "--out", out}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := os.ReadFile(filepath.Join(out, "tour.json"))
+	var tour slides.ArchitectureHistoryTour
+	if err != nil || json.Unmarshal(report, &tour) != nil || !strings.HasPrefix(tour.Snapshots[0].Source, commits[0]+":model.sir") || tour.Snapshots[1].Source != commits[1]+":model.sir" {
+		t.Fatal("report lost resolved commit provenance", string(report), err)
+	}
+	markdown, err := os.ReadFile(filepath.Join(out, "deck.md"))
+	if err != nil || strings.Contains(string(markdown), "PRIVATE") || strings.Contains(string(markdown), commits[0]) {
+		t.Fatal("public deck contains private provenance", err)
+	}
+	if runtime.GOOS != "windows" {
+		for _, name := range []string{"tour.json", "curation.json"} {
+			info, err := os.Stat(filepath.Join(out, name))
+			if err != nil || info.Mode().Perm() != 0600 {
+				t.Fatal("private report permissions", name, err)
+			}
+		}
+	}
+}
 
 func historyFixture(t *testing.T) (string, string) {
 	t.Helper()

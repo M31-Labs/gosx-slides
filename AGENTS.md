@@ -149,7 +149,10 @@ publish into a fresh folder to avoid retaining older private material.
 `cue`. Effects are absolute: `focus`, `reveal`, directed `trace`, native
 `camera`, code block/line selection, DOM `show`/`hide`, `caption`, `durationMs`
 and `expect` labels/visibility. Omitted effects restore baseline. A diagram
-slide has one story surface; authored scene Steps and story poses are exclusive.
+slide accepts one unwrapped surface or up to eight named `story-surface` regions,
+each with one Sirena diagram/morph or native scene. Named `surfaces:` poses and
+`surface/actor` assertions coordinate independently. Authored scene Steps and
+story poses remain exclusive.
 See `examples/semantic-story`. Compilation supports 1000 beats; rendered
 assertions support 100 beats and a two-minute Chrome deadline. Exact authored
 beat captions override slide captions in recordings/video, including empty cues.
