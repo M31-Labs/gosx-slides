@@ -28,14 +28,16 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format   string  // "spa" (default), "single", or "pdf"
-	Editable bool    // native text and supported SVG objects in PPTX
-	Notes    bool    // include speaker notes in a reading handout (explicit opt-in)
-	Capture  bool    // capture live graphics through Chrome for single/PDF
-	Steps    bool    // include every reveal/cue state in captured output
-	Seconds  float64 // video hold time per state (default 2)
-	FPS      int     // video sampling rate (default 15)
-	OutDir   string  // output directory (default "dist"); for pdf, may be a .pdf path
+	Format    string  // "spa" (default), "single", or "pdf"
+	Editable  bool    // native text and supported SVG objects in PPTX
+	Notes     bool    // include speaker notes in a reading handout (explicit opt-in)
+	Narration string  // deck-relative narration audio for video (short audio pads with silence)
+	Captions  string  // deck-relative authored WebVTT file for video
+	Capture   bool    // capture live graphics through Chrome for single/PDF
+	Steps     bool    // include every reveal/cue state in captured output
+	Seconds   float64 // video hold time per state (default 2)
+	FPS       int     // video sampling rate (default 15)
+	OutDir    string  // output directory (default "dist"); for pdf, may be a .pdf path
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -57,6 +59,9 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if err := validateVideoNarrationOptions(opts, format); err != nil {
+		return err
+	}
 	if opts.Editable && format != "pptx" {
 		return fmt.Errorf("--editable requires --format pptx")
 	}

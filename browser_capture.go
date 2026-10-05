@@ -195,6 +195,11 @@ const captureReady = `async function waitFor(test) {
 // Capture exports use the same served runtime, including shaders and Scene3D.
 // Every selected state is visited and checked before pixels are read.
 func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
+	narration, err := prepareVideoNarration(context.Background(), deck, opts)
+	if err != nil {
+		return err
+	}
+	defer narration.close()
 	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true})
 	if err != nil {
 		return err
@@ -261,6 +266,8 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 	var pipe io.WriteCloser
 	var videoLog bytes.Buffer
 	videoFrames := 0
+	videoOutput, videoFFmpeg := "", ""
+	var videoCaptions []videoCaption
 	if opts.Format == "video" {
 		ffmpeg, err := exec.LookPath("ffmpeg")
 		if err != nil {
@@ -269,6 +276,10 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		path := out
 		if filepath.Ext(out) == "" {
 			path = filepath.Join(out, "deck.webm")
+		}
+		videoOutput, videoFFmpeg = path, ffmpeg
+		if narration.video != "" {
+			path = narration.video
 		}
 		video = exec.CommandContext(ctx, ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "image2pipe", "-framerate", strconv.Itoa(opts.FPS), "-vcodec", "png", "-i", "pipe:0", "-an", "-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-deadline", "realtime", path)
 		video.Stderr = &videoLog
@@ -307,6 +318,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			}
 			if opts.Format == "video" {
 				frameCount := int(math.Ceil(opts.Seconds * float64(opts.FPS)))
+				videoCaptions = append(videoCaptions, videoCaption{StartMS: videoFrames * 1000 / opts.FPS, EndMS: (videoFrames + frameCount) * 1000 / opts.FPS, Text: slideRecordingCaption(slide)})
 				videoFrames += frameCount
 				if videoFrames > 18000 {
 					return fmt.Errorf("video export supports at most 18000 frames; reduce --seconds, --fps, or steps")
@@ -380,7 +392,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		if err = video.Wait(); err != nil {
 			return fmt.Errorf("ffmpeg video encode: %w: %.1000s", err, videoLog.String())
 		}
-		return nil
+		return narration.finish(ctx, videoFFmpeg, videoOutput, float64(videoFrames)/float64(opts.FPS), videoCaptions)
 	}
 	if pptx != nil {
 		return pptx.finish(deck.title())
