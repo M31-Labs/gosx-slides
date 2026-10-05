@@ -1,0 +1,7 @@
+service api { sid: "api" }
+queue pending { sid: "queue" }
+job worker { sid: "worker" }
+database store { sid: "store" }
+api -> pending : accept
+pending -> worker : drain
+worker -> store : write

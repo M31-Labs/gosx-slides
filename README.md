@@ -740,6 +740,22 @@ for other steps. `ArchitectureTour` compares parsed Sirena actors, boundaries
 and relationships using stable `sid` identity, producing a Markdown diagram
 morph and its story manifest in a fresh runnable deck directory.
 
+`slides tour history examples/architecture-history/history.yaml --out my-tour`
+turns 2–32 authored Sirena revisions into one runnable tour. Stable revision IDs
+keep your explanations attached to the same transition on regeneration. Pass
+`--curation my-tour/curation.json` to preserve edited captions, including an
+intentionally empty caption. Removed explanations remain in the private report;
+a changed predecessor requires an explicit curation update.
+
+Snapshots may instead declare `revision: HEAD~2` with a repository-relative
+`.sir` path; pass `--repo /path/to/local/repo`. Git input resolves to immutable
+commit hashes, ignores working changes and replacement objects, rejects symlink
+tree entries, and disables textconv and all transport protocols. Missing objects
+fail locally. `tour.json` records actual commit/path and content hashes; it and
+`curation.json` use owner-only permissions and are excluded from publication.
+Each generated Markdown/manifest stays within the editor's 1MiB source budget.
+See [the revision tour example](examples/architecture-history/README.md).
+
 See [the semantic story example](examples/semantic-story/README.md) for the
 manifest and indexing contract. Each slide currently supports one narrative
 diagram surface; story poses and an explicit scene Steps file are exclusive.

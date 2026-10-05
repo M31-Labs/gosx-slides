@@ -1,0 +1,13 @@
+version: 1
+title: From a service to a resilient pipeline
+curation: curation.yaml
+snapshots:
+  - id: initial
+    path: initial.sir
+    label: A synchronous service
+  - id: queued
+    path: queued.sir
+    label: Introduce a work queue
+  - id: resilient
+    path: resilient.sir
+    label: Persist work and isolate failures

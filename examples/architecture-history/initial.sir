@@ -1,0 +1,3 @@
+service api { sid: "api" }
+database store { sid: "store" }
+api -> store : write

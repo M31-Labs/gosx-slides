@@ -1,0 +1,10 @@
+version: 1
+explanations:
+  queued:
+    from: initial
+    beforeCaption: Requests wait for every downstream task.
+    afterCaption: A queue absorbs bursts while the worker drains at its own pace.
+  resilient:
+    from: queued
+    beforeCaption: Queuing changes latency, but work still needs a recovery path.
+    afterCaption: Persist accepted jobs before execution so failures can be retried.

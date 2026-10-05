@@ -581,6 +581,8 @@ Commands:
   doctor [deck-dir] [--json]                             deck health + serve prerequisites
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
   runtime pack [deck-dir] --out <fresh-dir> [--json]       package a version-matched portable browser runtime
+  tour history <history.yaml> [--repo local-repo] [--curation file] [--out fresh-dir] [--json]
+                                       create a curated revision tour
   packs [deck-dir] [--json]                              enabled local theme/component packs
   pack install <source-dir> [deck-dir]                   vendor a validated pack; enable its exact pin in headmatter
   audiences [deck-dir] [--json]                          list named content variants
