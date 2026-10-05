@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +148,55 @@ func TestSimulationReplayRejectsBrokenRestoreAndBounds(t *testing.T) {
 		return &largeSimulation{size: 65536, snapshot: true}, nil
 	}, config, nil); err == nil || !strings.Contains(err.Error(), "16 MiB") {
 		t.Fatalf("checkpoint budget not enforced: %v", err)
+	}
+}
+
+func TestSimulationReplaySerializesFactoryAcrossBranches(t *testing.T) {
+	allocations := 0
+	factory := func(config SimulationConfig) (sim.Simulation, error) {
+		// The closure may own an allocator/resource pool. Returned simulation
+		// states are fresh, but creating them must serialize across branches.
+		allocations++
+		runtime.Gosched()
+		return particleFactory(2)(config)
+	}
+	config := SimulationConfig{Seed: 42, TickRate: 30, Ticks: 60, CheckpointEvery: 10}
+	parent, err := NewSimulationReplay(factory, config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := parent.Branch(20, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grandchild, err := child.Branch(30, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for _, replay := range []*SimulationReplay{parent, child, grandchild} {
+		wg.Add(1)
+		go func(replay *SimulationReplay) {
+			defer wg.Done()
+			for tick := 0; tick < 40; tick++ {
+				if _, err := replay.Seek(tick); err != nil {
+					t.Error(err)
+				}
+			}
+		}(replay)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 12; i++ {
+			if _, err := parent.Branch(10, nil); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
+	wg.Wait()
+	if allocations != 150 {
+		t.Fatalf("lost factory allocations across branch families: got %d want 150", allocations)
 	}
 }
 

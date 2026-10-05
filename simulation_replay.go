@@ -37,7 +37,8 @@ type SimulationCheckpoint struct {
 // absolute presentation seeking, without Runner's wall-clock loop or unbounded
 // recorder. It owns copied inputs, checkpoints and reference state frames.
 type SimulationReplay struct {
-	mu          sync.Mutex // factories may close over non-thread-safe resources
+	mu          sync.Mutex  // serializes seeks on this replay
+	factoryMu   *sync.Mutex // all descendants share the factory resource guard
 	config      SimulationConfig
 	factory     SimulationFactory
 	inputs      []SimulationInput
@@ -48,13 +49,17 @@ type SimulationReplay struct {
 const maxSimulationBytes = 16 << 20
 
 func NewSimulationReplay(factory SimulationFactory, config SimulationConfig, inputs []SimulationInput) (*SimulationReplay, error) {
+	return newSimulationReplay(factory, config, inputs, new(sync.Mutex))
+}
+
+func newSimulationReplay(factory SimulationFactory, config SimulationConfig, inputs []SimulationInput, factoryMu *sync.Mutex) (*SimulationReplay, error) {
 	if factory == nil || config.TickRate < 1 || config.TickRate > 120 || config.Ticks < 1 || config.Ticks > 3600 || config.CheckpointEvery < 1 || config.CheckpointEvery > 240 {
 		return nil, fmt.Errorf("simulation needs a factory, 1–120 ticks/second, 1–3600 ticks and 1–240 checkpoint spacing")
 	}
 	if len(inputs) > 512 {
 		return nil, fmt.Errorf("simulation supports at most 512 logged inputs")
 	}
-	r := &SimulationReplay{config: config, factory: factory}
+	r := &SimulationReplay{config: config, factory: factory, factoryMu: factoryMu}
 	for _, input := range inputs {
 		if input.Tick < 1 || input.Tick > config.Ticks || len(input.Actor) == 0 || len(input.Actor) > 64 || !utf8.ValidString(input.Actor) || len(input.Data) > 4096 {
 			return nil, fmt.Errorf("simulation input has an invalid tick, actor or payload (maximum 4 KiB)")
@@ -73,7 +78,7 @@ func NewSimulationReplay(factory SimulationFactory, config SimulationConfig, inp
 			return nil, fmt.Errorf("duplicate simulation input for actor %q at tick %d", r.inputs[i].Actor, r.inputs[i].Tick)
 		}
 	}
-	s, err := factory(config)
+	s, err := r.newModel()
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +115,12 @@ func NewSimulationReplay(factory SimulationFactory, config SimulationConfig, inp
 	return r, nil
 }
 
+func (r *SimulationReplay) newModel() (sim.Simulation, error) {
+	r.factoryMu.Lock()
+	defer r.factoryMu.Unlock()
+	return r.factory(r.config)
+}
+
 func (r *SimulationReplay) tickInputs(tick int) map[string]sim.Input {
 	inputs := map[string]sim.Input{}
 	for _, input := range r.inputs {
@@ -131,7 +142,7 @@ func (r *SimulationReplay) Seek(tick int) ([]byte, error) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	s, err := r.factory(r.config)
+	s, err := r.newModel()
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +185,7 @@ func (r *SimulationReplay) Branch(tick int, future []SimulationInput) (*Simulati
 		}
 		inputs = append(inputs, input)
 	}
-	branch, err := NewSimulationReplay(r.factory, r.config, inputs)
+	branch, err := newSimulationReplay(r.factory, r.config, inputs, r.factoryMu)
 	if err != nil {
 		return nil, err
 	}
