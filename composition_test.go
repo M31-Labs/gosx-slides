@@ -210,8 +210,13 @@ func TestCompositionFragmentComponentsAndConflicts(t *testing.T) {
 	if _, _, err := deck.CompileComponent("Widget"); err != nil {
 		t.Fatal(err)
 	}
-	if got := DeckComponents(deck)[0].Path; got != filepath.Join(dir, "a", "Widget.gsx") {
-		t.Fatalf("path=%s", got)
+	componentInfo, err := os.Stat(DeckComponents(deck)[0].Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedInfo, err := os.Stat(filepath.Join(dir, "a", "Widget.gsx"))
+	if err != nil || !os.SameFile(componentInfo, expectedInfo) {
+		t.Fatalf("component resolved to a different file: %s (%v)", DeckComponents(deck)[0].Path, err)
 	}
 	writeCompositionFiles(t, dir, map[string]string{
 		"deck.md":      "<!-- slides:include a/part.md -->\n\n---\n\n<!-- slides:include b/part.md -->\n",

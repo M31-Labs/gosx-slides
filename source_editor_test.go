@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -17,6 +19,10 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 	path := filepath.Join(dir, DeckFileName)
 	initial := "# Original\n\nOriginal text\n"
 	if err := os.WriteFile(path, []byte(initial), 0640); err != nil {
+		t.Fatal(err)
+	}
+	originalInfo, err := os.Stat(path)
+	if err != nil {
 		t.Fatal(err)
 	}
 	deck, err := LoadIslandDeck(dir)
@@ -73,7 +79,7 @@ func TestSourceEditorSaveValidationAndRevision(t *testing.T) {
 		t.Fatal("saved recovery differs from displaced source", err)
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0640 {
+	if info.Mode().Perm() != originalInfo.Mode().Perm() {
 		t.Fatal("changed file permissions")
 	}
 	if code := put("# Stale", state["revision"], state["token"], "http://localhost"); code != 409 {
@@ -209,6 +215,18 @@ func TestSourceSavePreservesConcurrentExternalWrites(t *testing.T) {
 				}
 				defer file.Close()
 				if err := save.capture(sourceRevision([]byte(initial))); err != nil {
+					// Windows handles opened by os.OpenFile deny rename while open.
+					// A rejected capture must leave the live source untouched.
+					if runtime.GOOS == "windows" && (errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.Errno(32))) {
+						got, readErr := os.ReadFile(path)
+						if readErr != nil || string(got) != initial {
+							t.Fatal("rejected capture changed live source", readErr)
+						}
+						if _, statErr := os.Stat(save.previous); !errors.Is(statErr, os.ErrNotExist) {
+							t.Fatal("rejected capture displaced source", statErr)
+						}
+						return
+					}
 					t.Fatal(err)
 				}
 				if err := file.Truncate(0); err != nil {

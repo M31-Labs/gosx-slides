@@ -122,7 +122,7 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 			}
 			data = []byte(updated)
 		}
-		kind := mime.TypeByExtension(filepath.Ext(path))
+		kind := snapshotAssetMIME(filepath.Ext(path))
 		if kind == "" {
 			kind = "application/octet-stream"
 		}
@@ -198,6 +198,22 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 		} else {
 			out.WriteString(raw)
 		}
+	}
+}
+
+// Font registrations depend on the host OS. Keep exported data URLs portable.
+func snapshotAssetMIME(extension string) string {
+	switch strings.ToLower(extension) {
+	case ".woff2":
+		return "font/woff2"
+	case ".woff":
+		return "font/woff"
+	case ".ttf":
+		return "font/ttf"
+	case ".otf":
+		return "font/otf"
+	default:
+		return mime.TypeByExtension(extension)
 	}
 }
 

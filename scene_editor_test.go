@@ -87,6 +87,10 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 	deck := sceneEditingDeck(t)
 	path := filepath.Join(deck.Dir, "steps.json")
 	os.Chmod(path, 0640)
+	originalInfo, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	app, err := deck.NewServer(ServeOptions{Edit: true})
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +145,7 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 		t.Fatal("cue save was not persisted")
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0640 {
+	if info.Mode().Perm() != originalInfo.Mode().Perm() {
 		t.Fatal("cue file permissions changed")
 	}
 	recovery, _ := filepath.Glob(filepath.Join(deck.Dir, ".slides-history-*", "steps.json"))

@@ -81,7 +81,7 @@ func TestDeckDir(t *testing.T) {
 	if d := deckDir(nil); d != "." {
 		t.Errorf("no arg -> %q, want .", d)
 	}
-	if d := deckDir([]string{"some/path/deck.md"}); d != "some/path" {
+	if d := deckDir([]string{"some/path/deck.md"}); d != filepath.Join("some", "path") {
 		t.Errorf("deck.md path -> %q, want parent dir", d)
 	}
 	if d := deckDir([]string{"my-deck"}); d != "my-deck" {
