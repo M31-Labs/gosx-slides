@@ -270,6 +270,8 @@ func navScript() string {
     if (!s) return;
     s.style.transform = 'none';
     var avail = window.innerHeight;
+    var caption = deck.querySelector('.slides-story-caption:not([hidden])');
+    if (caption && caption.offsetHeight > 0) avail = Math.max(1, Math.min(avail, caption.getBoundingClientRect().top - 12));
     var natural = s.scrollHeight; // forces reflow -> accurate
     // Content that intrudes into the slide's own bottom padding (the
     // caption-safe band) never grows scrollHeight, so also measure the real
@@ -319,6 +321,7 @@ func navScript() string {
   window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitSlide, 120); });
   window.addEventListener('load', fitSlide); // re-fit once webfonts settle
   deck.addEventListener('slides:studio-layout', fitSlide);
+  deck.addEventListener('slides:caption-layout', fitSlide);
 
   var controls = document.createElement('nav'); controls.className = 'deck-controls'; controls.setAttribute('aria-label', 'Presentation controls');
   function control(label, text, action) {

@@ -20,7 +20,25 @@
     if (!visible(beat, id, actor, fallback)) return 0;
     return actor && beat?.focus?.length && !beat.focus.includes(id) ? .2 : 1;
   }
-  const caption = document.createElement('p'); caption.className = 'slides-story-caption'; caption.setAttribute('aria-live', 'polite'); caption.hidden = true; deck.appendChild(caption);
+  const caption = document.createElement('p'); caption.className = 'slides-story-caption'; caption.setAttribute('aria-live', 'polite'); caption.setAttribute('aria-label', 'Story caption'); caption.tabIndex = 0; caption.hidden = true; deck.appendChild(caption);
+  let layoutFrame = 0;
+  function captionLayout() {
+    layoutFrame = 0;
+    const controls = deck.querySelector('.deck-controls'), bounds = controls?.getBoundingClientRect();
+    const reserve = 2.7 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const bottom = bounds?.height ? Math.max(reserve, innerHeight - bounds.top + 12) : reserve;
+    caption.style.bottom = bottom + 'px';
+    deck.dispatchEvent(new Event('slides:caption-layout'));
+  }
+  function scheduleCaptionLayout() { if (!layoutFrame) layoutFrame = requestAnimationFrame(captionLayout); }
+  if (window.ResizeObserver) {
+    const observer = new ResizeObserver(scheduleCaptionLayout); observer.observe(caption);
+    const controls = deck.querySelector('.deck-controls'); if (controls) observer.observe(controls);
+  }
+  window.addEventListener('resize', scheduleCaptionLayout); window.addEventListener('load', scheduleCaptionLayout);
+  caption.addEventListener('keydown', event => {
+    if (caption.scrollHeight > caption.clientHeight && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) event.stopPropagation();
+  });
   function seek(ms) {
     const slide = active(); if (!slide) return;
     const beat = current(), previous = beats.get((SlidesNav.current() - 1) + ':' + (SlidesNav.step() - 1));
@@ -50,8 +68,10 @@
       if (selected) { line.style.opacity = beat.code.lines.includes(row + 1) ? '1' : '.25'; line.dataset.storyCode = String(beat.code.lines.includes(row + 1)); }
       else { line.style.opacity = base.opacity; delete line.dataset.storyCode; }
     }));
-    const text = beat?.caption || ''; if (caption.textContent !== text) caption.textContent = text;
+    const text = beat?.caption || '', changed = caption.textContent !== text || caption.hidden !== !text;
+    if (caption.textContent !== text) caption.textContent = text;
     caption.hidden = !text;
+    if (changed) scheduleCaptionLayout();
     if (beat) slide.dataset.storyCue = beat.cue; else delete slide.dataset.storyCue;
   }
   function target(id) {

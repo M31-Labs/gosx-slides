@@ -5,6 +5,17 @@ const { spawn } = require('node:child_process');
 const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
 const binary = path.resolve(process.argv[2] || './slides');
 
+async function captionFits(page) {
+  await page.waitForFunction(() => {
+    const caption=document.querySelector('.slides-story-caption'),controls=document.querySelector('.deck-controls');
+    if(!caption || caption.hidden)return false;
+    const box=caption.getBoundingClientRect(),toolbar=controls.getBoundingClientRect();
+    const content=Array.from(document.querySelectorAll('.deck-active h1,.deck-active h2,.deck-active h3,.deck-active p,.deck-active pre,.deck-active figure,.deck-active .slide-graphic,.deck-active .mdpp-diagram')).filter(el=>!el.closest('.slide-notes')&&el.getBoundingClientRect().height>0);
+    const bottom=Math.max(0,...content.map(el=>el.getBoundingClientRect().bottom));
+    return box.left>=0 && box.right<=innerWidth && Math.abs((box.left+box.right)/2-innerWidth/2)<1 && box.bottom+8<=toolbar.top && bottom+8<=box.top;
+  },undefined,{timeout:5000});
+}
+
 async function withServer(deck, port, run) {
   const server = spawn(binary, ['serve', deck, '--port', String(port)], { stdio: ['ignore', 'ignore', 'inherit'] });
   let exited = false; server.once('exit', () => { exited = true; });
@@ -62,6 +73,7 @@ async function withServer(deck, port, run) {
       assert.equal(completed.camera.z, 12);
       assert.deepEqual(completed.assertion.errors, []);
       assert.equal(await page.locator('[data-story-id="completion"]').isVisible(), true);
+      await captionFits(page);
       await page.screenshot({ path: path.join(output, 'semantic-story-native.png') });
       await page.evaluate(() => SlidesNav.show(1, 0, true));
       const overview = await sample(0);
@@ -107,7 +119,23 @@ async function withServer(deck, port, run) {
       const bounds = await page.locator('.slides-story-caption').boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390 && bounds.y + bounds.height < 844, 'mobile captions fit the viewport');
       assert.deepEqual(await page.evaluate(() => SlidesStory.assertCurrent().errors), []);
+      await captionFits(page);
       await page.screenshot({ path: path.join(output, 'semantic-story-mobile.png') });
+      await page.setViewportSize({width:320,height:720});
+      await captionFits(page);
+      await page.screenshot({path:path.join(output,'semantic-story-mobile-320.png')});
+      await page.evaluate(()=>{SlidesStory.current().caption+=' More detail about this narrated beat.'.repeat(80);SlidesStory.seek(900);});
+      await captionFits(page);
+      const cueBeforeScroll=await page.evaluate(()=>SlidesStory.current().cue);
+      await page.locator('.slides-story-caption').focus();
+      await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(()=>document.querySelector('.slides-story-caption').scrollTop>0);
+      assert.equal(await page.evaluate(()=>SlidesStory.current().cue),cueBeforeScroll,'scrolling a long caption does not advance cues');
+      await page.emulateMedia({media:'print'});
+      assert.equal(await page.locator('.slides-story-caption').isVisible(),false,'print hides captions');
+      await page.emulateMedia({media:'screen'});
+      await page.evaluate(()=>document.querySelector('main.deck').classList.add('deck-reading'));
+      assert.equal(await page.locator('.slides-story-caption').isVisible(),false,'reading hides captions');
       await page.close();
     });
     assert.deepEqual(errors, []);
