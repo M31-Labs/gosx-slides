@@ -16,6 +16,11 @@ func testRuntimeBundle(t *testing.T) (string, RuntimeBundle) {
 	wasm := make([]byte, 1<<20)
 	copy(wasm, []byte("\x00asm\x01\x00\x00\x00"))
 	files := map[string][]byte{"gosx-runtime.wasm": wasm, "wasm_exec.js": []byte("test wasm bridge"), "patch.js": []byte("test patch"), "bootstrap.js": []byte("test bootstrap"), "bootstrap-lite.js": []byte("test lite"), "bootstrap-runtime.js": []byte("test runtime")}
+	for _, name := range requiredRuntimeBundleAssets {
+		if _, ok := files[name]; !ok {
+			files[name] = []byte("test feature")
+		}
+	}
 	manifest := RuntimeBundle{Version: 1, GoSXVersion: gosxScaffoldVersion(), GoVersion: "go1.26", Assets: make(map[string]RuntimeBundleAsset)}
 	for name, content := range files {
 		sum := sha256.Sum256(content)
@@ -66,7 +71,7 @@ func TestBundledRuntimeServesWithoutGoOrModule(t *testing.T) {
 }
 
 func TestBundledRuntimeRejectsCorruptionBeforeChangingDeck(t *testing.T) {
-	for _, kind := range []string{"hash", "version", "path", "missing", "size"} {
+	for _, kind := range []string{"hash", "version", "path", "missing", "feature", "size", "test"} {
 		t.Run(kind, func(t *testing.T) {
 			bundle, manifest := testRuntimeBundle(t)
 			switch kind {
@@ -80,6 +85,10 @@ func TestBundledRuntimeRejectsCorruptionBeforeChangingDeck(t *testing.T) {
 				manifest.Assets["../bootstrap-escape.js"] = manifest.Assets["patch.js"]
 			case "missing":
 				delete(manifest.Assets, "bootstrap.js")
+			case "feature":
+				delete(manifest.Assets, "bootstrap-feature-scene3d-gltf.js")
+			case "test":
+				manifest.Assets["bootstrap-runtime.test.js"] = manifest.Assets["patch.js"]
 			case "size":
 				asset := manifest.Assets["patch.js"]
 				asset.Size = 96 << 20

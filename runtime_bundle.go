@@ -18,6 +18,18 @@ import (
 const runtimeBundleManifest = "bundle.json"
 const maxRuntimeBundleBytes = 96 << 20
 
+// The pinned GoSX release's production modules. Validate the complete set so
+// a damaged installation fails before a slide first requests an optional chunk.
+var requiredRuntimeBundleAssets = []string{
+	"gosx-runtime.wasm", "wasm_exec.js", "patch.js", "bootstrap.js", "bootstrap-lite.js", "bootstrap-runtime.js",
+	"bootstrap-feature-controllers.js", "bootstrap-feature-engines.js", "bootstrap-feature-hubs.js",
+	"bootstrap-feature-islands.js", "bootstrap-feature-textlayout.js", "bootstrap-feature-scene3d.js",
+	"bootstrap-feature-scene3d-animation.js", "bootstrap-feature-scene3d-command.js", "bootstrap-feature-scene3d-compute.js",
+	"bootstrap-feature-scene3d-decompress.js", "bootstrap-feature-scene3d-gltf.js", "bootstrap-feature-scene3d-hydrate.js",
+	"bootstrap-feature-scene3d-instance-stream.js", "bootstrap-feature-scene3d-walk.js",
+	"bootstrap-feature-scene3d-webgl.js", "bootstrap-feature-scene3d-webgpu.js",
+}
+
 // RuntimeBundle identifies a release's portable client runtime. Assets are
 // integrity checked before any deck files are changed. No downloads are made.
 type RuntimeBundle struct {
@@ -39,7 +51,7 @@ type loadedRuntimeBundle struct {
 
 func runtimeBundleAssetName(name string) bool {
 	return name == "gosx-runtime.wasm" || name == "wasm_exec.js" || name == "patch.js" ||
-		(strings.HasPrefix(name, "bootstrap") && strings.HasSuffix(name, ".js") && filepath.Base(name) == name && !strings.ContainsAny(name, `/\\`))
+		(strings.HasPrefix(name, "bootstrap") && strings.HasSuffix(name, ".js") && !strings.HasSuffix(name, ".test.js") && filepath.Base(name) == name && !strings.ContainsAny(name, `/\\`))
 }
 
 func runtimeBundlePath() (string, bool, error) {
@@ -113,10 +125,10 @@ func readRuntimeBundle(dir string) (*loadedRuntimeBundle, error) {
 	if manifest.Version != 1 || manifest.GoSXVersion != gosxScaffoldVersion() || manifest.GoVersion == "" || binaryGoSXReplaced() {
 		return nil, fmt.Errorf("bundled runtime does not match this binary's GoSX %s; use --rebuild with Go for custom runtimes", gosxScaffoldVersion())
 	}
-	if len(manifest.Assets) < 6 || len(manifest.Assets) > 64 {
-		return nil, fmt.Errorf("bundled runtime needs 6–64 assets")
+	if len(manifest.Assets) < len(requiredRuntimeBundleAssets) || len(manifest.Assets) > 64 {
+		return nil, fmt.Errorf("bundled runtime needs %d–64 assets", len(requiredRuntimeBundleAssets))
 	}
-	for _, name := range []string{"gosx-runtime.wasm", "wasm_exec.js", "patch.js", "bootstrap.js", "bootstrap-lite.js", "bootstrap-runtime.js"} {
+	for _, name := range requiredRuntimeBundleAssets {
 		if _, ok := manifest.Assets[name]; !ok {
 			return nil, fmt.Errorf("bundled runtime omits %s", name)
 		}
