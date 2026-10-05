@@ -631,8 +631,18 @@ Tokens grant shared roles rather than verified personal identities.
 
 GoSX stores encrypted, signed, HttpOnly, SameSite=Strict cookies for eight hours.
 Unsafe requests also require its session CSRF token, alongside the existing
-revision and authoring-token checks for saves. A random session key invalidates
-sessions on restart; `--session-secret-file` supplies a stable key when desired.
+revision and authoring-token checks for saves. Each login has an absolute
+eight-hour expiry. **Leave presentation room** clears the cookie and revokes all
+editor sockets for that login immediately; changing roles or rejoining also
+revokes the previous login. Copied old cookies remain rejected after restart.
+A random session key invalidates sessions on restart;
+`--session-secret-file` preserves active logins when the secret and room tokens
+stay the same. Rotating either invalidates previous logins. Private
+`.slides-sessions.json` stores at most 256 active login grants in the deck folder;
+keep it and `.slides-session-*.tmp` out of version control and published assets.
+Session changes require writable private storage. If revocation cannot be
+persisted, room access fails closed; repair storage and restart with a new
+session secret before accepting logins.
 Plain HTTP requires the explicit `--session-http` flag for trusted local use.
 The watch proxy stays local and cannot be combined with sessions or TLS.
 
