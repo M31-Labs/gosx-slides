@@ -81,7 +81,8 @@ func ArchitectureTourHistory(snapshots []ArchitectureSnapshot, options Architect
 	}
 	seen := map[string]bool{}
 	total := 0
-	for _, snapshot := range snapshots {
+	publicSourceBytes := 0
+	for i, snapshot := range snapshots {
 		if !architectureRevisionID.MatchString(snapshot.ID) || seen[snapshot.ID] {
 			return result, fmt.Errorf("snapshot ID %q must be unique and 1–48 ASCII identifier characters", snapshot.ID)
 		}
@@ -91,6 +92,14 @@ func ArchitectureTourHistory(snapshots []ArchitectureSnapshot, options Architect
 		total += len(snapshot.Sirena)
 		if total > 4<<20 {
 			return result, fmt.Errorf("architecture history source exceeds 4 MiB")
+		}
+		copies := 1
+		if i > 0 && i < len(snapshots)-1 {
+			copies = 2
+		}
+		publicSourceBytes += copies * len(strings.TrimSpace(string(snapshot.Sirena)))
+		if publicSourceBytes > maxSourceBytes {
+			return result, fmt.Errorf("generated architecture history exceeds the 1 MiB per-file authoring limit")
 		}
 		seen[snapshot.ID] = true
 		hash := sha256.Sum256(snapshot.Sirena)
@@ -177,8 +186,8 @@ func ArchitectureTourHistory(snapshots []ArchitectureSnapshot, options Architect
 		return result, err
 	}
 	result.Markdown, result.StoryYAML = markdown.String(), string(encoded)
-	if len(result.Markdown) > 9<<20 {
-		return result, fmt.Errorf("generated architecture history exceeds 9 MiB")
+	if len(result.Markdown) > maxSourceBytes || len(result.StoryYAML) > maxSourceBytes {
+		return result, fmt.Errorf("generated architecture history exceeds the 1 MiB per-file authoring limit")
 	}
 	return result, nil
 }

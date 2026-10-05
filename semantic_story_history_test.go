@@ -88,3 +88,16 @@ func TestArchitectureHistoryRejectsReorderedCurationAndBounds(t *testing.T) {
 		})
 	}
 }
+
+func TestArchitectureHistoryRejectsOutputBeyondAuthoringLimit(t *testing.T) {
+	// Both inputs fit individually. Repeating snapshots in the rendered history
+	// must not create a deck that its own source editor refuses to open or save.
+	source := []byte("service api\n" + strings.Repeat("// This is an authored snapshot comment.\n", 14000))
+	if len(source) > maxSourceBytes {
+		t.Fatal("fixture exceeds individual source limit")
+	}
+	_, err := ArchitectureTourHistory([]ArchitectureSnapshot{{ID: "v1", Sirena: source}, {ID: "v2", Sirena: source}}, ArchitectureTourOptions{})
+	if err == nil || !strings.Contains(err.Error(), "per-file authoring limit") {
+		t.Fatal("oversized generated deck accepted", err)
+	}
+}
