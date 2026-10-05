@@ -40,7 +40,9 @@ async function withServer(deck, port, run) {
     const graph = fs.readFileSync('examples/semantic-story/request.sir', 'utf8');
     const manifest = fs.readFileSync('examples/semantic-story/story.yaml', 'utf8');
     fs.writeFileSync(path.join(fixture, 'deck.md'), original.replace('<Scene3D Src="request.sir" />', '```sirena\n' + graph + '```'));
-    fs.writeFileSync(path.join(fixture, 'story.yaml'), manifest.replace(/^    camera:.*\n/gm, ''));
+    const svgManifest = manifest.replace(/^    camera:[^\r\n]*\r?\n/gm, '');
+    assert.doesNotMatch(svgManifest, /^    camera:/m, 'SVG story fixture must remove native camera commands with LF or CRLF input');
+    fs.writeFileSync(path.join(fixture, 'story.yaml'), svgManifest);
     // Reuse staged test runtime when present; production does not need Node.
     if (fs.existsSync('examples/semantic-story/build')) fs.cpSync('examples/semantic-story/build', path.join(fixture, 'build'), { recursive: true });
     const errors = [];
