@@ -16,7 +16,7 @@ func TestVideoNarrationOptionsAndAssetContainment(t *testing.T) {
 			t.Fatal("narration accepted outside video export")
 		}
 	}
-	for _, path := range []string{"../voice.wav", "/tmp/voice.wav"} {
+	for _, path := range []string{"../voice.wav", "/tmp/voice.wav", `\voice.wav`} {
 		if err := validateVideoNarrationOptions(ExportOptions{Narration: path}, "video"); err == nil {
 			t.Fatalf("escape accepted: %s", path)
 		}

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
-const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const { launchTestBrowser } = require('./test-browser.cjs');
 
 (async () => {
   const binary = path.resolve(process.argv[2] || './slides');
@@ -21,7 +21,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
       if (attempt >= 120) throw Error('Reading fixture startup timed out');
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    browser = await chromium.launch({ args: ['--no-sandbox'], ...(process.env.SLIDES_BROWSER ? { executablePath: process.env.SLIDES_BROWSER } : {}) });
+    browser = await launchTestBrowser({ args: ['--no-sandbox'] });
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto('http://127.0.0.1:8137/?read');

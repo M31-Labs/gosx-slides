@@ -1,9 +1,9 @@
 // Run against examples/navigation-lab. Playwright is an optional test dependency.
-const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const { launchTestBrowser } = require('./test-browser.cjs');
 const assert = require('node:assert/strict');
 
 async function check() {
-  const browser = await chromium.launch({
+  const browser = await launchTestBrowser({
     ...(process.env.SLIDES_BROWSER ? { executablePath: process.env.SLIDES_BROWSER } : {}),
     args: ['--enable-unsafe-swiftshader'],
   });

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -234,7 +235,7 @@ func TestImportPPTXCommonContentLiteralSafety(t *testing.T) {
 		t.Fatal("private original notes published as a public asset", err)
 	}
 	info, err := os.Stat(filepath.Join(dest, "imported-notes-2.txt"))
-	if err != nil || info.Mode().Perm() != 0600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0600) {
 		t.Fatal("original notes must remain private", err)
 	}
 	if notes := extractSlideNotes(deck.Slides[1]); !strings.Contains(notes, "-- >") || !strings.Contains(notes, "Chart notes") {

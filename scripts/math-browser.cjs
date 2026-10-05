@@ -7,6 +7,7 @@ const http = require('node:http');
 const { pathToFileURL } = require('node:url');
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const { launchTestBrowser } = require('./test-browser.cjs');
 
 const binary = path.resolve(process.argv[2] || './slides');
 const fixture = fs.mkdtempSync(path.resolve('testdata/math-browser-'));
@@ -78,7 +79,7 @@ async function assertMath(page, url, offline) {
 }
 
 (async () => {
-  const browser = await chromium.launch(process.env.SLIDES_BROWSER ? { executablePath: process.env.SLIDES_BROWSER } : {});
+  const browser = await launchTestBrowser();
   let server, staticServer;
   try {
     // Initial semantics survive disabled JavaScript as well.
