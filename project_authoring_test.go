@@ -3,7 +3,9 @@ package slides
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -170,6 +172,59 @@ func TestAuthorProjectSequentialRepairAndGeneratedReports(t *testing.T) {
 	}
 }
 
+func TestAuthorProjectPrivateCredentialNames(t *testing.T) {
+	p, dir := authorProjectFixture(t)
+	for _, file := range []string{"credentials.json", "service-account.json", "client_secret.json", "client-secrets.json", "secrets.json", "Credentials.JSON", "sections/credentials.json"} {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte(`{"private_key":"PRIVATE-CREDENTIAL"}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Read(file); err == nil {
+			t.Fatalf("credential read accepted: %s", file)
+		}
+	}
+	index, err := p.List()
+	if err != nil || len(index.Files) != 4 {
+		t.Fatalf("credentials entered author discovery: %+v %v", index, err)
+	}
+	snapshot, err := p.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for file, raw := range snapshot.data {
+		if strings.Contains(string(raw), "PRIVATE-CREDENTIAL") {
+			t.Fatalf("credential copied into validation snapshot: %s", file)
+		}
+	}
+}
+
+func TestAuthorProjectRejectsSpecialFilesBeforeOpen(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named pipes use a separate Windows namespace")
+	}
+	p, dir := authorProjectFixture(t)
+	for _, name := range []string{"pipe.png", "pipe.gsx"} {
+		file := filepath.Join(dir, name)
+		if err := exec.Command("mkfifo", file).Run(); err != nil {
+			t.Skipf("FIFO unavailable: %v", err)
+		}
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = projectReadRegular(root, name, maxSourceBytes)
+		root.Close()
+		if err == nil {
+			t.Fatal("special file opened")
+		}
+		if _, err := p.List(); err == nil {
+			t.Fatal("special file accepted by discovery")
+		}
+		if err := os.Remove(file); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestAuthorProjectSymlinksLimitsAndDraftKinds(t *testing.T) {
 	p, dir := authorProjectFixture(t)
 	outside := t.TempDir()
@@ -226,26 +281,28 @@ func TestAuthorProjectSymlinksLimitsAndDraftKinds(t *testing.T) {
 
 func TestAuthorProjectExportExcludesPrivateState(t *testing.T) {
 	p, dir := authorProjectFixture(t)
-	output, err := p.ExportSnapshot("handout")
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(output["file"])))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, secret := range []string{"PRIVATE-NOTES", "PRIVATE-DRAFT", "PRIVATE-BUILD", "<!-- notes -->"} {
-		if strings.Contains(string(raw), secret) {
-			t.Errorf("private export %s", secret)
+	for _, format := range []string{"single", "handout"} {
+		output, err := p.ExportSnapshot(format)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	if !strings.Contains(string(raw), "Detail") {
-		t.Fatal("handout missing included content")
+		raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(output["file"])))
+		if err != nil || len(raw) == 0 {
+			t.Fatalf("returned %s artifact is unavailable: %v", format, err)
+		}
+		for _, secret := range []string{"PRIVATE-NOTES", "PRIVATE-DRAFT", "PRIVATE-BUILD", "<!-- notes -->"} {
+			if strings.Contains(string(raw), secret) {
+				t.Errorf("private %s export %s", format, secret)
+			}
+		}
+		if !strings.Contains(string(raw), "Detail") {
+			t.Fatalf("%s missing included content", format)
+		}
+		if _, err := p.Read(output["file"]); err == nil {
+			t.Fatal("generated private output exposed as source")
+		}
 	}
 	if _, err := p.ExportSnapshot("video"); err == nil {
 		t.Fatal("external capture allowed")
-	}
-	if _, err := p.Read(output["file"]); err == nil {
-		t.Fatal("generated private output exposed as source")
 	}
 }

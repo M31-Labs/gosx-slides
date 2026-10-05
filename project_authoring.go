@@ -109,6 +109,10 @@ func projectPathAllowed(name string) bool {
 		if strings.HasPrefix(part, ".") || lower == "build" || lower == "dist" || lower == "node_modules" || lower == "private" || lower == "secrets" || lower == "migration" || lower == "tour.json" {
 			return false
 		}
+		switch lower {
+		case "credentials.json", "service-account.json", "client_secret.json", "client-secrets.json", "secrets.json":
+			return false
+		}
 	}
 	switch strings.ToLower(path.Ext(name)) {
 	case ".pem", ".key", ".p12", ".pfx", ".env":
@@ -169,6 +173,9 @@ func projectReadRegular(root *os.Root, name string, limit int64) ([]byte, os.Fil
 			return nil, 0, projectFailure(403, "project files cannot use symlinks or nonregular paths")
 		}
 		expected = info
+	}
+	if expected == nil || !expected.Mode().IsRegular() {
+		return nil, 0, projectFailure(403, "project files must be regular files")
 	}
 	file, err := root.Open(name)
 	if err != nil {

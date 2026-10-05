@@ -88,7 +88,7 @@ func (p *AuthorProject) ExportSnapshot(format string) (map[string]string, error)
 		return nil, err
 	}
 	committed = true
-	entry := "index.html"
+	entry := "deck.html"
 	if format == "handout" {
 		entry = "handout.html"
 	}

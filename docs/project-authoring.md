@@ -37,8 +37,10 @@ Keep recovery directories until you have reconciled external edits.
 Bounds are 512 validation files, 64 MiB total, 1 MiB per editable source and
 16 MiB per supporting asset. The browser retains at most eight file drafts
 and a shared 16 MiB undo budget. Discovery ignores symlinks, hidden files,
-`build/`, `dist/`, `node_modules/`, `private/`, `secrets/` and key/certificate
-files. Public assets and pinned packs may be copied for validation but are
+`build/`, `dist/`, `node_modules/`, `private/`, `secrets/`, generated migration
+provenance and `tour.json`. Nonregular files, key/certificate files and known
+credential JSON basenames are refused. Public assets and pinned packs may be
+copied for validation but are
 not editable project sources. Store credentials outside the deck or in an
 excluded private location, rather than in ordinary author JSON/YAML files.
 
