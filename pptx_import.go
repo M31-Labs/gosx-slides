@@ -328,10 +328,10 @@ func ImportPPTX(source, destination string) (PPTXImportReport, error) {
 				if text != "" {
 					if strings.Contains(text, "-->") {
 						filename := fmt.Sprintf("imported-notes-%d.txt", slideNumber)
-						if e = os.WriteFile(filepath.Join(stage, "public", filename), []byte(text), 0644); e != nil {
+						if e = os.WriteFile(filepath.Join(stage, filename), []byte(text), 0600); e != nil {
 							return report, e
 						}
-						addWarning(slideNumber, "notes-delimiter-escaped", "Comment delimiter in notes escaped; original notes saved in public/"+filename)
+						addWarning(slideNumber, "notes-delimiter-escaped", "Comment delimiter in notes escaped; original notes retained privately in "+filename)
 						text = strings.ReplaceAll(text, "-->", "-- >")
 					}
 					deck.WriteString("<!-- Imported speaker notes:\n" + text + " -->\n")

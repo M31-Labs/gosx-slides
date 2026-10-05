@@ -227,8 +227,32 @@ func TestImportPPTXCommonContentLiteralSafety(t *testing.T) {
 			t.Errorf("missing warning %s", code)
 		}
 	}
-	if notes, err := os.ReadFile(filepath.Join(dest, "public", "imported-notes-2.txt")); err != nil || !strings.Contains(string(notes), "-->") {
+	if notes, err := os.ReadFile(filepath.Join(dest, "imported-notes-2.txt")); err != nil || !strings.Contains(string(notes), "-->") {
 		t.Fatal("original notes not preserved")
+	}
+	if _, err := os.Stat(filepath.Join(dest, "public", "imported-notes-2.txt")); !os.IsNotExist(err) {
+		t.Fatal("private original notes published as a public asset", err)
+	}
+	info, err := os.Stat(filepath.Join(dest, "imported-notes-2.txt"))
+	if err != nil || info.Mode().Perm() != 0600 {
+		t.Fatal("original notes must remain private", err)
+	}
+	if notes := extractSlideNotes(deck.Slides[1]); !strings.Contains(notes, "-- >") || !strings.Contains(notes, "Chart notes") {
+		t.Fatal("escaped presenter notes lost their text", notes)
+	}
+	// SPA copies only public assets; the private recovery sidecar must never
+	// become an audience download, even when ordinary presenter notes export.
+	if err := os.Mkdir(filepath.Join(dest, "build"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	if err := exportSPA(dest, deck, "<html><head></head><body>Audience deck</body></html>", out); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"imported-notes-2.txt", filepath.Join("public", "imported-notes-2.txt")} {
+		if _, err := os.Stat(filepath.Join(out, path)); !os.IsNotExist(err) {
+			t.Fatal("SPA exposed private note sidecar", path, err)
+		}
 	}
 	if _, err = os.Stat(filepath.Join(dest, "go.mod")); err != nil {
 		t.Fatal("imported deck not portable")
