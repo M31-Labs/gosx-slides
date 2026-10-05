@@ -382,7 +382,7 @@ func codeBlockNode(lang, source, highlights string) gosx.Node {
 		b.WriteString(strconv.Itoa(len(steps)))
 	}
 	b.WriteString(`"><code>`)
-	if !isDiff && len(steps) == 0 {
+	if !isDiff && len(steps) == 0 && highlights != storyCodeLines {
 		// No emphasis, not a diff: the original single-string path (one highlighted
 		// block, no per-line wrappers) — byte-identical to the pre-emphasis behavior.
 		b.WriteString(highlight.HTML(normalized, source))

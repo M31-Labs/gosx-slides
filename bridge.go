@@ -74,14 +74,17 @@ type IslandDeck struct {
 
 	// ExpandedSource is the composed Markdown parsed by Document. Source stays
 	// the author's deck.md, so editing APIs never save generated include text.
-	ExpandedSource    []byte
-	Includes          []string
-	Packs             []DeckPack
-	sourceSegments    []sourceSegment
-	sourceCRPositions []int
-	componentSources  map[string]string
-	compositionAssets map[string]string
-	packLayouts       map[string]bool
+	ExpandedSource      []byte
+	Includes            []string
+	Packs               []DeckPack
+	sourceSegments      []sourceSegment
+	sourceCRPositions   []int
+	componentSources    map[string]string
+	compositionAssets   map[string]string
+	packLayouts         map[string]bool
+	Story               *CompiledStory
+	storySceneSteps     map[string][]byte
+	storyExcludedSlides map[string]bool // audience selection omits already-validated beats
 
 	// Document is the parsed (and slide-split) mdpp document.
 	Document *mdpp.Document
@@ -147,6 +150,9 @@ func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 		})
 	}
 	if err := deck.resolveDeckComponents(); err != nil {
+		return nil, err
+	}
+	if err := attachSemanticStory(deck); err != nil {
 		return nil, err
 	}
 

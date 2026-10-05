@@ -480,6 +480,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
 		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
+		gosx.RawHTML(semanticStoryAssets(d)),
 	)
 }
 
