@@ -66,12 +66,14 @@ const { launchTestBrowser }=require('./test-browser.cjs');
 
     // Hold an unsent local edit while the other editor advances enough states
     // to evict its base. The rejected splice keeps every local character.
+    for (const page of [a,b]) await page.waitForFunction(()=>!document.querySelector('.slides-team-draft').disabled && !SlidesTeam.state().pending);
     const held=await b.evaluate(()=>SlidesTeam.state().text)+'\nPreserved local tail';
     await b.evaluate(text=>{
       const original=WebSocket.prototype.send;window.releaseTeamEdit=null;
       WebSocket.prototype.send=function(data){if(JSON.parse(data).event==='team:edit'){window.releaseTeamEdit=()=>{WebSocket.prototype.send=original;original.call(this,data);};return;}return original.call(this,data);};
       const input=document.querySelector('.slides-team-draft');input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));SlidesTeam.flush();
     },held);
+    await b.waitForFunction(()=>typeof window.releaseTeamEdit==='function');
     for(let i=0;i<10;i++){const text=await a.evaluate(()=>SlidesTeam.state().text);await setDraft(a,'Prefix '+i+'\n'+text,true);await a.waitForFunction(()=>!SlidesTeam.state().pending);}
     await b.evaluate(()=>releaseTeamEdit());await b.waitForFunction(()=>SlidesTeam.state().paused);
     assert.equal(await b.evaluate(()=>SlidesTeam.state().text),held);
