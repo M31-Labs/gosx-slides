@@ -1,4 +1,4 @@
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
@@ -35,6 +35,68 @@ async function fakeCapture(page) {
       recordingTest.contexts.push(audio); recordingTest.streams.push(destination.stream); return grant(destination.stream);
     };
   });
+}
+
+function captionCues(vtt) {
+  const milliseconds = time => {
+    const [hours,minutes,seconds] = time.split(':').map(Number);
+    return Math.round((hours*3600+minutes*60+seconds)*1000);
+  };
+  return vtt.trim().split(/\r?\n\r?\n/).filter(block=>/^\d+\r?\n/.test(block)).map(block=>{
+    const lines=block.split(/\r?\n/),times=lines[1].split(' --> ');
+    return {start:milliseconds(times[0]),end:milliseconds(times[1]),text:lines.slice(2).join('\n')};
+  });
+}
+
+async function authoredBeatCaptions(browser,binary,fixture) {
+  const dir=path.join(fixture,'story-captions');fs.mkdirSync(path.join(dir,'public'),{recursive:true});
+  const text='Authored <tag> & "voice" --> 界.', escaped='Authored &lt;tag&gt; &amp; "voice" --&gt; 界.';
+  fs.writeFileSync(path.join(dir,'deck.md'),'---\ntitle: Story caption recording\ntheme: swiss\ntransition: none\noffline-required: true\nstory: story.yaml\n---\n\n```yaml\nid: narrated\ncues: intro, silent, reprise\n```\n\n# Story title is not speech\n\nA cue-specific explanation.\n\n<!-- PRIVATE_STORY_NOTE_CANARY -->\n\n---\n\n```yaml\nid: fallback\ncaption: Slide metadata fallback\n```\n\n# Fallback title is not speech\n\nFallback explanation.\n\n<!-- PRIVATE_FALLBACK_NOTE_CANARY -->\n');
+  fs.writeFileSync(path.join(dir,'story.yaml'),'version: 1\nbeats:\n  - slide: narrated\n    cue: intro\n    durationMs: 0\n    caption: '+JSON.stringify(text)+'\n  - slide: narrated\n    cue: silent\n    durationMs: 0\n    caption: ""\n  - slide: narrated\n    cue: reprise\n    durationMs: 0\n    caption: Second explicit story beat\n');
+  const reserve=http.createServer();await new Promise(resolve=>reserve.listen(0,'127.0.0.1',resolve));
+  const port=reserve.address().port;await new Promise(resolve=>reserve.close(resolve));
+  const server=spawn(binary,['serve',dir,'--port',String(port)],{stdio:['ignore','ignore','inherit']});
+  const page=await browser.newPage();await fakeCapture(page);
+  try {
+    const url='http://127.0.0.1:'+port+'/';
+    for(let attempt=0;;attempt++) { try {if((await fetch(url)).ok)break;}catch(_){}if(attempt>200 || server.exitCode!==null)throw Error('Story-caption server did not start');await new Promise(resolve=>setTimeout(resolve,100)); }
+    await page.goto(url);await page.waitForFunction(()=>window.SlidesRecording?.supported && window.SlidesStory);
+    await page.evaluate(()=>SlidesRecording.start());
+    await page.waitForTimeout(350);
+    await page.evaluate(()=>SlidesNav.show(0,1,true));await page.waitForTimeout(350);
+    await page.evaluate(()=>SlidesNav.show(0,2,true));await page.waitForTimeout(350);
+    await page.evaluate(()=>SlidesNav.show(1,0,true));await page.waitForTimeout(350);
+    await page.evaluate(()=>SlidesRecording.stop());await page.waitForFunction(()=>SlidesRecording.state().phase==='ready');
+    const result=await page.evaluate(()=>{const r=SlidesRecording.result();return {vtt:r.vtt,timeline:r.timeline,size:r.video.size};});
+    assert.ok(result.size>1000);assert.equal(result.timeline.captionKind,'authored');
+    assert.deepEqual(result.timeline.navigation.map(event=>[event.slide,event.step]),[[1,0],[1,1],[1,2],[2,0]]);
+    const cues=captionCues(result.vtt);
+    assert.deepEqual(cues.map(cue=>cue.text),[escaped,'Second explicit story beat','Slide metadata fallback'],'actual recording sidecar prefers exact story beats and falls back on other slides');
+    const silent=result.timeline.navigation[1],reprise=result.timeline.navigation[2];
+    assert.equal(cues[0].end,silent.timeMs);assert.equal(cues[1].start,reprise.timeMs);
+    assert.ok(cues[1].start-cues[0].end>=300,'explicit blank caption must create a real silent gap');
+    assert.ok(!result.vtt.includes('PRIVATE_')&&!result.vtt.includes('title is not speech'),'notes and titles never become authored captions');
+    const downloading=page.waitForEvent('download');await page.getByRole('link',{name:'Download captions',exact:true}).click();
+    const download=await downloading;assert.equal(await download.failure(),null);
+    assert.equal(fs.readFileSync(await download.path(),'utf8'),result.vtt,'the downloaded VTT contains the actual authored beat captions');
+
+    // The CLI exercises real captured states and narration muxing, not only the
+    // metadata selector. Caption timing must retain the explicitly blank beat.
+    const ffmpeg=process.env.SLIDES_FFMPEG || 'ffmpeg';
+    const audio=spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','sine=frequency=440:duration=1.2','-ar','22050','-c:a','pcm_s16le',path.join(dir,'public','narration.wav')],{encoding:'utf8'});
+    assert.equal(audio.status,0,'creating bounded narration fixture: '+audio.stderr);
+    const output=path.join(fixture,'story-narrated.webm');
+    const exported=spawn(binary,['export',dir,'--format','video','--steps','--seconds','0.3','--fps','10','--narration','public/narration.wav','--out',output],{env:process.env,stdio:['ignore','pipe','pipe']});
+    let log='';for(const stream of [exported.stdout,exported.stderr])stream.on('data',data=>{log=(log+data).slice(-16000);});
+    const code=await new Promise((resolve,reject)=>{exported.once('error',reject);exported.once('exit',resolve);});
+    assert.equal(code,0,'narrated story video export: '+log);
+    const videoVTT=fs.readFileSync(output.replace(/\.webm$/,'.vtt'),'utf8'),videoCues=captionCues(videoVTT);
+    assert.deepEqual(videoCues,[{start:0,end:300,text:escaped},{start:600,end:900,text:'Second explicit story beat'},{start:900,end:1200,text:'Slide metadata fallback'}],'exported narration captions preserve authored beat timing and the empty beat');
+    assert.ok(!videoVTT.includes('PRIVATE_')&&!videoVTT.includes('title is not speech'));
+    const probe=spawnSync(process.env.SLIDES_FFPROBE || 'ffprobe',['-v','error','-show_streams','-of','json',output],{encoding:'utf8'});
+    assert.equal(probe.status,0,probe.stderr);const streams=JSON.parse(probe.stdout).streams;
+    assert.ok(streams.some(stream=>stream.codec_type==='video')&&streams.some(stream=>stream.codec_type==='audio'),'actual exported artifact must contain video and narration streams');
+  } finally {await page.close();server.kill('SIGTERM');}
 }
 
 (async () => {
@@ -159,7 +221,8 @@ async function fakeCapture(page) {
     const noDevices=await browser.newPage();await fakeCapture(noDevices);await noDevices.addInitScript(()=>{navigator.mediaDevices.getUserMedia=undefined;});await noDevices.goto(url);
     await noDevices.getByRole('button',{name:'Record presentation',exact:true}).click();
     assert.equal(await noDevices.getByLabel('Include microphone').isDisabled(),true);assert.equal(await noDevices.getByLabel('Include a camera inset').isDisabled(),true);
-    console.log('Recording browser checks passed: decoded WebM screen/camera pixels with microphone tracks, navigation/authored VTT, downloads, denial/cancellation/automatic stop cleanup, support gating and responsive dialog.');
+    await authoredBeatCaptions(browser,binary,fixture);
+    console.log('Recording browser checks passed: decoded WebM screen/camera/microphone, actual per-beat VTT download and narrated-video caption gaps/escaping/fallback, private-note exclusion, denial/cancellation/stop cleanup, support gating and responsive dialog.');
   } finally {
     if(browser)await browser.close();server.kill('SIGTERM');fs.rmSync(fixture,{recursive:true,force:true});
   }
