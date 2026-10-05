@@ -925,17 +925,37 @@ func stageDeckIslandPrograms(deck *IslandDeck) error {
 	}
 
 	islandDir := filepath.Join(absDeckDir, "build", "islands")
+	for _, path := range []string{filepath.Dir(islandDir), islandDir} {
+		info, err := os.Lstat(path)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("preflight island build dir: %w", err)
+		}
+		if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+			return fmt.Errorf("island build dir contains symlink or incompatible path: %s", path)
+		}
+	}
 	if err := os.MkdirAll(islandDir, 0o755); err != nil {
 		return fmt.Errorf("create island build dir: %w", err)
 	}
 
-	// Clear any previously-staged island JSON so a renamed/removed component does
-	// not leave a stale, serveable file behind.
-	if entries, err := os.ReadDir(islandDir); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-				_ = os.Remove(filepath.Join(islandDir, entry.Name()))
-			}
+	// This directory contains only the flat JSON programs staged here. Reject
+	// unsupported artifacts before cleanup rather than publishing nested or old
+	// binary programs, or removing files whose ownership is unclear.
+	entries, err := os.ReadDir(islandDir)
+	if err != nil {
+		return fmt.Errorf("read island build dir: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), ".json") {
+			return fmt.Errorf("unsupported artifact in island build dir: %s; use a fresh build/islands directory", filepath.Join(islandDir, entry.Name()))
+		}
+	}
+	// Cleanup failures must stop the export: a leftover program may belong only
+	// to slides excluded from the selected audience.
+	for _, entry := range entries {
+		path := filepath.Join(islandDir, entry.Name())
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove stale island program %s: %w", path, err)
 		}
 	}
 

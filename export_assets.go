@@ -18,6 +18,11 @@ type exportAsset struct {
 	source, destination string
 }
 
+func managedIslandAsset(relative string) bool {
+	relative = strings.ToLower(filepath.ToSlash(relative))
+	return strings.HasPrefix(relative, "islands/") || strings.HasPrefix(relative, "assets/islands/")
+}
+
 // Reuse the installed GoSX public policy rather than duplicating its secret,
 // state, path and symlink rules. HEAD reads no asset body into this recorder.
 func exportPublicPolicy(directory string) func(string) bool {
@@ -134,6 +139,22 @@ func planSPAAssets(directory string, deck *IslandDeck, output string, includeNot
 	if err != nil {
 		return nil, fmt.Errorf("preflight runtime assets: %w", err)
 	}
+	// Slides stages only flat, named JSON programs for compiled components. Do
+	// not publish unknown nested/hashed artifacts from a previous GoSX build.
+	compiled, _ := deck.compileComponents()
+	programs := make(map[string]bool, len(compiled))
+	for name := range compiled {
+		programs[filepath.Join("islands", name+".json")] = true
+	}
+	for _, asset := range assets {
+		relative, err := filepath.Rel(filepath.Join(output, "gosx"), asset.destination)
+		if err != nil {
+			return nil, err
+		}
+		if managedIslandAsset(relative) && !programs[relative] {
+			return nil, fmt.Errorf("unplanned island program in runtime assets: %s; use a fresh build/islands directory", asset.source)
+		}
+	}
 	public := filepath.Join(directory, "public")
 	if _, err := os.Lstat(public); err == nil {
 		files, err := exportTreePlan(public, filepath.Join(output, "public"), false)
@@ -163,8 +184,12 @@ func planSPAAssets(directory string, deck *IslandDeck, output string, includeNot
 		}
 		assets = append(assets, exportAsset{source, filepath.Join(output, filepath.FromSlash(strings.TrimPrefix(route, "/")))})
 	}
-	// Previous bundles can otherwise retain a secret file which the new copy
-	// policy correctly skips. Refuse unsafe output before changing index.html.
+	planned := make(map[string]bool, len(assets))
+	for _, asset := range assets {
+		planned[filepath.Clean(asset.destination)] = true
+	}
+	// Previous bundles can otherwise retain a secret file or an island program
+	// omitted from the new audience. Refuse unsafe output before changing HTML.
 	for _, name := range []string{"public", "gosx"} {
 		root := filepath.Join(output, name)
 		if _, err := os.Lstat(root); os.IsNotExist(err) {
@@ -184,6 +209,9 @@ func planSPAAssets(directory string, deck *IslandDeck, output string, includeNot
 				relative, err := filepath.Rel(root, path)
 				if err != nil || !allowed(relative) {
 					return fmt.Errorf("existing export contains a file denied by public asset policy: %s; use a fresh output directory", path)
+				}
+				if name == "gosx" && managedIslandAsset(relative) && !planned[filepath.Clean(path)] {
+					return fmt.Errorf("existing export contains an unplanned island program: %s; use a fresh output directory", path)
 				}
 			}
 			return nil
