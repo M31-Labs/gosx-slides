@@ -83,6 +83,9 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 	var mu sync.Mutex
 	mountSceneEditor(app, deck, token, &mu)
 	mountSourceTools(app, token)
+	if err := mountProjectEditor(app, deck, token, &mu); err != nil {
+		return err
+	}
 	app.Mount("/_slides/source", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")

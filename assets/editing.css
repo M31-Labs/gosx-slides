@@ -7,10 +7,15 @@ main.deck dialog.slides-source-panel h2 { margin:0 auto 12px 0; font:600 22px sy
 .slides-source-panel textarea { display:block; box-sizing:border-box; width:100%; height:52dvh; min-height:200px; padding:16px; margin:8px 0; resize:vertical; border:1px solid #ffffff35; border-radius:8px; background:#0b0e15; color:#f1f3f8; font:14px/1.6 ui-monospace,monospace; tab-size:2; }
 .slides-source-panel button,.slides-ink-tools button { cursor:pointer; border:1px solid #ffffff35; border-radius:7px; padding:8px 12px; background:#242c3c; color:#f1f3f8; font:14px system-ui; }
 .slides-source-panel :focus-visible,.slides-ink-tools :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
-.slides-source-panel [data-status] { font:14px system-ui; flex:1; }
+.slides-source-panel [data-status] { font:14px system-ui; flex:1; min-width:0; overflow-wrap:anywhere; }
 .slides-source-panel button:disabled { opacity:.5; }
 .slides-source-workspace { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; margin-bottom:16px; min-height:0; flex:1; overflow:auto; }
 .slides-source-code { min-width:0; }
+.slides-project-files { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0; flex-shrink:0; min-width:0; }
+.slides-project-files select { max-width:100%; padding:9px; border:1px solid #ffffff35; border-radius:6px; background:#0b0e15; color:#f1f3f8; font:14px system-ui; }
+.slides-project-files nav { display:flex; flex-basis:100%; gap:6px; overflow:auto; padding:4px 0; }
+.slides-project-files nav button { flex-shrink:0; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.slides-project-files [aria-pressed="true"] { border-color:#92b5ff; background:#32405d; }
 .slides-source-history { display:flex; gap:8px; flex-wrap:wrap; }
 .slides-source-panel .slides-source-structure { max-height:64dvh; overflow:auto; border-left:1px solid #ffffff25; padding-left:16px; }
 .slides-source-panel details { margin:0 0 16px; }
