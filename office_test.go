@@ -246,7 +246,7 @@ func TestImportPPTXCommonContentLiteralSafety(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	if err := exportSPA(dest, deck, "<html><head></head><body>Audience deck</body></html>", out); err != nil {
+	if err := exportSPA(dest, deck, "<html><head></head><body>Audience deck</body></html>", out, false); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"imported-notes-2.txt", filepath.Join("public", "imported-notes-2.txt")} {
