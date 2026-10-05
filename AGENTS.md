@@ -79,6 +79,8 @@ directly also works (the parent directory is used).
 | `components [deck-dir] [--json]` | The deck's own `.gsx` islands and their compile status. |
 | `doctor [deck-dir] [--json]` | Deck health + `serve` prerequisites. Exits non-zero on failures. |
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
+| `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
+| `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
 | `version` | Print the version. |
 | `help`, `-h`, `--help` | Print usage. |
 
@@ -339,13 +341,38 @@ Grammar
 
 The native lane also preserves task-list checkboxes, footnote references and
 definitions, superscript/subscript, emoji, table-of-contents nodes, math nodes,
-and auto-embed placeholders. Math stays visibly source-shaped (`math-inline` /
-`math-block`) unless a deck supplies its own math presentation CSS.
+and auto-embed placeholders. Inline `$...$` and block `$$...$$` math renders
+server-side KaTeX HTML plus accessible MathML with embedded offline fonts. Invalid
+formulas remain visible with a source diagnostic. Rendering and caching have
+bounded source/output/time budgets; trust-sensitive HTML, image and link commands
+are rejected. There is no Node/CDN requirement.
 
 This is intentionally a GoSX node path, not an mdpp-render-to-HTML round trip:
 expressions still evaluate through `gosx.Compile`, static structure stays
 server-rendered, and `<Component/>` islands hydrate through the same compiled
 slide component.
+
+### Reusable sections and local packs
+
+`<!-- slides:include sections/intro.md -->` expands a parsed block comment into
+ordinary Markdown; `file.md#name` selects a section declared with
+`<!-- slides:section name -->`. Nested includes and relative assets resolve from
+their author file, stay within the deck, and retain source maps. Deck components
+override fragment components; ambiguous fragment definitions fail. Browser motion
+saves offer root-file ranges only. See `examples/composition-pack`.
+
+Headmatter `packs: labs@1.0.0` enables `packs/labs/pack.json` schema 1 with an
+exact matching name/version. The manifest declares CSS, custom layouts and
+components; `theme: labs` selects its built-in base theme. Deck CSS overrides
+pack CSS. Pack CSS relative image/font URLs are registered and copied into
+exports; imports and escaping paths are rejected. Installation is local and
+vendored, with no network hooks.
+
+With `--edit`, the source editor shows parser/story diagnostics, outline,
+declarations and references, scoped draft rename, undo/redo, and silent local
+slide previews. Textarea offsets are converted from UTF-8 parser ranges to UTF-16
+selections. Raw draft tools edit deck.md; included files retain their own ranges
+in CLI diagnostics and are edited on disk.
 
 ### Persistent layers: `header:` / `footer:`
 
@@ -656,7 +683,7 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 
 Reading view includes a table of contents and transcripts of rendered Sirena
 labels. Handout exports omit speaker notes unless `--notes` is supplied. Local
-images/fonts are embedded in snapshots; `offline: true` suppresses remote theme
+images/fonts are embedded in snapshots; `offline-required: true` suppresses remote theme
 fonts. External URLs supplied by the author stay external.
 
 - **Deep-linking:** the URL hash is **1-based** — `#1` is the first slide, `#3`

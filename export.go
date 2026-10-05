@@ -259,6 +259,9 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
 			return fmt.Errorf("copy public: %w", err)
 		}
 	}
+	if err := copyCompositionAssets(deck, out); err != nil {
+		return fmt.Errorf("copy included/pack assets: %w", err)
+	}
 	// A speaker-notes sidecar, derived from the real deck.
 	if err := os.WriteFile(filepath.Join(out, "notes.html"), []byte(notesHTML(deck)), 0o644); err != nil {
 		return err

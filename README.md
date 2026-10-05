@@ -44,12 +44,28 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 
 ## Motion, authoring, and exports
 
+**Offline equations:** inline `$...$` and block `$$...$$` equations render on
+the server as KaTeX HTML plus accessible MathML, with embedded fonts. No Node
+installation, math browser runtime, or CDN is required. Invalid or unsupported
+formulas retain a visible source diagnostic. Try `examples/math-lab`; equations
+survive reading, snapshots, PDF, and live exports.
+
+**Reusable content:** include whole fragments with
+`<!-- slides:include sections/intro.md -->`, or select a named section with
+`<!-- slides:include sections/library.md#closing -->`. References resolve from
+the included file, with source maps back to the original file. Local authoring
+packs pin themes, layouts and GoSX components through `packs: labs@1.0.0`.
+`slides pack install path/to/pack my-deck` vendors a validated pack;
+`slides packs my-deck --json` lists enabled pins. See
+[the composition example](examples/composition-pack/README.md) for the manifest,
+section markers, asset rules and precedence.
+
 **Reading and handouts:** press **V** or append `?read` for a scrollable,
 responsive view with a table of contents and all reveal content visible.
 Sirena diagrams offer a transcript of rendered labels without publishing hidden
 diagram source. `slides export my-deck --format handout --out dist` writes
 `handout.html`; add `--notes` to explicitly include speaker notes. Snapshot
-exports embed published local images and CSS font assets. Set `offline: true`
+exports embed published local images and CSS font assets. Set `offline-required: true`
 in headmatter to suppress remote theme fonts; external author URLs remain external.
 PDF printing waits for fonts and images through Chrome's DevTools protocol.
 
@@ -106,7 +122,11 @@ loop. Replay preserves native word/character splitting, including entrances
 assigned to an explicit click step. Cued/grouped containers preserve child markup.
 
 **Persistent source editing:** `slides serve my-deck --edit`, then press **E**
-or click **Edit**. Save validates the deck and its components, stages the new
+or click **Edit**. The editor shows parser/story diagnostics, a slide outline,
+symbols and reference locations. Clicking a finding selects its exact source
+range; outline previews stay local to the author tab. Rename changes a selected
+symbol's scope in the unsaved draft, with collision checks and Undo/Redo.
+Save validates the deck and its components, stages the new
 source, and reloads the preview at the current anchor. Stale or concurrent edits
 report a conflict; **Reload source** loads the latest file. Each save retains the
 displaced source in `.slides-history-*/deck.md`, including writes through an
@@ -505,6 +525,8 @@ slides rehearse [deck-dir]                                    speaker run sheet 
 slides components [deck-dir] [--json]                         the deck's own .gsx islands + compile status
 slides doctor [deck-dir] [--json]                             deck health + serve prerequisites
 slides themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
+slides packs [deck-dir] [--json]                              enabled version-pinned local packs
+slides pack install <source-dir> [deck-dir]                   vendor a validated local authoring pack
 slides version
 ```
 

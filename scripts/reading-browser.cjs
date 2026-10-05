@@ -35,6 +35,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
     assert.equal(await page.locator('#second').count(), 0); // slide identity is a data attribute
     await page.keyboard.press('v');
     await page.waitForFunction(() => !SlidesReading.enabled());
+    assert.equal(await page.evaluate(() => SlidesNav.current()), 2, 'reading table of contents retains selected slide');
     assert.equal(await page.locator('.slide:visible').count(), 1);
     await page.keyboard.press('v');
     assert.equal(await page.locator('.slide:visible').count(), 2);

@@ -1,1 +1,1 @@
-{"readyMillis":30000,"transferBytes":30000000,"domNodes":5000,"heapBytes":100000000,"frameP95Millis":200}
+{"readyMillis":10000,"transferBytes":14000000,"domNodes":2000,"heapBytes":32000000,"frameP95Millis":100}

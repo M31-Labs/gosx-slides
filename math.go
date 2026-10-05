@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"m31labs.dev/gosx"
@@ -158,14 +159,27 @@ func mathWrapper(display bool) (string, string) {
 
 func mathErrorHTML(source string, display bool, message string) string {
 	tag, class := mathWrapper(display)
+	// Rejected input must not bypass the output bound through the diagnostic.
+	// Keep the author source intact; only its rendered preview is shortened.
+	if preview, truncated := mathPreview(source, mathMaxSource); truncated {
+		source = preview + "\n… [source truncated]"
+	}
 	// Runtime errors include internal frames; authors need the first diagnostic.
 	message = strings.SplitN(message, "\n", 2)[0]
-	if len(message) > 1024 {
-		message = message[:1024]
-	}
+	message, _ = mathPreview(message, 1024)
 	return "<" + tag + ` class="` + class + ` math-error" data-math-error="` + html.EscapeString(message) + `"><code>` +
 		html.EscapeString(source) + `</code><span class="math-error-message">Equation could not be typeset: ` +
 		html.EscapeString(message) + "</span></" + tag + ">"
+}
+
+func mathPreview(value string, limit int) (string, bool) {
+	if len(value) <= limit {
+		return value, false
+	}
+	for limit > 0 && !utf8.RuneStart(value[limit]) {
+		limit--
+	}
+	return value[:limit], true
 }
 
 func mathNode(source string, display bool) gosx.Node {

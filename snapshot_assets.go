@@ -64,6 +64,17 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 			return "", fmt.Errorf("snapshot asset escapes published public directory: %q", raw)
 		}
 		path = pathpkg.Clean(path)
+		filePath := path
+		if strings.HasPrefix(path, "public/_slides/") {
+			resolved, found := resolveCompositionAsset(deck, "/"+path)
+			if !found {
+				return "", fmt.Errorf("unregistered composition snapshot asset %q", raw)
+			}
+			filePath, err = filepath.Rel(root, resolved)
+			if err != nil || !safeDeckRelPath(filepath.ToSlash(filePath)) {
+				return "", fmt.Errorf("composition snapshot asset escapes deck: %q", raw)
+			}
+		}
 		count := func(encoded string) (string, error) {
 			encoded += snapshotFragment(parsed)
 			expanded += len(encoded)
@@ -78,7 +89,7 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 		if pending[path] {
 			return "", fmt.Errorf("snapshot CSS import cycle at %q", path)
 		}
-		file, err := directory.Open(filepath.FromSlash(path))
+		file, err := directory.Open(filepath.FromSlash(filePath))
 		if err != nil {
 			return "", fmt.Errorf("snapshot asset %q: %w", raw, err)
 		}
@@ -171,20 +182,8 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 				value, err = inline(value, "", 0)
 			case token.Data == "link" && attr.Key == "href" && snapshotStylesheetLink(token):
 				value, err = inline(value, "", 0)
-			case (token.Data == "img" || token.Data == "source") && attr.Key == "srcset" && !strings.Contains(value, "data:"):
-				parts := strings.Split(value, ",")
-				for i, part := range parts {
-					fields := strings.Fields(part)
-					if len(fields) == 0 {
-						continue
-					}
-					fields[0], err = inline(fields[0], "", 0)
-					if err != nil {
-						break
-					}
-					parts[i] = strings.Join(fields, " ")
-				}
-				value = strings.Join(parts, ", ")
+			case (token.Data == "img" || token.Data == "source") && attr.Key == "srcset":
+				value, err = rewriteSnapshotSrcset(value, func(value string) (string, error) { return inline(value, "", 0) })
 			}
 			if err != nil {
 				return "", err
@@ -200,6 +199,52 @@ func inlineSnapshotAssets(deck *IslandDeck, document string) (string, error) {
 			out.WriteString(raw)
 		}
 	}
+}
+
+// A data URL's comma belongs to its URL token. Read URLs to whitespace and
+// descriptors to their separator, rather than splitting the entire attribute.
+func rewriteSnapshotSrcset(source string, inline func(string) (string, error)) (string, error) {
+	var candidates []string
+	space := func(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' }
+	for offset := 0; offset < len(source); {
+		for offset < len(source) && (space(source[offset]) || source[offset] == ',') {
+			offset++
+		}
+		start := offset
+		for offset < len(source) && !space(source[offset]) {
+			offset++
+		}
+		if start == offset {
+			break
+		}
+		raw := source[start:offset]
+		url := strings.TrimRight(raw, ",")
+		value, err := inline(url)
+		if err != nil {
+			return "", err
+		}
+		if url == raw {
+			start = offset
+			depth := 0
+			for offset < len(source) {
+				if source[offset] == '(' {
+					depth++
+				}
+				if source[offset] == ')' && depth > 0 {
+					depth--
+				}
+				if source[offset] == ',' && depth == 0 {
+					break
+				}
+				offset++
+			}
+			if descriptor := strings.TrimSpace(source[start:offset]); descriptor != "" {
+				value += " " + descriptor
+			}
+		}
+		candidates = append(candidates, value)
+	}
+	return strings.Join(candidates, ", "), nil
 }
 
 // CSS references are recognized only outside comments and ordinary strings.

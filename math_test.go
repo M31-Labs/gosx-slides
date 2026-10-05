@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"m31labs.dev/gosx"
@@ -47,7 +48,7 @@ $$
 }
 
 func TestMathFailuresAreVisibleAndEscaped(t *testing.T) {
-	for _, source := range []string{`\unknowncommand{x}`, `\frac{a}{`, `\href{javascript:alert(1)}{click}`, `\includegraphics{https://example.com/leak.png}`, `\htmlClass{injected}{x}`, `\def\loop{\loop}\loop`, strings.Repeat("x", mathMaxSource+1)} {
+	for _, source := range []string{`\unknowncommand{x}`, `\frac{a}{`, `\href{javascript:alert(1)}{click}`, `\includegraphics{https://example.com/leak.png}`, `\htmlClass{injected}{x}`, `\def\loop{\loop}\loop`} {
 		rendered := deckMath.renderHTML(source, false)
 		if !strings.Contains(rendered, `math-error`) || !strings.Contains(rendered, `Equation could not be typeset:`) {
 			t.Errorf("invalid/untrusted math did not show a diagnostic: %.80s", source)
@@ -65,6 +66,34 @@ func TestMathFailuresAreVisibleAndEscaped(t *testing.T) {
 	}
 	if rendered := deckMath.renderHTML("x+1", false); strings.Contains(rendered, `math-error`) {
 		t.Fatal("renderer did not recover after bad equations: " + rendered)
+	}
+}
+
+func TestMathRejectedSourcePreviewBounded(t *testing.T) {
+	for _, source := range []string{strings.Repeat("<", 300000), strings.Repeat("a", mathMaxSource-1) + "🙂" + strings.Repeat("z", 300000)} {
+		rendered := deckMath.renderHTML(source, true)
+		if len(rendered) > mathMaxOutput {
+			t.Fatalf("error output exceeded cap: %d bytes", len(rendered))
+		}
+		if !utf8.ValidString(rendered) {
+			t.Fatal("truncated preview split a UTF-8 character")
+		}
+		if !strings.Contains(rendered, "source truncated") || !strings.Contains(rendered, "16 KiB source limit") {
+			t.Fatal("rejected source has no truncation diagnostic")
+		}
+		if strings.Contains(rendered, htmlEscape(source)) {
+			t.Fatal("oversized source was emitted in full")
+		}
+	}
+	// Generated expression arguments bypass source-file size checks, so the
+	// bound must hold at the renderer's public expression boundary too.
+	deck := loadDeckFromSource(t, "# Equation\n\n{__slidesMath.Render(strings.Repeat(\"<\", 300000), true)}\n", nil)
+	rendered := renderSlidesHTML(t, deck)
+	if len(rendered) > mathMaxOutput || !strings.Contains(rendered, "source truncated") {
+		t.Fatalf("expression produced an unbounded diagnostic: %d bytes", len(rendered))
+	}
+	if !strings.Contains(string(deck.Source), "300000") {
+		t.Fatal("author source was altered")
 	}
 }
 

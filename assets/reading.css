@@ -11,6 +11,7 @@ main.deck.deck-reading .reading-toc ol { columns: 2; padding-left: 1.5rem; }
 main.deck.deck-reading .reading-toc li { break-inside: avoid; margin: .4rem 0; }
 main.deck.deck-reading .diagram-description { display: block; margin-top: 1rem; font-size: .9rem; }
 main.deck.deck-reading .deck-controls { opacity: 1 !important; pointer-events: auto !important; }
+main.deck.deck-reading .deck-controls > :not(.reading-toggle) { display: none !important; }
 main.deck .handout-notes { border-top: 1px solid var(--line, #8884); margin-top: 2rem; padding-top: 1rem; white-space: pre-wrap; font-size: 1rem; }
 @media (max-width: 600px) { main.deck.deck-reading { padding: 3rem .5rem; } main.deck.deck-reading .reading-toc ol { columns: 1; } }
 @media print { main.deck .reading-toc, main.deck .diagram-description { display: none !important; } }

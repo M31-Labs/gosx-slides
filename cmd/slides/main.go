@@ -155,23 +155,37 @@ func run(args []string) error {
 		return nil
 	case "packs":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
-		if len(rest) > 1 { return fmt.Errorf("usage: slides packs [deck-dir] [--json]") }
+		if len(rest) > 1 {
+			return fmt.Errorf("usage: slides packs [deck-dir] [--json]")
+		}
 		deck, err := slides.LoadIslandDeck(deckDir(rest))
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		packs := slides.DeckPacks(deck)
 		if jsonOut {
 			payload, err := json.MarshalIndent(packs, "", "  ")
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			fmt.Println(string(payload))
 		} else {
-			if len(packs) == 0 { fmt.Println("no enabled packs") }
-			for _, pack := range packs { fmt.Printf("%s@%s  %s\n", pack.Name, pack.Version, pack.Path) }
+			if len(packs) == 0 {
+				fmt.Println("no enabled packs")
+			}
+			for _, pack := range packs {
+				fmt.Printf("%s@%s  %s\n", pack.Name, pack.Version, pack.Path)
+			}
 		}
 		return nil
 	case "pack":
-		if len(args) < 3 || len(args) > 4 || args[1] != "install" { return fmt.Errorf("usage: slides pack install <source-dir> [deck-dir]") }
+		if len(args) < 3 || len(args) > 4 || args[1] != "install" {
+			return fmt.Errorf("usage: slides pack install <source-dir> [deck-dir]")
+		}
 		manifest, err := slides.InstallDeckPack(deckDir(args[3:]), args[2])
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		fmt.Printf("installed %s@%s; enable in deck headmatter: packs: %s@%s\n", manifest.Name, manifest.Version, manifest.Name, manifest.Version)
 		return nil
 	case "doctor":

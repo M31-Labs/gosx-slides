@@ -11,6 +11,17 @@ import (
 	"golang.org/x/net/html"
 )
 
+func TestSnapshotMixedDataAndLocalSrcset(t *testing.T) {
+	deck := snapshotFixture(t, map[string]string{"public/image.png": "picture"})
+	got, err := inlineSnapshotAssets(deck, `<img srcset="data:image/png;base64,YQ== 1x, /public/image.png 2x">`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "data:image/png;base64,YQ== 1x, data:image/png;base64,cGljdHVyZQ== 2x") {
+		t.Fatalf("mixed srcset not embedded: %s", got)
+	}
+}
+
 func snapshotFixture(t *testing.T, files map[string]string) *IslandDeck {
 	t.Helper()
 	dir := t.TempDir()

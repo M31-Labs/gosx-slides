@@ -28,6 +28,7 @@
   });
   toc.append(heading, list); deck.prepend(toc);
   const button = document.createElement('button');
+  button.className = 'reading-toggle';
   button.type = 'button'; button.textContent = 'Read';
   button.setAttribute('aria-label', 'Toggle reading view');
   button.setAttribute('aria-pressed', 'false');
@@ -62,6 +63,7 @@
     document.documentElement.classList.toggle('slides-reading', value);
     deck.classList.toggle('deck-reading', value);
     button.setAttribute('aria-pressed', String(value));
+    button.textContent = value ? 'Present' : 'Read';
     if (updateURL) {
       const url = new URL(location.href);
       if (value) url.searchParams.set('read', ''); else url.searchParams.delete('read');
