@@ -37,6 +37,8 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 
 // ServeOptions configures the real-lane deck server.
 type ServeOptions struct {
+	// Audience selects named content; filtered authoring previews are unsupported.
+	Audience string
 	// Static disables server-only audience synchronization in exported decks.
 	Static bool
 	// IncludeNotes opts static exports into publishing presenter notes.
@@ -298,7 +300,10 @@ func (d *IslandDeck) Serve(opts ServeOptions) error {
 // ServeDeck loads the deck at dir and serves it in the real lane. It is the
 // entry point the `slides serve` CLI command calls.
 func ServeDeck(dir string, opts ServeOptions) error {
-	deck, err := LoadIslandDeck(dir)
+	if opts.Audience != "" && (opts.Edit || opts.Collaborate || opts.Dev) {
+		return fmt.Errorf("audience selection cannot be combined with editing, collaboration or watch mode")
+	}
+	deck, err := LoadIslandDeckAudience(dir, opts.Audience)
 	if err != nil {
 		return err
 	}
@@ -876,6 +881,16 @@ func StageIslandPrograms(deckDir string) error {
 	}
 
 	deck, err := LoadIslandDeck(absDeckDir)
+	if err != nil {
+		return err
+	}
+	return stageDeckIslandPrograms(deck)
+}
+
+// Stage exactly this parsed deck: an audience export must not publish programs
+// belonging only to omitted slides.
+func stageDeckIslandPrograms(deck *IslandDeck) error {
+	absDeckDir, err := filepath.Abs(deck.Dir)
 	if err != nil {
 		return err
 	}

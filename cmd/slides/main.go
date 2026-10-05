@@ -30,6 +30,12 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "story":
+		return storyCommand(args[1:])
+	case "tour":
+		return tourCommand(args[1:])
+	case "audiences":
+		return audiencesCommand(args[1:])
 	case "init":
 		// Scaffold a deck you can `slides serve` immediately (live
 		// islands + evaluated {expr} + highlighted code + theme).
@@ -230,7 +236,7 @@ func run(args []string) error {
 		}
 		sessionHTTP, rest := takeBoolFlag(rest, "session-http")
 		flags := map[string]string{}
-		for _, flag := range []string{"host", "editor-token-file", "audience-token-file", "session-secret-file", "tls-cert", "tls-key"} {
+		for _, flag := range []string{"host", "editor-token-file", "audience-token-file", "session-secret-file", "tls-cert", "tls-key", "audience"} {
 			value, next, err := takeStringFlag(rest, flag, "")
 			if err != nil {
 				return err
@@ -245,6 +251,9 @@ func run(args []string) error {
 			host = "127.0.0.1"
 		}
 		address := net.JoinHostPort(host, strconv.Itoa(port))
+		if flags["audience"] != "" && (watch || edit || collaborate) {
+			return fmt.Errorf("--audience cannot be combined with --watch, --edit or --collab")
+		}
 		var sessions *slides.SessionOptions
 		if flags["editor-token-file"] != "" {
 			sessions = &slides.SessionOptions{AllowInsecure: sessionHTTP}
@@ -277,7 +286,7 @@ func run(args []string) error {
 			scheme = "https"
 		}
 		fmt.Printf("gosx-slides serving %s at %s://%s\n", dir, scheme, address)
-		return slides.ServeDeck(dir, slides.ServeOptions{Addr: address, StageRuntime: true, RebuildRuntime: rebuild, Edit: edit, Collaborate: collaborate, Sessions: sessions, TLSCertFile: flags["tls-cert"], TLSKeyFile: flags["tls-key"]})
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: address, Audience: flags["audience"], StageRuntime: true, RebuildRuntime: rebuild, Edit: edit, Collaborate: collaborate, Sessions: sessions, TLSCertFile: flags["tls-cert"], TLSKeyFile: flags["tls-key"]})
 	case "bench":
 		runs, rest, err := takeIntFlag(args[1:], "runs", 3)
 		if err != nil {
@@ -318,7 +327,11 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", OutDir: out})
+		audience, rest, err := takeStringFlag(rest, "audience", "")
+		if err != nil {
+			return err
+		}
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", Audience: audience, OutDir: out})
 	case "import":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		out, rest, err := takeStringFlag(rest, "out", "imported-deck")
@@ -347,6 +360,10 @@ func run(args []string) error {
 		return nil
 	case "export":
 		format, rest, err := takeStringFlag(args[1:], "format", "spa")
+		if err != nil {
+			return err
+		}
+		audience, rest, err := takeStringFlag(rest, "audience", "")
 		if err != nil {
 			return err
 		}
@@ -398,7 +415,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
