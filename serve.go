@@ -106,6 +106,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 
 	app := server.New()
 	app.SetPublicDir(d.Dir)
+	mountCompositionAssets(app, d, opts.Dev || opts.Edit)
 
 	if opts.Edit && !opts.Static {
 		if err := mountSourceEditor(app, d); err != nil {
@@ -341,9 +342,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+readingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
+	if deckHasMath(d) {
+		ctx.AddHead(gosx.RawHTML(`<style data-slides-math="katex-0.19.0">` + mathCSS() + `</style>`))
+	}
 	if custom := deckCustomCSS(d); custom != "" {
 		// The deck's own stylesheet (deck.css / style.css / headmatter css:) goes
 		// AFTER the theme so the author's rules win the cascade at equal
@@ -417,7 +421,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"</script>"),
 	)
 }
 
@@ -477,6 +481,11 @@ func sortedFailureNames(failures map[string]error) []string {
 // without a theme key never panics — themeName then resolves "" to the default.
 func deckTheme(d *IslandDeck) string {
 	if v, ok := deckFrontmatterValues(d)["theme"].(string); ok {
+		for _, pack := range d.Packs {
+			if v == pack.Name && pack.BaseTheme != "" {
+				return pack.BaseTheme
+			}
+		}
 		return v
 	}
 	return ""
@@ -859,12 +868,14 @@ func resolveGoSXRoot(projectDir string) (string, error) {
 	cmd.Dir = projectDir
 	cmd.Env = listEnv
 	out, err := cmd.Output()
-	if err != nil {
+	if err != nil || strings.TrimSpace(string(out)) == "" {
 		listEnv = append(listEnv, "GOFLAGS=-mod=mod")
+		cmd = exec.Command("go", "list", "-m", "-f", "{{.Dir}}", gosxModuleImportPath)
+		cmd.Dir = projectDir
 		cmd.Env = listEnv
 		out, err = cmd.Output()
 	}
-	if err != nil {
+	if err != nil || strings.TrimSpace(string(out)) == "" {
 		// Fall back to a non-module `go list` for older layouts.
 		cmd2 := exec.Command("go", "list", "-f", "{{.Dir}}", gosxModuleImportPath)
 		cmd2.Dir = projectDir

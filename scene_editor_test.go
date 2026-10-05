@@ -87,6 +87,10 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 	deck := sceneEditingDeck(t)
 	path := filepath.Join(deck.Dir, "steps.json")
 	os.Chmod(path, 0640)
+	originalInfo, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	app, err := deck.NewServer(ServeOptions{Edit: true})
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +145,7 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 		t.Fatal("cue save was not persisted")
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0640 {
+	if info.Mode().Perm() != originalInfo.Mode().Perm() {
 		t.Fatal("cue file permissions changed")
 	}
 	recovery, _ := filepath.Glob(filepath.Join(deck.Dir, ".slides-history-*", "steps.json"))
@@ -164,17 +168,6 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 	if code != 409 {
 		t.Fatal("changed scene context accepted", code)
 	}
-	if err := os.Rename(path, path+".original"); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(path+".original", path); err != nil {
-		t.Fatal(err)
-	}
-	get = httptest.NewRecorder()
-	handler.ServeHTTP(get, httptest.NewRequest("GET", endpoint, nil))
-	if get.Code != 400 {
-		t.Fatal("authored symlink accepted", get.Code)
-	}
 	for _, opts := range []ServeOptions{{}, {Edit: true, Static: true}} {
 		app, err := deck.NewServer(opts)
 		if err != nil {
@@ -186,4 +179,17 @@ func TestSceneEditorPreviewSaveSecurityAndConflicts(t *testing.T) {
 			t.Fatal("scene editing exposed on a read-only server")
 		}
 	}
+	t.Run("symlink refused", func(t *testing.T) {
+		if err := os.Rename(path, path+".original"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(path+".original", path); err != nil {
+			t.Skipf("filesystem does not allow symlinks: %v", err)
+		}
+		get := httptest.NewRecorder()
+		handler.ServeHTTP(get, httptest.NewRequest("GET", endpoint, nil))
+		if get.Code != 400 {
+			t.Fatal("authored symlink accepted", get.Code)
+		}
+	})
 }

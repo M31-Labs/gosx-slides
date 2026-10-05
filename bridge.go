@@ -58,7 +58,8 @@ type IslandSlide struct {
 
 	// Components are the inline component references found in this slide, in
 	// document order.
-	Components []ComponentRef
+	Components  []ComponentRef
+	packLayouts map[string]bool
 }
 
 // IslandDeck is the parsed model for the real lane: a deck directory, its mdpp
@@ -70,6 +71,17 @@ type IslandDeck struct {
 
 	// Source is the raw deck.md bytes.
 	Source []byte
+
+	// ExpandedSource is the composed Markdown parsed by Document. Source stays
+	// the author's deck.md, so editing APIs never save generated include text.
+	ExpandedSource    []byte
+	Includes          []string
+	Packs             []DeckPack
+	sourceSegments    []sourceSegment
+	sourceCRPositions []int
+	componentSources  map[string]string
+	compositionAssets map[string]string
+	packLayouts       map[string]bool
 
 	// Document is the parsed (and slide-split) mdpp document.
 	Document *mdpp.Document
@@ -92,7 +104,11 @@ func LoadIslandDeck(dir string) (*IslandDeck, error) {
 }
 
 func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
-	doc, err := mdpp.Parse(src)
+	composition, err := expandDeckSource(dir, src)
+	if err != nil {
+		return nil, err
+	}
+	doc, err := mdpp.Parse(composition.out)
 	if err != nil {
 		return nil, fmt.Errorf("parse deck %s: %w", filepath.Join(dir, DeckFileName), err)
 	}
@@ -102,20 +118,36 @@ func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 	repairDeckHeadings(doc)
 	retainDiagramFenceOptions(doc)
 	retainMotionFenceOptions(doc)
-	mdpp.SplitSlides(doc)
 
 	deck := &IslandDeck{
-		Dir:      dir,
-		Source:   src,
-		Document: doc,
+		Dir:               dir,
+		Source:            src,
+		Document:          doc,
+		ExpandedSource:    composition.out,
+		Includes:          composition.files,
+		sourceSegments:    composition.segments,
+		sourceCRPositions: markdownCRPositions(composition.out),
+		componentSources:  map[string]string{},
+		packLayouts:       map[string]bool{},
 	}
+	if err := deck.loadPacks(); err != nil {
+		return nil, err
+	}
+	if err := deck.rebaseIncludedNodes(); err != nil {
+		return nil, err
+	}
+	mdpp.SplitSlides(doc)
 
 	for i, slideNode := range doc.Slides() {
 		deck.Slides = append(deck.Slides, IslandSlide{
-			Index:      i,
-			Node:       slideNode,
-			Components: collectComponentRefs(slideNode),
+			Index:       i,
+			Node:        slideNode,
+			Components:  collectComponentRefs(slideNode),
+			packLayouts: deck.packLayouts,
 		})
+	}
+	if err := deck.resolveDeckComponents(); err != nil {
+		return nil, err
 	}
 
 	warnAbsorbedSeparators(dir, doc)
@@ -153,7 +185,11 @@ func (d *IslandDeck) CompileComponent(name string) (*program.Program, []byte, er
 	if d == nil {
 		return nil, nil, fmt.Errorf("compile component %q: nil deck", name)
 	}
-	return compileIslandComponent(d.Dir, name)
+	path, err := d.componentSourcePath(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	return compileIslandComponentFile(path, name)
 }
 
 // componentNamePat is the MDX component-name rule (mirrors mdpp/components.go):
@@ -175,6 +211,8 @@ const componentNamePat = `[A-Z][A-Za-z0-9_.]*`
 // NodeText holding the opening tag plus a NodeHTMLInline close (paired). Neither
 // is a NodeComponent, so the inline-only walk misses it; this regex recovers it.
 var blockComponentRe = regexp.MustCompile(`<(` + componentNamePat + `)((?:\s[^<>]*?)?)\s*(/?)>`)
+
+var componentIdentifierRe = regexp.MustCompile(`^` + componentNamePat + `$`)
 
 // htmlCommentRe matches an HTML comment, including multi-line ones (the `(?s)`
 // flag lets `.` span newlines). mdpp passes `<!-- ... -->` through verbatim as a
@@ -377,7 +415,10 @@ func (d *IslandDeck) readComponentSource(name string) (string, error) {
 	if d == nil {
 		return "", fmt.Errorf("read component %q: nil deck", name)
 	}
-	path := filepath.Join(d.Dir, name+".gsx")
+	path, err := d.componentSourcePath(name)
+	if err != nil {
+		return "", err
+	}
 	source, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read component %s: %w", path, err)
@@ -392,6 +433,26 @@ func (d *IslandDeck) readComponentSource(name string) (string, error) {
 // byte-identical to the one the dev socket hot-swaps in.
 func compileIslandComponent(dir, name string) (*program.Program, []byte, error) {
 	path := filepath.Join(dir, name+".gsx")
+	return compileIslandComponentFile(path, name)
+}
+
+func (d *IslandDeck) componentSourcePath(name string) (string, error) {
+	if !componentIdentifierRe.MatchString(name) {
+		return "", fmt.Errorf("invalid component name %q", name)
+	}
+	if path, err := safeAuthorPath(d.Dir, name+".gsx"); err == nil {
+		return path, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	rel := d.componentSources[name]
+	if rel == "" {
+		rel = name + ".gsx"
+	}
+	return safeAuthorPath(d.Dir, rel)
+}
+
+func compileIslandComponentFile(path, name string) (*program.Program, []byte, error) {
 	source, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read component %s: %w", path, err)

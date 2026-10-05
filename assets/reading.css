@@ -1,0 +1,17 @@
+html.slides-reading, html.slides-reading body { height: auto !important; overflow: auto !important; }
+main.deck .reading-toc, main.deck .diagram-description { display: none; }
+main.deck.deck-reading { display: block !important; height: auto !important; min-height: 100vh; overflow: visible !important; padding: 4rem max(1rem, calc((100vw - 76rem) / 2)); }
+main.deck.deck-reading > .slide, main.deck.deck-reading > .slide:not(.deck-active) { display: block !important; position: relative !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; transform: none !important; animation: none !important; padding: clamp(1.5rem, 4vw, 4rem) !important; margin: 0 0 2rem; border: 1px solid var(--line, #8884); border-radius: var(--radius, 12px); scroll-margin-top: 2rem; }
+main.deck.deck-reading > .slide.layout-two-cols { column-count: 1; }
+main.deck.deck-reading > .slide.layout-split { display: block !important; }
+main.deck.deck-reading .slide-scene, main.deck.deck-reading .deck-graphics-background, main.deck.deck-reading .deck-counter, main.deck.deck-reading .deck-progress, main.deck.deck-reading .deck-overflow-badge, main.deck.deck-reading .slide-header, main.deck.deck-reading .slide-footer { display: none !important; }
+main.deck.deck-reading .slide [data-fragment], main.deck.deck-reading .slide [data-gosx-motion], main.deck.deck-reading .slide [data-slides-motion-replay], main.deck.deck-reading .slide [data-slides-motion-step], main.deck.deck-reading .slide .gosx-motion-unit { opacity: 1 !important; visibility: visible !important; transform: none !important; }
+main.deck.deck-reading .reading-toc { display: block; margin-bottom: 2rem; padding: 1.5rem; border: 1px solid var(--line, #8884); border-radius: var(--radius, 12px); }
+main.deck.deck-reading .reading-toc ol { columns: 2; padding-left: 1.5rem; }
+main.deck.deck-reading .reading-toc li { break-inside: avoid; margin: .4rem 0; }
+main.deck.deck-reading .diagram-description { display: block; margin-top: 1rem; font-size: .9rem; }
+main.deck.deck-reading .deck-controls { opacity: 1 !important; pointer-events: auto !important; }
+main.deck.deck-reading .deck-controls > :not(.reading-toggle) { display: none !important; }
+main.deck .handout-notes { border-top: 1px solid var(--line, #8884); margin-top: 2rem; padding-top: 1rem; white-space: pre-wrap; font-size: 1rem; }
+@media (max-width: 600px) { main.deck.deck-reading { padding: 3rem .5rem; } main.deck.deck-reading .reading-toc ol { columns: 1; } }
+@media print { main.deck .reading-toc, main.deck .diagram-description { display: none !important; } }

@@ -1,0 +1,36 @@
+main.deck[data-theme="aurora"] {
+  --accent: #62d6a5;
+  --bg: #101922;
+  --surface: #192635;
+}
+main.deck .layout-comparison .mdpp-container-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+main.deck .pack-badge {
+  display: inline-block;
+  padding: .4em .75em;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: .75em;
+}
+main.deck .pack-counter {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  align-items: flex-start;
+}
+main.deck .pack-increment {
+  padding: .5em .8em;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+main.deck .pack-increment:hover { background: #243a42; }
+main.deck .pack-increment:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 700px) {
+  main.deck .layout-comparison .mdpp-container-columns { grid-template-columns: minmax(0, 1fr); }
+}

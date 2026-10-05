@@ -46,6 +46,30 @@ func trustedSourceHost(authority string) bool {
 	return !strings.HasSuffix(authority, ":")
 }
 
+func authorizeSourceRequest(r *http.Request, token string, requireToken bool) error {
+	if !trustedSourceHost(r.Host) {
+		return fmt.Errorf("local authoring host required")
+	}
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+		return fmt.Errorf("same-origin authoring required")
+	}
+	origin := r.Header.Get("Origin")
+	if origin != "" {
+		u, err := url.Parse(origin)
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		if err != nil || u.Scheme != scheme || u.Host != r.Host || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("same-origin authoring required")
+		}
+	}
+	if requireToken && (origin == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Slides-Token")), []byte(token)) != 1) {
+		return fmt.Errorf("authoring token required")
+	}
+	return nil
+}
+
 // The token is returned only by a same-origin GET. Writes also require an
 // Origin check and the current source revision, so another tab cannot silently
 // overwrite edits. Export servers never mount this endpoint.
@@ -58,6 +82,7 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 	path := filepath.Join(deck.Dir, DeckFileName)
 	var mu sync.Mutex
 	mountSceneEditor(app, deck, token, &mu)
+	mountSourceTools(app, token)
 	app.Mount("/_slides/source", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
@@ -70,28 +95,8 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 			fail(405, "method not allowed")
 			return
 		}
-		if !trustedSourceHost(r.Host) {
-			fail(403, "local authoring host required")
-			return
-		}
-		if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
-			fail(403, "same-origin authoring required")
-			return
-		}
-		origin := r.Header.Get("Origin")
-		if origin != "" {
-			u, err := url.Parse(origin)
-			scheme := "http"
-			if r.TLS != nil {
-				scheme = "https"
-			}
-			if err != nil || u.Scheme != scheme || u.Host != r.Host || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-				fail(403, "same-origin authoring required")
-				return
-			}
-		}
-		if r.Method == http.MethodPut && (origin == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Slides-Token")), []byte(token)) != 1) {
-			fail(403, "authoring token required")
+		if err := authorizeSourceRequest(r, token, r.Method == http.MethodPut); err != nil {
+			fail(403, err.Error())
 			return
 		}
 		mu.Lock()

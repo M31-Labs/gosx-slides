@@ -215,10 +215,10 @@ func lowerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledCom
 		)}
 
 	case mdpp.NodeMathInline:
-		return []gosx.Node{gosx.El("span", gosx.Attrs(gosx.Attr("class", "math-inline")), gosx.El("code", gosx.Text(n.Literal)))}
+		return []gosx.Node{mathNode(n.Literal, false)}
 
 	case mdpp.NodeMathBlock:
-		return []gosx.Node{gosx.El("div", gosx.Attrs(gosx.Attr("class", "math-block")), gosx.El("code", gosx.Text(n.Literal)))}
+		return []gosx.Node{mathNode(n.Literal, true)}
 
 	case mdpp.NodeAutoEmbed:
 		provider := mdppSafeToken(strings.ToLower(n.Attr("provider")), "generic")
@@ -382,6 +382,8 @@ func lowerInline(r islandMounter, parent *mdpp.Node, components map[string]*comp
 			out = append(out, gosx.El("sub", gosx.Text(child.Literal)))
 		case mdpp.NodeEmoji:
 			out = append(out, gosx.Text(child.Literal))
+		case mdpp.NodeMathInline:
+			out = append(out, mathNode(child.Literal, false))
 		case mdpp.NodeFootnoteRef:
 			id := mdppSafeToken(child.Attr("id"), "note")
 			out = append(out, gosx.El("sup", gosx.El("a",

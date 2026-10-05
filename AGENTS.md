@@ -68,9 +68,10 @@ directly also works (the parent directory is used).
 | Command | Purpose |
 |---|---|
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
-| `serve [deck-dir] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. |
+| `serve [deck-dir] [--edit] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. `--edit` enables revision-safe browser editing; use `--watch` separately. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
-| `export [deck-dir] --format spa\|single\|pdf\|frames\|video [--capture] [--steps] [--out dist]` | `spa` = hostable folder (islands hydrate); `single` = one self-contained snapshot HTML (theme + nav work, islands are static — the ~30 MB wasm cannot live in one file); `pdf` = one-slide-per-page handout printed through a system Chrome/Chromium (`--out` may be a `.pdf` path; set `SLIDES_CHROME` to point at a binary off PATH). |
+| `export [deck-dir] --format spa\|single\|handout\|pdf\|frames\|video\|pptx [--capture] [--editable] [--steps] [--notes] [--seconds 2] [--fps 15] [--out dist]` | SPA retains live islands; single and handout embed published local assets with static islands. Handout defaults to private notes omitted (`--notes` opts in). PDF/capture/PPTX need Chrome (`SLIDES_CHROME`); video also needs ffmpeg. Editable PPTX supports native text and selected SVG geometry with captured fallbacks. |
+| `bench [deck-dir] [--runs 3] [--budget file.json]` | Browser readiness, transfer, heap, DOM and frame intervals; requires Chrome. |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
 | `inspect [deck-dir] [--json]` | Full authoring analysis: word count, estimated runtime, component usage, warnings. |
 | `validate [deck-dir] [--strict] [--profile standard\|conference\|demo\|lecture]` | Authoring-rule checks by profile. `--strict` exits non-zero on failure (CI gate). |
@@ -78,6 +79,8 @@ directly also works (the parent directory is used).
 | `components [deck-dir] [--json]` | The deck's own `.gsx` islands and their compile status. |
 | `doctor [deck-dir] [--json]` | Deck health + `serve` prerequisites. Exits non-zero on failures. |
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
+| `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
+| `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
 | `version` | Print the version. |
 | `help`, `-h`, `--help` | Print usage. |
 
@@ -88,7 +91,8 @@ directly also works (the parent directory is used).
   hot-swaps the live island in place (state preserved, no reload); a `deck.md`
   edit triggers a full reload with the new content.
 - `--rebuild` — force a fresh `GOOS=js` `runtime.wasm` build. The wasm is
-  existence-cached (the build is slow); use this after upgrading gosx.
+  cached by the deck's resolved dependency graph and Go toolchain; use this to
+  force a rebuild when investigating runtime behavior.
 
 ```bash
 /tmp/slides serve examples/theme-neon --port 9000
@@ -337,13 +341,38 @@ Grammar
 
 The native lane also preserves task-list checkboxes, footnote references and
 definitions, superscript/subscript, emoji, table-of-contents nodes, math nodes,
-and auto-embed placeholders. Math stays visibly source-shaped (`math-inline` /
-`math-block`) unless a deck supplies its own math presentation CSS.
+and auto-embed placeholders. Inline `$...$` and block `$$...$$` math renders
+server-side KaTeX HTML plus accessible MathML with embedded offline fonts. Invalid
+formulas remain visible with a source diagnostic. Rendering and caching have
+bounded source/output/time budgets; trust-sensitive HTML, image and link commands
+are rejected. There is no Node/CDN requirement.
 
 This is intentionally a GoSX node path, not an mdpp-render-to-HTML round trip:
 expressions still evaluate through `gosx.Compile`, static structure stays
 server-rendered, and `<Component/>` islands hydrate through the same compiled
 slide component.
+
+### Reusable sections and local packs
+
+`<!-- slides:include sections/intro.md -->` expands a parsed block comment into
+ordinary Markdown; `file.md#name` selects a section declared with
+`<!-- slides:section name -->`. Nested includes and relative assets resolve from
+their author file, stay within the deck, and retain source maps. Deck components
+override fragment components; ambiguous fragment definitions fail. Browser motion
+saves offer root-file ranges only. See `examples/composition-pack`.
+
+Headmatter `packs: labs@1.0.0` enables `packs/labs/pack.json` schema 1 with an
+exact matching name/version. The manifest declares CSS, custom layouts and
+components; `theme: labs` selects its built-in base theme. Deck CSS overrides
+pack CSS. Pack CSS relative image/font URLs are registered and copied into
+exports; imports and escaping paths are rejected. Installation is local and
+vendored, with no network hooks.
+
+With `--edit`, the source editor shows parser/story diagnostics, outline,
+declarations and references, scoped draft rename, undo/redo, and silent local
+slide previews. Textarea offsets are converted from UTF-8 parser ranges to UTF-16
+selections. Raw draft tools edit deck.md; included files retain their own ranges
+in CLI diagnostics and are edited on disk.
 
 ### Persistent layers: `header:` / `footer:`
 
@@ -642,6 +671,8 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 | `←` | Previous slide (or step back within the slide) |
 | `m` / `M` | Motion studio: preview timing, replay, pause, reverse, scrub, copy directives |
 | `r` / `R` | Readability report for the current viewport |
+| `v` / `V` | Toggle scrollable reading view with all reveals visible (`?read`) |
+| `e` / `E` | Source editor when served with `--edit` |
 | `f` / `F` | Toggle fullscreen |
 | `o` / `O` / `/` | Open searchable slide overview (text cards, live slides hidden) |
 | `?` | Open keyboard shortcuts |
@@ -649,6 +680,11 @@ The deck shows one slide at a time with a self-contained controller (`nav.go`).
 | `PageUp` / `PageDown` | Previous / next step or slide |
 | `b` / `B` / `Esc` | Blank / restore screen |
 | `p` | Open presenter view |
+
+Reading view includes a table of contents and transcripts of rendered Sirena
+labels. Handout exports omit speaker notes unless `--notes` is supplied. Local
+images/fonts are embedded in snapshots; `offline-required: true` suppresses remote theme
+fonts. External URLs supplied by the author stay external.
 
 - **Deep-linking:** the URL hash is **1-based** — `#1` is the first slide, `#3`
   the third. It loads to that slide and stays in sync as you navigate
@@ -750,10 +786,10 @@ handler swap, attribute swap).
   code + prose) can cause the following `---` to be absorbed as text. End such a
   slide with an HTML comment or `<Notes>` to force the split. gosx-slides warns
   you when this happens.
-- **First-run wasm build is slow.** `serve` stages a ~30 MB `GOOS=js`
-  `runtime.wasm` into `<deck>/build/` on first run. Subsequent runs are instant
-  (existence-cached); a gosx upgrade is picked up only with `--rebuild` (or by
-  deleting `build/`).
+- **First-run wasm build is slow.** `serve` stages the `GOOS=js` runtime into
+  `<deck>/build/` on first run. The cache follows the resolved dependency graph
+  and Go toolchain; use `--rebuild` to force a fresh build. Runtime size depends
+  on the GoSX release and toolchain; use `slides bench` to measure transfer.
 - **A `serve`-able deck must live in (or contain) a Go module that requires
   `m31labs.dev/gosx`.** `slides init` generates that `go.mod`
   (`module <name>`, `require m31labs.dev/gosx <version>`), so scaffolded decks
@@ -812,10 +848,10 @@ source fails to compile, slides render through a hand-built mdpp→`gosx.Node`
 lowering instead (prose and islands still render; `{expr}` degrades to raw
 text) so a transient bad deck never blanks the page.
 
-**`export_island.go`** renders the deck through the same `server.App` as
+**`export.go`** renders the deck through the same `server.App` as
 `serve` — in-process via an `httptest` recorder — then writes the static bundle.
 
-**`analysis_island.go`** implements `check` / `inspect` / `validate` /
+**`deck_analysis.go`** implements `check` / `inspect` / `validate` /
 `rehearse` / `doctor` / `components` against the `IslandDeck` (the mdpp-parsed
 deck) so these tools report correct themes, layouts, and components.
 

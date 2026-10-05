@@ -19,9 +19,10 @@ func TestExportSPAStagesAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, data := range map[string]string{
-		"gosx-runtime.wasm": "WASM",
-		"wasm_exec.js":      "//exec",
-		"islands/Demo.json": "{}",
+		"gosx-runtime.wasm":               "WASM",
+		"wasm_exec.js":                    "//exec",
+		"bootstrap-feature-textlayout.js": "//text layout",
+		"islands/Demo.json":               "{}",
 	} {
 		if err := os.WriteFile(filepath.Join(build, name), []byte(data), 0o644); err != nil {
 			t.Fatal(err)
@@ -51,7 +52,12 @@ func TestExportSPAStagesAssets(t *testing.T) {
 	if !strings.Contains(string(idx), `src="public/brand.txt"`) {
 		t.Errorf("public asset path not relativized:\n%s", idx)
 	}
-	for _, rel := range []string{"gosx/runtime.wasm", "gosx/wasm_exec.js", "gosx/islands/Demo.json", "notes.html"} {
+	// The lazy text-layout loader discovers this hint before falling back to
+	// /gosx/. That fallback fails when the bundle is hosted in a subdirectory.
+	if !strings.Contains(string(idx), `<link rel="preload" as="script" href="gosx/bootstrap-feature-textlayout.js">`) {
+		t.Error("text-layout runtime is not discoverable relative to the exported bundle")
+	}
+	for _, rel := range []string{"gosx/runtime.wasm", "gosx/wasm_exec.js", "gosx/bootstrap-feature-textlayout.js", "gosx/islands/Demo.json", "notes.html"} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Errorf("export missing %s: %v", rel, err)
 		}

@@ -153,6 +153,41 @@ func run(args []string) error {
 			fmt.Println(theme)
 		}
 		return nil
+	case "packs":
+		jsonOut, rest := takeBoolFlag(args[1:], "json")
+		if len(rest) > 1 {
+			return fmt.Errorf("usage: slides packs [deck-dir] [--json]")
+		}
+		deck, err := slides.LoadIslandDeck(deckDir(rest))
+		if err != nil {
+			return err
+		}
+		packs := slides.DeckPacks(deck)
+		if jsonOut {
+			payload, err := json.MarshalIndent(packs, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(payload))
+		} else {
+			if len(packs) == 0 {
+				fmt.Println("no enabled packs")
+			}
+			for _, pack := range packs {
+				fmt.Printf("%s@%s  %s\n", pack.Name, pack.Version, pack.Path)
+			}
+		}
+		return nil
+	case "pack":
+		if len(args) < 3 || len(args) > 4 || args[1] != "install" {
+			return fmt.Errorf("usage: slides pack install <source-dir> [deck-dir]")
+		}
+		manifest, err := slides.InstallDeckPack(deckDir(args[3:]), args[2])
+		if err != nil {
+			return err
+		}
+		fmt.Printf("installed %s@%s; enable in deck headmatter: packs: %s@%s\n", manifest.Name, manifest.Version, manifest.Name, manifest.Version)
+		return nil
 	case "doctor":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		report, err := slides.Doctor(deckDir(rest))
@@ -251,6 +286,7 @@ func run(args []string) error {
 		capture, rest := takeBoolFlag(rest, "capture")
 		steps, rest := takeBoolFlag(rest, "steps")
 		editable, rest := takeBoolFlag(rest, "editable")
+		notes, rest := takeBoolFlag(rest, "notes")
 		secondsText, rest, err := takeStringFlag(rest, "seconds", "2")
 		if err != nil {
 			return err
@@ -267,7 +303,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Seconds: seconds, FPS: fps})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Seconds: seconds, FPS: fps})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
@@ -390,11 +426,12 @@ Commands:
                                                          (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
-  bench [deck-dir] [--runs 3]  Measure fresh-browser readiness, transfer, heap and DOM
+  bench [deck-dir] [--runs 3] [--budget file.json]         measure browser readiness, transfer, heap, DOM and frame intervals
   build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
-  export [deck-dir] --format spa|single|pdf|frames|video|pptx [--out dist]
+  export [deck-dir] --format spa|single|handout|pdf|frames|video|pptx [--out dist]
     --capture    Render live graphics in single/PDF snapshots (needs Chrome)
     --editable   Export native text and supported SVG shapes in PPTX
+    --notes      Include speaker notes in the reading handout (opt-in)
     --steps      Capture every click state (implies capture)
     --seconds 2  Seconds per video state; --fps 15 (video needs ffmpeg)
   check [deck-dir]                                       title / slide / click / notes / layout counts
@@ -404,6 +441,9 @@ Commands:
   components [deck-dir] [--json]                          the deck's own .gsx islands + compile status
   doctor [deck-dir] [--json]                             deck health + serve prerequisites
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
+  packs [deck-dir] [--json]                              enabled local theme/component packs
+  pack install <source-dir> [deck-dir]                   vendor a validated pack; enable its exact pin in headmatter
+  Reading view: append ?read or press V; export --format handout for a static reading document
   version
 `))
 }

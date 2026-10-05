@@ -605,6 +605,11 @@ func navScript() string {
 
   window.SlidesNav = {
     show: show, next: next, prev: prev,
+    // Authoring previews stay in this tab and never advance the audience.
+    preview: function (nextIndex, nextStep) {
+      var wasRemote = applyingRemote; applyingRemote = true;
+      try { show(nextIndex, nextStep, true); } finally { applyingRemote = wasRemote; }
+    },
     current: function () { return index + 1; },
     // step exposes the active click step (0-based within the slide) and stepCount
     // its budget, so the presenter chrome can render "step K/N" and manual drivers

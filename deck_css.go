@@ -20,6 +20,7 @@ package slides
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -27,6 +28,8 @@ import (
 // automatically when headmatter names nothing, in priority order (the first
 // that exists wins — they are alternatives, not a chain).
 var deckDefaultCSSFiles = []string{"deck.css", "style.css"}
+
+var styleCloseTagRe = regexp.MustCompile(`(?i)</style`)
 
 // deckCSSFiles resolves which stylesheet files apply to the deck: the
 // headmatter `css:` list when present (comma- or space-separated, relative to
@@ -71,6 +74,12 @@ func safeDeckRelPath(name string) bool {
 // neutralized so a stylesheet can never break out of its <style> element.
 func deckCustomCSS(deck *IslandDeck) string {
 	var b strings.Builder
+	for _, pack := range deck.Packs {
+		for _, css := range pack.css {
+			b.WriteString(css)
+			b.WriteByte('\n')
+		}
+	}
 	for _, name := range deckCSSFiles(deck) {
 		data, err := os.ReadFile(filepath.Join(deck.Dir, filepath.FromSlash(name)))
 		if err != nil {
@@ -81,7 +90,7 @@ func deckCustomCSS(deck *IslandDeck) string {
 		}
 		b.Write(data)
 	}
-	return strings.ReplaceAll(b.String(), "</style", "<\\/style")
+	return styleCloseTagRe.ReplaceAllStringFunc(b.String(), func(match string) string { return strings.Replace(match, "/", "\\/", 1) })
 }
 
 // deckFrontmatterString reads one deck-headmatter value ("" when absent).

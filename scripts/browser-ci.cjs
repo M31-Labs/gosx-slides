@@ -20,10 +20,12 @@ async function withServer(deck, port, run, flags=[]) {
 }
 function script(name, url) { const result=spawnSync(process.execPath,[path.join(__dirname,name),url],{stdio:'inherit',env:process.env}); assert.equal(result.status,0,name+' failed'); }
 (async()=>{
+  const math = spawnSync(process.execPath, [path.join(__dirname, 'math-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(math.status, 0, 'math browser failed');
+  const reading = spawnSync(process.execPath, [path.join(__dirname, 'reading-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(reading.status, 0, 'reading browser failed');
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');
-  try {await withServer(editDir,8120,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
+  try {await withServer(editDir,8120,async url=>{script('source-tools-browser.cjs',url);const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
 
   const storyDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-story-'));
   try{fs.cpSync('examples/storytelling-lab',storyDir,{recursive:true});await withServer(storyDir,8126,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'storytelling-browser.cjs'),url,path.join(storyDir,'deck.md')],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'storytelling browser failed');script('motion-transport-browser.cjs',url);script('pptx-editable-browser.cjs',url);},['--edit']);}finally{fs.rmSync(storyDir,{recursive:true,force:true})}
@@ -70,7 +72,10 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const editable=path.join(out,'editable.pptx');
   const editableExport=spawnSync(binary,['export','examples/storytelling-lab','--format','pptx','--editable','--out',editable],{stdio:'inherit',env:process.env});assert.equal(editableExport.status,0,'editable PPTX export failed');
   const editableXML=spawnSync('unzip',['-p',editable,'ppt/slides/slide5.xml'],{encoding:'utf8'});assert.equal(editableXML.status,0,'editable PPTX XML missing');assert.ok(editableXML.stdout.includes('<p:txBody>')&&editableXML.stdout.includes('<a:custGeom>')&&editableXML.stdout.includes('<a:alpha val="15000"/>'),'radar must retain editable labels, geometry and translucency');
-  const bench=spawnSync(binary,['bench','examples/authoring-lab','--runs','1','--budget','scripts/performance-budget.json'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0 && report.runs[0].frameP95Millis>0);
+  for (const deck of ['examples/authoring-lab', 'examples/math-lab', 'examples/composition-pack']) {
+    const bench=spawnSync(binary,['bench',deck,'--runs','1','--budget','scripts/performance-budget.json'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0 && report.runs[0].frameP95Millis>0);
+    fs.writeFileSync(path.join(out, path.basename(deck)+'-benchmark.json'), JSON.stringify(report,null,2));
+  }
   const pdf=fs.readFileSync(path.join(out,'steps.pdf'));
   assert.ok(pdf.subarray(0,4).equals(Buffer.from('%PDF')));
   assert.equal((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length,11,'every authored code/cue state must be a PDF page');

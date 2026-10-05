@@ -14,13 +14,18 @@ concurrency:
 
 jobs:
   go:
-    name: Go (${{ matrix.module }})
-    runs-on: ubuntu-latest
+    name: Go (${{ matrix.module }})${{ matrix.suffix }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        module: [".", examples/canopy-migration, examples/gophercon2026]
+        include:
+          - {module: ".", os: ubuntu-latest}
+          - {module: ".", os: windows-latest, suffix: " [Windows]"}
+          - {module: ".", os: macos-latest, suffix: " [macOS]"}
+          - {module: examples/canopy-migration, os: ubuntu-latest}
+          - {module: examples/gophercon2026, os: ubuntu-latest}
     defaults:
       run:
         working-directory: ${{ matrix.module }}

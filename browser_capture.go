@@ -225,7 +225,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 	if err = browser.wait(`document.readyState === "complete" && !!window.SlidesNav && (!document.getElementById("gosx-manifest") || !!(window.__gosx && window.__gosx.ready))`); err != nil {
 		return err
 	}
-	if err = browser.eval(`(async()=>{`+captureReady+`;await waitFor(()=>window.SlidesNav && document.readyState==='complete' && (!document.getElementById('gosx-manifest') || window.__gosx && window.__gosx.ready));
+	if err = browser.eval(`(async()=>{`+captureReady+`;await waitFor(()=>window.SlidesNav && document.readyState==='complete' && (!document.getElementById('gosx-manifest') || window.__gosx && window.__gosx.ready));if(document.fonts)await document.fonts.ready;
  const css=document.createElement('style');css.textContent='.deck-controls,.deck-counter,.deck-progress,.deck-overflow-badge,.code-copy{display:none!important}';document.head.appendChild(css);return true;})()`, nil); err != nil {
 		return err
 	}

@@ -27,7 +27,10 @@ func sourceMotionRanges(deck *IslandDeck) []motionSourceRange {
 			if node.Attr("name") != "motion" {
 				continue
 			}
-			start := node.Range.StartByte
+			start, _, mapped := deck.rootSourceRange(node.Range.StartByte, node.Range.EndByte)
+			if !mapped {
+				continue
+			}
 			if start < 0 || start >= len(deck.Source) {
 				continue
 			}

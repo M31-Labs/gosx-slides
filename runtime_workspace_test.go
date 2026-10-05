@@ -1,10 +1,30 @@
 package slides
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+// A fresh module can return successful go-list metadata with no source Dir.
+// Serving must retry writable resolution before trying to stage the runtime.
+func TestRuntimeRootResolvesFreshPortableDeck(t *testing.T) {
+	dir := t.TempDir()
+	mod := fmt.Sprintf("module example.test/freshdeck\ngo 1.26\nrequire m31labs.dev/gosx %s\n", gosxScaffoldVersion())
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=vendor")
+	root, err := resolveGoSXRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(filepath.Join(root, "go.mod")); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("resolved root %q: %v", root, err)
+	}
+}
 
 func TestRuntimeRootRespectsGoWorkspace(t *testing.T) {
 	dir := t.TempDir()
