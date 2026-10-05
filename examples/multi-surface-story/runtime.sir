@@ -1,0 +1,7 @@
+client browser { label: "Browser" }
+service api { label: "API" }
+queue buffer { label: "Buffer" }
+job worker { label: "Worker" }
+browser -> api: calls "request"
+api -> buffer: writes "enqueue"
+buffer -> worker: flow "drain"

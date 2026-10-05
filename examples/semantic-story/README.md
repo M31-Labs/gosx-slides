@@ -15,9 +15,12 @@ A missing effect restores its baseline at that cue. Omitted `reveal` shows all
 actors; `reveal: []` hides every actor. Each `trace` is a directed path through
 declared relationships. Code blocks are zero based and code lines are one based.
 DOM targets use `id` or `data-story-id`; ambiguous identities are rejected.
-Camera poses need a Sirena `Scene3D` surface. A slide currently has one story
-surface, either one native scene or one SVG diagram (including sequential states
-inside `diagram-morph`). Story poses and an authored `Steps` file are exclusive.
+Camera poses need a Sirena `Scene3D` surface. Existing unwrapped slides have one
+story surface, either a native scene or SVG diagram (including sequential states
+inside `diagram-morph`). Named `:::story-surface {name=map}` containers allow up
+to eight independent surfaces under one playhead; see
+[the multi-surface example](../multi-surface-story/README.md). Story poses and an
+authored `Steps` file remain exclusive for each native scene.
 
 The YAML `expect` clauses test canonical visibility and labels. The Go API
 `AssertStory` also validates named Markdown links and local links/snippet sources.
