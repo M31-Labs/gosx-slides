@@ -1,0 +1,21 @@
+.slides-team-panel{box-sizing:border-box;width:min(94vw,1000px);max-height:90dvh;overflow:auto;border:1px solid #46546b;border-radius:14px;background:#151923;color:#edf1f8;padding:22px;box-shadow:0 20px 70px #0008;font:16px/1.45 system-ui,sans-serif}
+.slides-team-panel::backdrop{background:#0009}
+main.deck[data-theme] .slides-team-panel h2{font:700 24px/1.2 system-ui;margin:0 0 10px;color:#edf1f8;letter-spacing:0;text-transform:none}
+main.deck[data-theme] .slides-team-panel p{font:inherit;margin:10px 0;color:inherit}
+.slides-team-panel label{display:block;margin:8px 0;font-size:14px}
+.slides-team-panel input,.slides-team-panel textarea{box-sizing:border-box;width:100%;color:#edf1f8;background:#0b111c;border:1px solid #61718a;border-radius:6px;padding:9px;font:inherit}
+.slides-team-panel .slides-team-draft{min-height:260px;max-height:45dvh;resize:vertical;font:14px/1.45 ui-monospace,monospace;white-space:pre}
+.slides-team-panel button{border:1px solid #697990;border-radius:6px;background:#263249;color:#fff;padding:8px 12px;font:600 14px/1.3 system-ui;cursor:pointer}
+.slides-team-panel button:disabled{opacity:.55;cursor:default}
+.slides-team-panel :focus-visible{outline:3px solid #9bc9ff;outline-offset:2px}
+.slides-team-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.slides-team-status{min-height:24px;color:#ccd6e8}
+.slides-team-presence{padding:0;margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;list-style:none;font-size:13px}
+.slides-team-presence li{background:#263249;border-radius:5px;padding:4px 8px}
+main.deck[data-theme] .slides-team-comments{list-style:none;max-width:none;padding:0;margin:12px 0}
+main.deck[data-theme] .slides-team-comments li{border-top:1px solid #46546b;padding:12px 0;overflow-wrap:anywhere}
+main.deck[data-theme] .slides-team-comments li::before,main.deck[data-theme] .slides-team-presence li::before{display:none}
+.slides-team-comments li[data-resolved=true]{opacity:.7}
+.slides-team-comments p{white-space:pre-wrap;font-size:14px}
+.slides-team-comments small{display:block;color:#b6c5dc;margin-bottom:8px}
+@media print{.slides-team-panel{display:none!important}}

@@ -45,6 +45,8 @@ type ServeOptions struct {
 	Sessions *SessionOptions
 	// TLSCertFile and TLSKeyFile enable HTTPS with the GoSX application handler.
 	TLSCertFile, TLSKeyFile string
+	// Collaborate enables editor-only shared drafts, presence and review comments.
+	Collaborate bool
 	// Addr is the listen address for Serve (e.g. "127.0.0.1:8080"). Ignored by
 	// NewServer, which only builds the App.
 	Addr string
@@ -94,6 +96,9 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if err := validateServeAccess(opts); err != nil {
 		return nil, err
 	}
+	if opts.Collaborate && (!opts.Edit || opts.Static) {
+		return nil, fmt.Errorf("collaboration requires live serving with editing enabled")
+	}
 
 	// Compile each distinct component once (CompileComponent recompiles on every
 	// call — cache by name) and mount its JSON. The compiled cache is read-only
@@ -123,6 +128,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 
 	if opts.Edit && !opts.Static {
 		if err := mountSourceEditor(app, d); err != nil {
+			return nil, err
+		}
+	}
+	if opts.Collaborate {
+		if err := mountTeam(app, d); err != nil {
 			return nil, err
 		}
 	}
@@ -228,7 +238,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static)
+		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static)
+		if opts.Collaborate && sourceRequestWriter(ctx.Request) {
+			return gosx.Fragment(body, teamAssets())
+		}
+		return body
 	})
 
 	if opts.StageRuntime {
