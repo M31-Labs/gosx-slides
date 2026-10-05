@@ -200,6 +200,10 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		return err
 	}
 	defer narration.close()
+	width, height, err := exportSize(deck, opts)
+	if err != nil {
+		return err
+	}
 	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true})
 	if err != nil {
 		return err
@@ -221,7 +225,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		return err
 	}
 	defer browser.close()
-	if err = browser.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 720, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
+	if err = browser.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": height, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
 		return err
 	}
 	if err = browser.call("Page.navigate", map[string]any{"url": server.URL}, nil); err != nil {
@@ -254,14 +258,14 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		if filepath.Ext(out) == "" {
 			path = filepath.Join(out, "deck.pptx")
 		}
-		pptx, err = newPPTX(path)
+		pptx, err = newPPTXConfigured(path, width, height, opts.PPTXTemplate)
 		if err != nil {
 			return err
 		}
 		defer pptx.abort()
 	}
 	var pages strings.Builder
-	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + pdfPageStyle[7:len(pdfPageStyle)-8] + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
+	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + officePageCSS(width, height) + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
 	var video *exec.Cmd
 	var pipe io.WriteCloser
 	var videoLog bytes.Buffer

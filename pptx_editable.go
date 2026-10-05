@@ -14,6 +14,34 @@ type pptxObject struct {
 	FillAlpha, StrokeAlpha                      *float64
 	Bold, Italic, FlipV                         bool
 	Path                                        []pptxPathCommand
+	Table                                       *pptxTable
+	Chart                                       *pptxChart
+}
+
+type pptxTable struct {
+	Rows                     [][]pptxCell
+	ColumnWidths, RowHeights []float64
+}
+type pptxCell struct {
+	Text, FontFamily, Color, Fill, Border, Align string
+	FontSize, BorderWidth, Padding               float64
+	Bold, Italic                                 bool
+	Borders                                      []pptxBorder
+	Margins                                      []float64 // left, right, top, bottom in viewport pixels
+	FillAlpha                                    *float64
+}
+type pptxBorder struct {
+	Color string
+	Width float64
+	Alpha *float64
+}
+type pptxChart struct {
+	Type                  string
+	TextColor, FontFamily string
+	FontSize              float64
+	Categories            []string
+	Values                []float64
+	Colors                []string
 }
 type pptxPathCommand struct {
 	Command string
@@ -32,8 +60,15 @@ func pptEMU(px float64) int64 { return int64(math.Round(px * 9525)) }
 func pptxObjectsXML(objects []pptxObject) string {
 	var out strings.Builder
 	for i, o := range objects {
-		if o.Width < 0 || o.Height < 0 || math.IsNaN(o.X) || math.IsNaN(o.Y) || math.IsInf(o.X, 0) || math.IsInf(o.Y, 0) {
+		if !pptxValidObject(o) {
 			continue
+		}
+		if o.Kind == "table" {
+			out.WriteString(pptxTableXML(i+3, o))
+			continue
+		}
+		if o.Kind == "chart" {
+			continue // chart parts and relationship IDs are assigned by the writer
 		}
 		fmt.Fprintf(&out, `<p:sp><p:nvSpPr><p:cNvPr id="%d" name="Editable %s %d"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm`, i+3, html.EscapeString(o.Kind), i+1)
 		if o.FlipV {
@@ -93,6 +128,25 @@ func pptxObjectsXML(objects []pptxObject) string {
 	}
 	return out.String()
 }
+
+func pptxValidObject(o pptxObject) bool {
+	for _, v := range []float64{o.X, o.Y, o.Width, o.Height, o.FontSize, o.StrokeWidth} {
+		if math.IsNaN(v) || math.IsInf(v, 0) || math.Abs(v) > 1e6 {
+			return false
+		}
+	}
+	if o.Width < 0 || o.Height < 0 || len(o.Text) > 80000 {
+		return false
+	}
+	for _, p := range o.Path {
+		for _, v := range p.Points {
+			if math.IsNaN(v) || math.IsInf(v, 0) || math.Abs(v) > 1e6 {
+				return false
+			}
+		}
+	}
+	return true
+}
 func boolInt(value bool) int {
 	if value {
 		return 1
@@ -101,7 +155,7 @@ func boolInt(value bool) int {
 }
 
 func pptAlpha(value *float64) string {
-	if value == nil {
+	if value == nil || math.IsNaN(*value) || math.IsInf(*value, 0) {
 		return ""
 	}
 	return fmt.Sprintf(`<a:alpha val="%d"/>`, int(math.Round(math.Max(0, math.Min(1, *value))*100000)))
