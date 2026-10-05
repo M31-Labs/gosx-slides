@@ -61,7 +61,9 @@ func deckCSSFiles(deck *IslandDeck) []string {
 // safeDeckRelPath reports whether a headmatter-named path stays inside the
 // deck directory: relative, and free of ../ traversal after cleaning.
 func safeDeckRelPath(name string) bool {
-	if filepath.IsAbs(name) {
+	// Windows treats /name and \\name as drive-relative rooted paths, so
+	// IsAbs alone is insufficient for the portable deck path contract.
+	if !filepath.IsLocal(name) || strings.HasPrefix(name, "/") || strings.HasPrefix(name, `\`) {
 		return false
 	}
 	clean := filepath.ToSlash(filepath.Clean(name))

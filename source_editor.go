@@ -47,8 +47,8 @@ func trustedSourceHost(authority string) bool {
 }
 
 func authorizeSourceRequest(r *http.Request, token string, requireToken bool) error {
-	if !trustedSourceHost(r.Host) {
-		return fmt.Errorf("local authoring host required")
+	if !sourceRequestWriter(r) {
+		return fmt.Errorf("local authoring host or editor session required")
 	}
 	if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
 		return fmt.Errorf("same-origin authoring required")

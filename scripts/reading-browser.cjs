@@ -3,14 +3,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
-const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const { PNG } = require('pngjs');
+const { launchTestBrowser } = require('./test-browser.cjs');
 
 (async () => {
   const binary = path.resolve(process.argv[2] || './slides');
   const dir = fs.mkdtempSync(path.join(path.resolve('testdata'), 'browser-reading-'));
   const out = path.join(dir, 'output');
   fs.mkdirSync(path.join(dir, 'public'));
-  fs.writeFileSync(path.join(dir, 'public', 'pixel.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=', 'base64'));
+  const pixel = new PNG({width:1, height:1}); pixel.data.fill(255);
+  fs.writeFileSync(path.join(dir, 'public', 'pixel.png'), PNG.sync.write(pixel));
   fs.writeFileSync(path.join(dir, 'deck.md'), `---\ntitle: Reading fixture\noffline: true\n---\n\n# First\n\n![Pixel](/public/pixel.png)\n\n<!-- Private speaker note -->\n\n---\n\n\x60\x60\x60yaml\nreveal: true\nid: second\n\x60\x60\x60\n\n# Second\n\n- First item\n- [Second item](https://example.test/)\n\n\x60\x60\x60sirena\nservice api { label: "API" }\n\x60\x60\x60\n`);
   const server = spawn(binary, ['serve', dir, '--port', '8137'], { stdio: ['ignore', 'ignore', 'inherit'] });
   let browser, staticServer;
@@ -21,7 +23,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
       if (attempt >= 120) throw Error('Reading fixture startup timed out');
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    browser = await chromium.launch({ args: ['--no-sandbox'], ...(process.env.SLIDES_BROWSER ? { executablePath: process.env.SLIDES_BROWSER } : {}) });
+    browser = await launchTestBrowser({ args: ['--no-sandbox'] });
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto('http://127.0.0.1:8137/?read');
@@ -64,11 +66,14 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
     await page.goto(address + 'handout/handout.html');
     await page.waitForFunction(() => SlidesReading.enabled());
     assert.equal(await page.locator('.slide:visible').count(), 2);
+    await page.waitForFunction(() => { const image=document.querySelector('img');return image?.complete && image.naturalWidth>0; });
     assert.equal(await page.locator('img').first().evaluate(image => image.complete && image.naturalWidth > 0), true);
     await page.goto(address + 'single/deck.html');
+    await page.waitForFunction(() => { const image=document.querySelector('img');return image?.complete && image.naturalWidth>0; });
     assert.equal(await page.locator('img').first().evaluate(image => image.complete && image.naturalWidth > 0), true);
     await page.goto(address + 'spa/index.html?read');
     await page.waitForFunction(() => SlidesReading.enabled());
+    await page.waitForFunction(() => { const image=document.querySelector('img');return image?.complete && image.naturalWidth>0; });
     assert.equal(await page.locator('img').first().evaluate(image => image.complete && image.naturalWidth > 0), true);
     assert.deepEqual(errors, []);
     console.log('Reading browser passed: desktop/mobile, fragment accessibility, notes privacy, offline local images and subpath SPA.');

@@ -46,8 +46,9 @@
     section.querySelectorAll('input').forEach(input=>input.setAttribute('aria-invalid','false')); buttons();
   }
   async function request(method, source) {
+    const headers = method === 'GET' ? {} : {'Content-Type':'application/json','X-Slides-Token':draft.token};
     const response = await fetch('/_slides/scene?graphic=' + encodeURIComponent(mount.dataset.slideSceneSource), {
-      method, cache:'no-store', headers: method === 'GET' ? {} : {'Content-Type':'application/json','X-Slides-Token':draft.token},
+      method, cache:'no-store', headers: window.SlidesSessionHeaders ? SlidesSessionHeaders(headers) : headers,
       ...(method === 'GET' ? {} : {body:JSON.stringify({source:JSON.stringify(source,null,2)+'\n', revision:draft.revision, contextRevision:draft.contextRevision})})
     });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Scene edit failed'); return data;

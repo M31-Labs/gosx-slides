@@ -68,10 +68,11 @@ directly also works (the parent directory is used).
 | Command | Purpose |
 |---|---|
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
-| `serve [deck-dir] [--edit] [--port 8080] [--rebuild] [--watch]` | Serve a deck with live hydrated islands and server-evaluated `{expr}`. `--edit` enables revision-safe browser editing; use `--watch` separately. |
+| `serve [deck-dir] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]` | Serve live islands and server expressions. `--edit` enables revision-safe editing; `--collab` adds shared CRDT drafts, presence and anchored reviews. Public listeners require authenticated sessions. Use `--watch` separately. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
 | `export [deck-dir] --format spa\|single\|handout\|pdf\|frames\|video\|pptx [--capture] [--editable] [--steps] [--notes] [--seconds 2] [--fps 15] [--out dist]` | SPA retains live islands; single and handout embed published local assets with static islands. Handout defaults to private notes omitted (`--notes` opts in). PDF/capture/PPTX need Chrome (`SLIDES_CHROME`); video also needs ffmpeg. Editable PPTX supports native text and selected SVG geometry with captured fallbacks. |
 | `bench [deck-dir] [--runs 3] [--budget file.json]` | Browser readiness, transfer, heap, DOM and frame intervals; requires Chrome. |
+| `import <source.pptx> [--out new-deck-dir] [--json]` | Migrate supported Office content, report fidelity losses and refuse an existing destination. |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
 | `inspect [deck-dir] [--json]` | Full authoring analysis: word count, estimated runtime, component usage, warnings. |
 | `validate [deck-dir] [--strict] [--profile standard\|conference\|demo\|lecture]` | Authoring-rule checks by profile. `--strict` exits non-zero on failure (CI gate). |
@@ -86,7 +87,18 @@ directly also works (the parent directory is used).
 
 ### `serve` flags
 
-- `--port N` — listen port (default `8080`); binds **`127.0.0.1`** only.
+- `--port N` — listen port (default `8080`); the default host is `127.0.0.1`.
+- `--host HOST` — non-loopback hosts require `--editor-token-file`; an optional
+  `--audience-token-file` grants audience-only access. Tokens are distinct,
+  32–4096 bytes. Use `--tls-cert`/`--tls-key` for HTTPS or explicitly opt into
+  trusted plain HTTP with `--session-http`. `--session-secret-file` preserves
+  sessions across restarts. The watch proxy stays local.
+  Private `.slides-sessions.json` stores active login grants and revocations.
+  Logout, role re-login and absolute eight-hour expiry invalidate access and
+  close editor sockets; changing tokens or the session key invalidates logins.
+- `--collab` — implies `--edit`; editor-only shared CRDT drafts, presence and
+  persisted review comments. One server owns the deck; publish through the
+  existing revision-checked source save. Private `.slides-team.json` is ignored.
 - `--watch` — turn `serve` into the **hot-swap dev loop**: a `.gsx` edit
   hot-swaps the live island in place (state preserved, no reload); a `deck.md`
   edit triggers a full reload with the new content.
@@ -101,6 +113,29 @@ directly also works (the parent directory is used).
 ```
 
 ---
+
+## Recording, Office content and publication
+
+The Record toolbar control captures a shared tab/screen locally with optional
+microphone and camera. Downloads include navigation timing and authored
+`caption:` text as WebVTT; notes are never inferred as captions. Keep the tab
+active; capture requires browser support and HTTPS or localhost. Bounds are
+30 minutes, 256 MiB and 1080p.
+
+Video export accepts deck-relative `--narration audio.wav` and `--captions text.vtt`.
+Short audio pads with silence; audio/captions beyond the selected duration are
+rejected. Narration needs ffprobe as well as ffmpeg. Failed exports preserve
+existing video and VTT outputs.
+
+Editable PPTX supports plain native tables and Sirena bar/pie charts with editable
+workbooks, plus native text and supported SVG. Unsupported effects retain pixels.
+`--template prior.pptx` reuses only its theme. `--aspect 4:3` or paired
+`--width`/`--height` control PDF/PPTX/capture dimensions. Import reports layout and
+media losses; original note recovery files stay outside `public/`.
+
+Static exports omit notes by default. `--notes` opts in for SPA, handout and
+editable PPTX. A default SPA export refuses an existing `notes.html` sidecar;
+publish into a fresh folder to avoid retaining older private material.
 
 ## Motion and authoring additions
 
@@ -798,8 +833,10 @@ handler swap, attribute swap).
   (e.g. `examples/real-deck`) with no `go.mod` of its own only serves from
   inside the repo. The first `serve` auto-populates `go.sum`
   (`GOFLAGS=-mod=mod`).
-- **`serve` binds `127.0.0.1` only.** It is not reachable from other machines;
-  use SSH port-forwarding to view remotely.
+- **`serve` defaults to `127.0.0.1`.** Use SSH forwarding for local serving, or
+  configure `--host`, room tokens and TLS for authenticated shared access.
+  Only the `public/` subtree and explicitly referenced composition assets are
+  published; source, room tokens and collaboration state stay private.
 - `build/` is gitignored. Don't commit it.
 - `{slide.index}` is **0-based**, but the URL hash (`#N`) is **1-based**.
 - An unknown `{identifier}` renders empty (fail-soft); an unresolvable

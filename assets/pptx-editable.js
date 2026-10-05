@@ -104,6 +104,139 @@
     }
     return true;
   }
+  function hide(el) {
+    const visibility = el.style.visibility;
+    el.style.visibility = "hidden";
+    undo.push(() => (el.style.visibility = visibility));
+  }
+  function uniformScale(el) {
+    let x = 1, y = 1;
+    for (let p = el; p; p = p.parentElement) {
+      const s = getComputedStyle(p);
+      if (Number(s.zoom || 1) !== 1) return null;
+      // Independent CSS transform properties are not folded into transform's
+      // DOMMatrix. Preserve pixels until their complete composition is handled.
+      if ((s.scale && s.scale !== "none") || (s.rotate && s.rotate !== "none")) return null;
+      if (s.transform !== "none") {
+        const m = new DOMMatrix(s.transform);
+        if (!m.is2D || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0 || m.d <= 0) return null;
+        x *= m.a; y *= m.d;
+      }
+    }
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x <= 0 || y <= 0 || Math.abs(x-y) > 1e-6 * Math.max(x,y)) return null;
+    return y;
+  }
+  function background(cell, table) {
+    const layers = [];
+    for (let p = cell; p && table.contains(p); p = p.parentElement) {
+      const s = getComputedStyle(p), layer = rgba(s.backgroundColor);
+      if (s.backgroundImage !== "none" || !layer) return null;
+      layers.unshift(layer);
+    }
+    let rgb = [0,0,0], alpha = 0;
+    for (const layer of layers) {
+      const a = layer.alpha + alpha * (1-layer.alpha);
+      if (a) rgb = rgb.map((v,i) => (layer.rgb[i]*layer.alpha + v*alpha*(1-layer.alpha))/a);
+      alpha = a;
+    }
+    return { fill: rgb.map(v => Math.round(v).toString(16).padStart(2,"0")).join(""), fillAlpha: alpha };
+  }
+  function rgba(value) {
+    const match = /^rgba?\((\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([\d.]+))?\)$/.exec(value),
+      srgb = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\)$/.exec(value), parsed = match || srgb;
+    if (!parsed) return null;
+    const rgb = parsed.slice(1,4).map(v => Number(v) * (srgb ? 255 : 1)), alpha = parsed[4] == null ? 1 : Number(parsed[4]);
+    if (rgb.some(v => !Number.isFinite(v) || v < 0 || v > 255) || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null;
+    return {rgb,alpha};
+  }
+  // All-or-nothing semantic extraction: merged/rich/clipped tables retain their
+  // complete pixels, so failed extraction never leaves a half-editable table.
+  for (const table of slide.querySelectorAll("table")) {
+    const r = table.getBoundingClientRect(), rows = Array.from(table.rows);
+    if (!visible(table) || !safe(table) || table.querySelector("caption") ||
+        !rows.length || rows.length > 64 || !rows[0].cells.length || rows[0].cells.length > 16) continue;
+    const data = { rows: [], columnWidths: [], rowHeights: [] };
+    let valid = true, count = 0;
+    for (const [index, row] of rows.entries()) {
+      if (row.cells.length !== rows[0].cells.length || !visible(row) || !safe(row)) { valid = false; break; }
+      const cells = [];
+      const rowHeight = row.getBoundingClientRect().height;
+      if (!(rowHeight > 0 && rowHeight <= 4096)) { valid = false; break; }
+      data.rowHeights.push(rowHeight);
+      for (const cell of row.cells) {
+        const s = getComputedStyle(cell), cr = cell.getBoundingClientRect();
+        const scale = uniformScale(cell);
+        if (cell.rowSpan !== 1 || cell.colSpan !== 1 || !visible(cell) || !safe(cell) ||
+            scale == null || !(cr.width > 0 && cr.width <= 4096) ||
+            !color(s.color) || s.writingMode !== "horizontal-tb" || s.textTransform !== "none" ||
+            s.textDecorationLine !== "none" || s.textShadow !== "none") { valid = false; break; }
+        for (const child of cell.querySelectorAll("*")) {
+          const cs = getComputedStyle(child);
+          if (!/^(SPAN|B|STRONG|I|EM|BR)$/.test(child.tagName) ||
+              ["fontSize", "fontWeight", "fontStyle", "fontFamily", "color"].some(k => cs[k] !== s[k]) ||
+              !safe(child)) valid = false;
+        }
+        const borders = [];
+        for (const side of ["Left", "Right", "Top", "Bottom"]) {
+          const width = parseFloat(s["border" + side + "Width"]) * scale,
+            style = s["border" + side + "Style"], value = rgba(s["border" + side + "Color"]);
+          if (!(width >= 0 && width <= 100) || width && (style !== "solid" || !value)) valid = false;
+          borders.push({ width, color: value?.rgb.map(v => Math.round(v).toString(16).padStart(2,"0")).join(""), alpha: value?.alpha });
+        }
+        const bg = background(cell,table);
+        if (!bg) valid = false;
+        const text = cell.innerText;
+        const margins = [s.paddingLeft,s.paddingRight,s.paddingTop,s.paddingBottom].map(v => parseFloat(v) * scale),
+          fontSize = parseFloat(s.fontSize) * scale;
+        // Match the native writer's byte and numeric validation before hiding
+        // any pixels. UTF-16 string.length is not a UTF-8 byte allowance.
+        if (new TextEncoder().encode(text).length > 20000 ||
+            [fontSize,...margins].some(v => !Number.isFinite(v) || v < 0 || v > 4096)) valid = false;
+        count += text.length;
+        if (index === 0) data.columnWidths.push(cr.width);
+        cells.push({ text, color: color(s.color), ...bg, borders,
+          margins,
+          fontFamily: s.fontFamily.split(",")[0].replace(/["']/g, ""), fontSize,
+          bold: Number(s.fontWeight) >= 600, italic: s.fontStyle === "italic", align: s.textAlign });
+      }
+      data.rows.push(cells);
+    }
+    if (!valid || glyphs + count > 20000) continue;
+    glyphs += count;
+    objects.push({ kind: "table", x: r.left, y: r.top, width: r.width, height: r.height, table: data });
+    hide(table);
+  }
+  // Sirena exposes displayed chart values in accessible labels. Restrict native
+  // charts to simple bar/pie output; line/scatter and unsupported effects keep
+  // pixels. PowerPoint uses its own chart typography and layout in editable mode.
+  const chartFigures = new Set();
+  for (const figure of slide.querySelectorAll(".mdpp-diagram-sirena")) {
+    const svg = figure.querySelector("svg"), items = svg && Array.from(svg.querySelectorAll("g.chart-item"));
+    if (!items || !items.length) continue;
+    chartFigures.add(figure);
+    const content = [...items,...svg.querySelectorAll(".chart-axis")], boxes = content.map(el => el.getBoundingClientRect()),
+      r = { left:Math.min(...boxes.map(b=>b.left)), top:Math.min(...boxes.map(b=>b.top)),
+        right:Math.max(...boxes.map(b=>b.right)), bottom:Math.max(...boxes.map(b=>b.bottom)) };
+    r.width=r.right-r.left; r.height=r.bottom-r.top;
+    if (!visible(svg) || !safe(svg,r) || !r.width || !r.height || items.length > 128 ||
+        content.some(el => !safe(el))) continue;
+    const label = svg.querySelector("g.label"), labelStyle = getComputedStyle(label || svg), matrix = svg.getScreenCTM(),
+      type = svg.querySelector(".chart-axis") ? "bar" : "pie",
+      chart = { type, categories: [], values: [], colors: [], textColor: color(labelStyle.fill) || color(labelStyle.color),
+        fontSize: 14 * (matrix?.a || 1), fontFamily: "Arial" };
+    let valid = !!matrix && Math.abs(matrix.a-matrix.d)<0.001 && Math.abs(matrix.b)<1e-6 && Math.abs(matrix.c)<1e-6;
+    for (const item of items) {
+      const match = /^(.*):\s*([-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?)$/i.exec(item.getAttribute("aria-label") || ""),
+        shape = item.querySelector(type === "bar" ? "rect" : "path,circle,rect");
+      if (!match || !shape || match[1].length > 1024 || !Number.isFinite(Number(match[2])) ||
+          Math.abs(Number(match[2])) > 1e15 || type === "pie" && Number(match[2]) < 0 ||
+          !color(getComputedStyle(shape).fill) || Number(getComputedStyle(shape).fillOpacity) !== 1) { valid = false; break; }
+      chart.categories.push(match[1]); chart.values.push(Number(match[2])); chart.colors.push(color(getComputedStyle(shape).fill));
+    }
+    if (!valid || type === "pie" && chart.values.reduce((a,b) => a+b, 0) <= 0) continue;
+    objects.push({ kind: "chart", x: r.left, y: r.top, width: r.width, height: r.height, chart });
+    content.forEach(hide); // keep the original diagram background in pixels
+  }
   const walker = document.createTreeWalker(slide, NodeFilter.SHOW_TEXT),
     texts = [];
   while (walker.nextNode()) texts.push(walker.currentNode);
@@ -112,7 +245,7 @@
     if (
       !node.textContent.trim() ||
       el.closest(
-        'svg,canvas,.slide-graphic,.deck-graphics-background,script,style,aside,button,input,textarea,select,dialog,[aria-hidden="true"],.speaker-note',
+        'table,svg,canvas,.slide-graphic,.deck-graphics-background,script,style,aside,button,input,textarea,select,dialog,[aria-hidden="true"],.speaker-note',
       ) ||
       !visible(el) ||
       !safe(el) ||
@@ -121,6 +254,10 @@
       continue;
     const s = getComputedStyle(el);
     if (!color(s.color)) continue;
+    const scale = uniformScale(el);
+    if (scale == null) continue;
+    const fontSize = parseFloat(s.fontSize) * scale;
+    if (!Number.isFinite(fontSize) || fontSize < 1 || fontSize > 512) continue;
     const range = document.createRange();
     range.selectNodeContents(node);
     const rects = Array.from(range.getClientRects());
@@ -171,7 +308,7 @@
         y: r.top,
         width: r.width,
         height: r.height,
-        fontSize: parseFloat(s.fontSize),
+        fontSize,
         fontFamily: s.fontFamily.split(",")[0].replace(/^['"]|['"]$/g, ""),
         color: color(s.color),
         bold: Number(s.fontWeight) >= 600,
@@ -184,6 +321,7 @@
   );
   for (const el of svgShapes) {
     if (
+      chartFigures.has(el.closest(".mdpp-diagram-sirena")) ||
       el.closest("defs,marker,clipPath,mask,[hidden]") ||
       el.closest('[aria-hidden="true"]') ||
       (el.closest("g.label") !== el && el.closest("g.label")) ||

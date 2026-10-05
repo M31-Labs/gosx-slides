@@ -38,7 +38,7 @@ func TestExportSPAStagesAssets(t *testing.T) {
 
 	out := t.TempDir()
 	doc := `<head><script defer src="/gosx/runtime.wasm"></script></head><body><img src="/public/brand.txt"></body>`
-	if err := exportSPA(deck.Dir, deck, doc, out); err != nil {
+	if err := exportSPA(deck.Dir, deck, doc, out, true); err != nil {
 		t.Fatalf("exportSPA: %v", err)
 	}
 

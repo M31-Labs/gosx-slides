@@ -72,7 +72,7 @@ const assert = require('node:assert/strict');
     await mobile.goto(url+'#pipeline/worker', { waitUntil: 'domcontentloaded' });
     await mobile.waitForFunction(() => window.SlidesMotion);
     await mobile.evaluate(() => SlidesMotion.open());
-    const bounds = await mobile.locator('dialog').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
+    const bounds = await mobile.locator('.slides-motion-studio').boundingBox(); assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
     const reduced = await browser.newPage({ reducedMotion: 'reduce' });
     reduced.on('pageerror', error => errors.push(error.message));
     await reduced.goto(url+'#pipeline/worker', { waitUntil: 'domcontentloaded' });

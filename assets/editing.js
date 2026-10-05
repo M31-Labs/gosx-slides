@@ -73,7 +73,8 @@
     const source = sourceInput().value;
     if (controller) controller.abort(); controller = new AbortController();
     try {
-      const response = await fetch('/_slides/analyze', { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'X-Slides-Token': token }, body: JSON.stringify({ source, ...(rename ? { rename } : {}) }) });
+      const headers = { 'Content-Type': 'application/json', 'X-Slides-Token': token };
+      const response = await fetch('/_slides/analyze', { method: 'POST', signal: controller.signal, headers: window.SlidesSessionHeaders ? SlidesSessionHeaders(headers) : headers, body: JSON.stringify({ source, ...(rename ? { rename } : {}) }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Could not analyze source');
       if (sourceInput().value !== source) return;
       if (rename) { sourceInput().value = result.source; remember(); status('Renamed in draft; save to publish'); }
@@ -115,7 +116,8 @@
       editor.querySelector('[data-save]').onclick = async () => {
         if (saving) return; saving = true; const save = editor.querySelector('[data-save]'); save.disabled = true;
         try {
-          const response = await fetch('/_slides/source', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Slides-Token': token }, body: JSON.stringify({ source: editor.querySelector('textarea').value, revision }) });
+          const headers = { 'Content-Type': 'application/json', 'X-Slides-Token': token };
+          const response = await fetch('/_slides/source', { method: 'PUT', headers: window.SlidesSessionHeaders ? SlidesSessionHeaders(headers) : headers, body: JSON.stringify({ source: editor.querySelector('textarea').value, revision }) });
           const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Save failed');
           status('Saved deck.md'); location.reload();
         } catch (error) { status(error.message); } finally { saving = false; save.disabled = false; }

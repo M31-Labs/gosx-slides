@@ -13,18 +13,35 @@ import (
 // PowerPoint uses captured PNG slides so native shaders, typography and 3D
 // survive offline viewing. Speaker notes remain editable text in the package.
 type pptxWriter struct {
-	file    *os.File
-	archive *zip.Writer
-	path    string
-	count   int
+	file          *os.File
+	archive       *zip.Writer
+	path          string
+	count         int
+	width, height int
+	theme         string
+	charts        int
 }
 
 func newPPTX(path string) (*pptxWriter, error) {
+	return newPPTXConfigured(path, 1280, 720, "")
+}
+func newPPTXConfigured(path string, width, height int, template string) (*pptxWriter, error) {
+	if _, _, err := exportSize(nil, ExportOptions{Width: width, Height: height}); err != nil {
+		return nil, err
+	}
+	theme := pptTheme
+	if template != "" {
+		var err error
+		theme, err = officeTemplateTheme(template)
+		if err != nil {
+			return nil, fmt.Errorf("PPTX template theme: %w", err)
+		}
+	}
 	f, err := os.CreateTemp(filepath.Dir(path), ".slides-pptx-*")
 	if err != nil {
 		return nil, err
 	}
-	return &pptxWriter{file: f, archive: zip.NewWriter(f), path: path}, nil
+	return &pptxWriter{file: f, archive: zip.NewWriter(f), path: path, width: width, height: height, theme: theme}, nil
 }
 func (p *pptxWriter) abort() { p.archive.Close(); p.file.Close(); os.Remove(p.file.Name()) }
 func (p *pptxWriter) part(name string, data []byte) error {
@@ -63,11 +80,26 @@ func (p *pptxWriter) addEditable(png []byte, title, notes string, objects []pptx
 	if err := p.part(fmt.Sprintf("ppt/media/slide%d.png", n), png); err != nil {
 		return err
 	}
-	slide := `<p:sld ` + pptNamespaces + `><p:cSld name="` + html.EscapeString(title) + `"><p:spTree>` + pptGroup + `<p:pic><p:nvPicPr><p:cNvPr id="2" name="` + html.EscapeString(title) + `" descr="Captured slide"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>` + pptxObjectsXML(objects) + `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
+	rels := []string{pptRel("rId1", "image", fmt.Sprintf("../media/slide%d.png", n)), pptRel("rId2", "slideLayout", "../slideLayouts/slideLayout1.xml"), pptRel("rId3", "notesSlide", fmt.Sprintf("../notesSlides/notesSlide%d.xml", n))}
+	var chartObjects strings.Builder
+	for i, o := range objects {
+		if o.Kind == "chart" && pptxValidObject(o) && validPPTXChart(o.Chart) {
+			p.charts++
+			id := p.charts
+			relID := fmt.Sprintf("rId%d", len(rels)+1)
+			if err := p.addChart(id, o.Chart); err != nil {
+				return err
+			}
+			rels = append(rels, pptRel(relID, "chart", fmt.Sprintf("../charts/chart%d.xml", id)))
+			chartObjects.WriteString(pptxChartFrameXML(i+3, relID, o))
+		}
+	}
+	picture := fmt.Sprintf(`<p:pic><p:nvPicPr><p:cNvPr id="2" name="%s" descr="Captured slide; unsupported content remains pixels"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="%d" cy="%d"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`, html.EscapeString(title), pptEMU(float64(p.width)), pptEMU(float64(p.height)))
+	slide := `<p:sld ` + pptNamespaces + `><p:cSld name="` + html.EscapeString(title) + `"><p:spTree>` + pptGroup + picture + pptxObjectsXML(objects) + chartObjects.String() + `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
 	if err := p.xml(fmt.Sprintf("ppt/slides/slide%d.xml", n), slide); err != nil {
 		return err
 	}
-	if err := p.xml(fmt.Sprintf("ppt/slides/_rels/slide%d.xml.rels", n), pptRels(pptRel("rId1", "image", fmt.Sprintf("../media/slide%d.png", n)), pptRel("rId2", "slideLayout", "../slideLayouts/slideLayout1.xml"), pptRel("rId3", "notesSlide", fmt.Sprintf("../notesSlides/notesSlide%d.xml", n)))); err != nil {
+	if err := p.xml(fmt.Sprintf("ppt/slides/_rels/slide%d.xml.rels", n), pptRels(rels...)); err != nil {
 		return err
 	}
 	var text strings.Builder
@@ -94,10 +126,20 @@ func (p *pptxWriter) finish(title string) error {
 			fmt.Fprintf(&overrides, `<Override PartName="/ppt/%s%d.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.%s+xml"/>`, kind, i, ct)
 		}
 	}
+	for i := 1; i <= p.charts; i++ {
+		fmt.Fprintf(&overrides, `<Override PartName="/ppt/charts/chart%d.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`, i)
+	}
+	sizeType := "custom"
+	if p.width*9 == p.height*16 {
+		sizeType = "screen16x9"
+	} else if p.width*3 == p.height*4 {
+		sizeType = "screen4x3"
+	}
+	slideSize := fmt.Sprintf(`<p:sldSz cx="%d" cy="%d" type="%s"/>`, pptEMU(float64(p.width)), pptEMU(float64(p.height)), sizeType)
 	parts := map[string]string{
 		"_rels/.rels":                                  pptRels(pptRel("rId1", "officeDocument", "ppt/presentation.xml"), `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>`),
 		"docProps/core.xml":                            `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>` + html.EscapeString(title) + `</dc:title><dc:creator>gosx-slides</dc:creator></cp:coreProperties>`,
-		"ppt/presentation.xml":                         `<p:presentation ` + pptNamespaces + `><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:notesMasterIdLst><p:notesMasterId r:id="rId2"/></p:notesMasterIdLst><p:sldIdLst>` + slides.String() + `</p:sldIdLst><p:sldSz cx="12192000" cy="6858000" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`,
+		"ppt/presentation.xml":                         `<p:presentation ` + pptNamespaces + `><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:notesMasterIdLst><p:notesMasterId r:id="rId2"/></p:notesMasterIdLst><p:sldIdLst>` + slides.String() + `</p:sldIdLst>` + slideSize + `<p:notesSz cx="6858000" cy="9144000"/></p:presentation>`,
 		"ppt/_rels/presentation.xml.rels":              pptRels(rels...),
 		"ppt/slideMasters/slideMaster1.xml":            `<p:sldMaster ` + pptNamespaces + `><p:cSld><p:spTree>` + pptGroup + `</p:spTree></p:cSld>` + pptColorMap + `<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>`,
 		"ppt/slideMasters/_rels/slideMaster1.xml.rels": pptRels(pptRel("rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"), pptRel("rId2", "theme", "../theme/theme1.xml")),
@@ -105,9 +147,9 @@ func (p *pptxWriter) finish(title string) error {
 		"ppt/slideLayouts/_rels/slideLayout1.xml.rels": pptRels(pptRel("rId1", "slideMaster", "../slideMasters/slideMaster1.xml")),
 		"ppt/notesMasters/notesMaster1.xml":            `<p:notesMaster ` + pptNamespaces + `><p:cSld><p:spTree>` + pptGroup + `</p:spTree></p:cSld>` + pptColorMap + `<p:notesStyle/></p:notesMaster>`,
 		"ppt/notesMasters/_rels/notesMaster1.xml.rels": pptRels(pptRel("rId1", "theme", "../theme/theme1.xml")),
-		"ppt/theme/theme1.xml":                         pptTheme,
+		"ppt/theme/theme1.xml":                         p.theme,
 	}
-	ct := `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`
+	ct := `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`
 	for _, part := range []struct{ path, kind string }{{"presentation", "presentation.main"}, {"slideMasters/slideMaster1", "slideMaster"}, {"slideLayouts/slideLayout1", "slideLayout"}, {"notesMasters/notesMaster1", "notesMaster"}, {"theme/theme1", "theme"}} {
 		mime := "application/vnd.openxmlformats-officedocument.presentationml." + part.kind + "+xml"
 		if part.kind == "theme" {

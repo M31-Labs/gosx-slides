@@ -195,7 +195,16 @@ const captureReady = `async function waitFor(test) {
 // Capture exports use the same served runtime, including shaders and Scene3D.
 // Every selected state is visited and checked before pixels are read.
 func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
-	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true})
+	narration, err := prepareVideoNarration(context.Background(), deck, opts)
+	if err != nil {
+		return err
+	}
+	defer narration.close()
+	width, height, err := exportSize(deck, opts)
+	if err != nil {
+		return err
+	}
+	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true, IncludeNotes: opts.Notes})
 	if err != nil {
 		return err
 	}
@@ -216,7 +225,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		return err
 	}
 	defer browser.close()
-	if err = browser.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": 1280, "height": 720, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
+	if err = browser.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": height, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
 		return err
 	}
 	if err = browser.call("Page.navigate", map[string]any{"url": server.URL}, nil); err != nil {
@@ -249,18 +258,20 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		if filepath.Ext(out) == "" {
 			path = filepath.Join(out, "deck.pptx")
 		}
-		pptx, err = newPPTX(path)
+		pptx, err = newPPTXConfigured(path, width, height, opts.PPTXTemplate)
 		if err != nil {
 			return err
 		}
 		defer pptx.abort()
 	}
 	var pages strings.Builder
-	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + pdfPageStyle[7:len(pdfPageStyle)-8] + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
+	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + officePageCSS(width, height) + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
 	var video *exec.Cmd
 	var pipe io.WriteCloser
 	var videoLog bytes.Buffer
 	videoFrames := 0
+	videoOutput, videoFFmpeg := "", ""
+	var videoCaptions []videoCaption
 	if opts.Format == "video" {
 		ffmpeg, err := exec.LookPath("ffmpeg")
 		if err != nil {
@@ -270,6 +281,11 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		if filepath.Ext(out) == "" {
 			path = filepath.Join(out, "deck.webm")
 		}
+		videoOutput, videoFFmpeg = path, ffmpeg
+		if err = narration.stageVideo(path); err != nil {
+			return err
+		}
+		path = narration.video
 		video = exec.CommandContext(ctx, ffmpeg, "-y", "-hide_banner", "-loglevel", "error", "-f", "image2pipe", "-framerate", strconv.Itoa(opts.FPS), "-vcodec", "png", "-i", "pipe:0", "-an", "-c:v", "libvpx-vp9", "-pix_fmt", "yuv420p", "-deadline", "realtime", path)
 		video.Stderr = &videoLog
 		pipe, err = video.StdinPipe()
@@ -307,6 +323,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 			}
 			if opts.Format == "video" {
 				frameCount := int(math.Ceil(opts.Seconds * float64(opts.FPS)))
+				videoCaptions = append(videoCaptions, videoCaption{StartMS: videoFrames * 1000 / opts.FPS, EndMS: (videoFrames + frameCount) * 1000 / opts.FPS, Text: slideRecordingCaption(slide)})
 				videoFrames += frameCount
 				if videoFrames > 18000 {
 					return fmt.Errorf("video export supports at most 18000 frames; reduce --seconds, --fps, or steps")
@@ -365,7 +382,11 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				label += fmt.Sprintf(" — step %d", step)
 			}
 			if pptx != nil {
-				if err = pptx.addEditable(pixels, label, extractSlideNotes(slide), editableObjects); err != nil {
+				notes := ""
+				if opts.Notes {
+					notes = extractSlideNotes(slide)
+				}
+				if err = pptx.addEditable(pixels, label, notes, editableObjects); err != nil {
 					return err
 				}
 				pageCount++
@@ -380,7 +401,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		if err = video.Wait(); err != nil {
 			return fmt.Errorf("ffmpeg video encode: %w: %.1000s", err, videoLog.String())
 		}
-		return nil
+		return narration.finish(ctx, videoFFmpeg, videoOutput, float64(videoFrames)/float64(opts.FPS), videoCaptions)
 	}
 	if pptx != nil {
 		return pptx.finish(deck.title())

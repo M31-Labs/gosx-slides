@@ -1,6 +1,8 @@
 package slides
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"m31labs.dev/gosx"
 	"m31labs.dev/gosx/engine"
@@ -36,8 +39,16 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 type ServeOptions struct {
 	// Static disables server-only audience synchronization in exported decks.
 	Static bool
+	// IncludeNotes opts static exports into publishing presenter notes.
+	IncludeNotes bool
 	// Edit enables validated, revision-checked browser saves to deck.md.
 	Edit bool
+	// Sessions enables authenticated audience and editor roles.
+	Sessions *SessionOptions
+	// TLSCertFile and TLSKeyFile enable HTTPS with the GoSX application handler.
+	TLSCertFile, TLSKeyFile string
+	// Collaborate enables editor-only shared drafts, presence and review comments.
+	Collaborate bool
 	// Addr is the listen address for Serve (e.g. "127.0.0.1:8080"). Ignored by
 	// NewServer, which only builds the App.
 	Addr string
@@ -84,6 +95,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
+	if err := validateServeAccess(opts); err != nil {
+		return nil, err
+	}
+	if opts.Collaborate && (!opts.Edit || opts.Static) {
+		return nil, fmt.Errorf("collaboration requires live serving with editing enabled")
+	}
 
 	// Compile each distinct component once (CompileComponent recompiles on every
 	// call — cache by name) and mount its JSON. The compiled cache is read-only
@@ -105,11 +122,25 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	}
 
 	app := server.New()
-	app.SetPublicDir(d.Dir)
+	grants, err := mountSessions(app, opts.Sessions, d.Dir)
+	if err != nil {
+		return nil, err
+	}
+	// The authoring directory contains private source, notes, tokens and state.
+	// Publish only its public/ subtree, retaining GoSX's native asset policy.
+	app.SetPublicDir("")
+	publicAssets := server.New()
+	publicAssets.SetPublicDir(filepath.Join(d.Dir, "public"))
+	app.Mount("/public/", http.StripPrefix("/public", publicAssets.Build()))
 	mountCompositionAssets(app, d, opts.Dev || opts.Edit)
 
 	if opts.Edit && !opts.Static {
 		if err := mountSourceEditor(app, d); err != nil {
+			return nil, err
+		}
+	}
+	if opts.Collaborate {
+		if err := mountTeam(app, d, grants); err != nil {
 			return nil, err
 		}
 	}
@@ -188,8 +219,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
-		if opts.Edit && !opts.Static {
+		if opts.Edit && !opts.Static && sourceRequestWriter(ctx.Request) {
 			ctx.AddHead(gosx.RawHTML(`<meta name="slides-edit" content="enabled">`))
+		}
+		if opts.Sessions != nil {
+			ctx.AddHead(gosx.RawHTML(`<meta name="slides-csrf" content="` + html.EscapeString(sessionCSRF(ctx.Request)) + `"><script>` + sessionHeadersScript + `</script>`))
 		}
 		renderDeck, renderCompiled, renderFailures := d, compiled, failures
 		renderProgram, renderErr := deckProgram, deckErr
@@ -212,7 +246,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		return renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static)
+		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static, !opts.Static || opts.IncludeNotes)
+		if opts.Collaborate && sourceRequestWriter(ctx.Request) {
+			return gosx.Fragment(body, teamAssets())
+		}
+		return body
 	})
 
 	if opts.StageRuntime {
@@ -234,12 +272,28 @@ func (d *IslandDeck) Serve(opts ServeOptions) error {
 	if opts.Addr == "" {
 		opts.Addr = "127.0.0.1:8080"
 	}
+	if (opts.TLSCertFile == "") != (opts.TLSKeyFile == "") {
+		return fmt.Errorf("TLS requires both certificate and key files")
+	}
+	if opts.Sessions != nil && !opts.Sessions.AllowInsecure && opts.TLSCertFile == "" {
+		return fmt.Errorf("authenticated serving requires TLS, or explicit plain-HTTP sessions")
+	}
 	opts.StageRuntime = true
 	app, err := d.NewServer(opts)
 	if err != nil {
 		return err
 	}
-	return app.ListenAndServe(opts.Addr)
+	// Keep the validated address explicit: GoSX's convenience listener may
+	// replace it from PORT, which could bypass the non-loopback access policy.
+	app.Scheduler().Start(context.Background())
+	listener := &http.Server{Addr: opts.Addr, Handler: app.Build(),
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second,
+		WriteTimeout: 45 * time.Second, IdleTimeout: 120 * time.Second,
+		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	if opts.TLSCertFile != "" {
+		return listener.ListenAndServeTLS(opts.TLSCertFile, opts.TLSKeyFile)
+	}
+	return listener.ListenAndServe()
 }
 
 // ServeDeck loads the deck at dir and serves it in the real lane. It is the
@@ -289,7 +343,7 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync bool) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes bool) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
 	if cd != nil {
 		r.graphics = cd.graphics
@@ -342,7 +396,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+readingStyle+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+readingStyle+recordingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if deckHasMath(d) {
@@ -381,6 +435,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// current slide's note out of them. A slide with no note emits nothing (the
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
+	if audienceSession(ctx.Request) || !includeNotes {
+		noteNodes = nil
+	}
 	starfield := deckScene3DBackground(ctx.Runtime(), d)
 
 	return gosx.El("main",
@@ -401,6 +458,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			gosx.Attr("data-caption-guide", boolAttr(conference.CaptionGuide)),
 			gosx.Attr("data-offline", boolAttr(conference.OfflineRequired)),
 			gosx.Attr("data-live-sync", boolAttr(liveSync)),
+			gosx.Attr("data-session-role", sessionRole(ctx.Request)),
 			gosx.Attr("data-hydration", deckFrontmatterString(d, "hydration")),
 		),
 		starfield,
@@ -411,6 +469,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// only a terminal log + a silently-degraded slide. In --watch, surface it
 		// loudly in the page so the author sees it without leaving the browser.
 		devErrorOverlay(dev, err, failures),
+		recordingMetadata(d),
 		// The slide-nav controller + presenter chrome controller run at the END of
 		// the body, so the data-slide sections (and note asides) above already exist
 		// when they wire up. presenterScript is emitted FIRST so it has defined
@@ -421,7 +480,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
 	)
 }
 

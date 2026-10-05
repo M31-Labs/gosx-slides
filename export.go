@@ -28,14 +28,20 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Format   string  // "spa" (default), "single", or "pdf"
-	Editable bool    // native text and supported SVG objects in PPTX
-	Notes    bool    // include speaker notes in a reading handout (explicit opt-in)
-	Capture  bool    // capture live graphics through Chrome for single/PDF
-	Steps    bool    // include every reveal/cue state in captured output
-	Seconds  float64 // video hold time per state (default 2)
-	FPS      int     // video sampling rate (default 15)
-	OutDir   string  // output directory (default "dist"); for pdf, may be a .pdf path
+	Format       string  // "spa" (default), "single", or "pdf"
+	Editable     bool    // native text and supported SVG objects in PPTX
+	Notes        bool    // publish speaker notes in SPA, handout or PPTX (explicit opt-in)
+	Narration    string  // deck-relative narration audio for video (short audio pads with silence)
+	Captions     string  // deck-relative authored WebVTT file for video
+	Capture      bool    // capture live graphics through Chrome for single/PDF
+	Steps        bool    // include every reveal/cue state in captured output
+	Seconds      float64 // video hold time per state (default 2)
+	FPS          int     // video sampling rate (default 15)
+	OutDir       string  // output directory (default "dist"); for pdf, may be a .pdf path
+	Aspect       string  // capture/PPTX aspect; defaults to deck aspect-ratio, then 16:9
+	Width        int     // custom CSS-pixel viewport, paired with Height (320–4096)
+	Height       int     // custom CSS-pixel viewport, paired with Width; at most 8MP
+	PPTXTemplate string  // optional PPTX from which only its theme is reused
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -57,14 +63,23 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if err := validateVideoNarrationOptions(opts, format); err != nil {
+		return err
+	}
 	if opts.Editable && format != "pptx" {
 		return fmt.Errorf("--editable requires --format pptx")
 	}
 	if format != "" && format != "spa" && format != "single" && format != "handout" && format != "pdf" && format != "frames" && format != "video" && format != "pptx" {
 		return fmt.Errorf("unknown export format %q (use spa, single, handout, pdf, frames, video, or pptx)", opts.Format)
 	}
-	if opts.Notes && format != "handout" {
-		return fmt.Errorf("--notes requires --format handout")
+	if opts.Notes && format != "" && format != "spa" && format != "handout" && format != "pptx" {
+		return fmt.Errorf("--notes requires --format spa, handout or pptx")
+	}
+	if _, _, err := exportSize(deck, opts); err != nil {
+		return err
+	}
+	if opts.PPTXTemplate != "" && format != "pptx" {
+		return fmt.Errorf("PPTX template requires --format pptx")
 	}
 	if opts.Seconds == 0 {
 		opts.Seconds = 2
@@ -85,7 +100,7 @@ func ExportStatic(dir string, opts ExportOptions) error {
 		opts.Format = format
 		return exportCaptured(deck, opts)
 	}
-	app, err := deck.NewServer(ServeOptions{StageRuntime: format == "" || format == "spa", Static: true})
+	app, err := deck.NewServer(ServeOptions{StageRuntime: format == "" || format == "spa", Static: true, IncludeNotes: opts.Notes})
 	if err != nil {
 		return fmt.Errorf("build deck app: %w", err)
 	}
@@ -113,13 +128,13 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	}
 	switch strings.ToLower(strings.TrimSpace(opts.Format)) {
 	case "", "spa":
-		return exportSPA(dir, deck, doc, out)
+		return exportSPA(dir, deck, doc, out, opts.Notes)
 	case "single":
 		return exportSingleSnapshot(deck, doc, out)
 	case "handout":
 		return exportHandout(deck, doc, out, opts.Notes)
 	case "pdf":
-		return exportPDF(deck, doc, out)
+		return exportPDF(deck, doc, out, opts)
 	default:
 		return fmt.Errorf("unknown export format %q (use spa, single, or pdf)", opts.Format)
 	}
@@ -131,17 +146,16 @@ var pdfChromeCandidates = []string{
 	"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome",
 }
 
-// pdfPageStyle sizes the printed page to one 16:9 slide with no margins; the
-// print stylesheet (nav.go) already lays slides out one per page, so each PDF
-// page is exactly one slide.
-const pdfPageStyle = `<style>@page { size: 1920px 1080px; margin: 0; }</style>`
-
 // exportPDF prints the deck to a PDF through a system Chrome/Chromium in
 // headless mode — the same single-snapshot page `--format single` writes, so
 // the PDF needs no server and no wasm. out may be a .pdf file path or a
 // directory (then <out>/deck.pdf). Chrome is an OPTIONAL dependency: when no
 // binary is found the error says exactly what to install or set.
-func exportPDF(deck *IslandDeck, doc, out string) error {
+func exportPDF(deck *IslandDeck, doc, out string, opts ExportOptions) error {
+	width, height, err := exportSize(deck, opts)
+	if err != nil {
+		return err
+	}
 	chrome := os.Getenv("SLIDES_CHROME")
 	if chrome == "" {
 		for _, candidate := range pdfChromeCandidates {
@@ -172,7 +186,7 @@ func exportPDF(deck *IslandDeck, doc, out string) error {
 	if err != nil {
 		return err
 	}
-	page = strings.Replace(page, "</head>", pdfPageStyle+"</head>", 1)
+	page = strings.Replace(page, "</head>", "<style>"+officePageCSS(width, height)+"</style></head>", 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, page)
@@ -185,6 +199,9 @@ func exportPDF(deck *IslandDeck, doc, out string) error {
 		return fmt.Errorf("chrome pdf print: %w", err)
 	}
 	defer browser.close()
+	if err = browser.call("Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": height, "deviceScaleFactor": 1, "mobile": false}, nil); err != nil {
+		return err
+	}
 	if err = browser.call("Page.navigate", map[string]any{"url": server.URL}, nil); err != nil {
 		return err
 	}
@@ -235,7 +252,18 @@ func relativizePublicPaths(doc string) string {
 	return publicAbsRefRe.ReplaceAllString(doc, `${1}public/`)
 }
 
-func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
+func exportSPA(dir string, deck *IslandDeck, doc, out string, includeNotes bool) error {
+	if !includeNotes {
+		if _, err := os.Lstat(filepath.Join(out, "notes.html")); err == nil {
+			return fmt.Errorf("output contains notes.html; use a fresh directory to omit private notes, or --notes to publish them")
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	assets, err := planSPAAssets(dir, deck, out, includeNotes)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
@@ -248,23 +276,13 @@ func exportSPA(dir string, deck *IslandDeck, doc, out string) error {
 	if err := os.WriteFile(filepath.Join(out, "index.html"), []byte(staticDoc), 0o644); err != nil {
 		return err
 	}
-	// Copy the staged client runtime + island JSON into <out>/gosx, mapping the
-	// build filenames to the URL names the page references.
-	if err := copyBuildToGosx(filepath.Join(dir, "build"), filepath.Join(out, "gosx")); err != nil {
-		return fmt.Errorf("copy runtime assets: %w", err)
+	if err := copyExportAssets(assets); err != nil {
+		return fmt.Errorf("copy export assets: %w", err)
 	}
-	// Carry the deck's static assets (images, fonts) if any.
-	if src := filepath.Join(dir, "public"); isDir(src) {
-		if err := copyTree(src, filepath.Join(out, "public")); err != nil {
-			return fmt.Errorf("copy public: %w", err)
+	if includeNotes {
+		if err := os.WriteFile(filepath.Join(out, "notes.html"), []byte(notesHTML(deck)), 0o644); err != nil {
+			return err
 		}
-	}
-	if err := copyCompositionAssets(deck, out); err != nil {
-		return fmt.Errorf("copy included/pack assets: %w", err)
-	}
-	// A speaker-notes sidecar, derived from the real deck.
-	if err := os.WriteFile(filepath.Join(out, "notes.html"), []byte(notesHTML(deck)), 0o644); err != nil {
-		return err
 	}
 	return nil
 }
@@ -365,25 +383,16 @@ func stripIslandRuntime(doc string) string {
 // (runtime.wasm); every other file keeps its relative path (wasm_exec.js,
 // bootstrap*.js, patch.js, islands/<Name>.json).
 func copyBuildToGosx(buildDir, destGosx string) error {
-	return filepath.Walk(buildDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
+	assets, err := exportTreePlan(buildDir, destGosx, true)
+	if err != nil {
+		return err
+	}
+	for _, asset := range assets {
+		if err := exportTargetPreflight(destGosx, asset.destination); err != nil {
 			return err
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-		rel, err := filepath.Rel(buildDir, path)
-		if err != nil {
-			return err
-		}
-		if rel == "gosx-runtime.wasm" {
-			rel = "runtime.wasm"
-		}
-		return copyFile(filepath.Join(destGosx, rel), path)
-	})
+	}
+	return copyExportAssets(assets)
 }
 
 func copyTree(src, dst string) error {
