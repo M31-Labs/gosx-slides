@@ -109,6 +109,23 @@
     el.style.visibility = "hidden";
     undo.push(() => (el.style.visibility = visibility));
   }
+  function uniformScale(el) {
+    let x = 1, y = 1;
+    for (let p = el; p; p = p.parentElement) {
+      const s = getComputedStyle(p);
+      if (Number(s.zoom || 1) !== 1) return null;
+      // Independent CSS transform properties are not folded into transform's
+      // DOMMatrix. Preserve pixels until their complete composition is handled.
+      if ((s.scale && s.scale !== "none") || (s.rotate && s.rotate !== "none")) return null;
+      if (s.transform !== "none") {
+        const m = new DOMMatrix(s.transform);
+        if (!m.is2D || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6 || m.a <= 0 || m.d <= 0) return null;
+        x *= m.a; y *= m.d;
+      }
+    }
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x <= 0 || y <= 0 || Math.abs(x-y) > 1e-6 * Math.max(x,y)) return null;
+    return y;
+  }
   function background(cell, table) {
     const layers = [];
     for (let p = cell; p && table.contains(p); p = p.parentElement) {
@@ -143,17 +160,14 @@
     for (const [index, row] of rows.entries()) {
       if (row.cells.length !== rows[0].cells.length || !visible(row) || !safe(row)) { valid = false; break; }
       const cells = [];
-      data.rowHeights.push(row.getBoundingClientRect().height);
+      const rowHeight = row.getBoundingClientRect().height;
+      if (!(rowHeight > 0 && rowHeight <= 4096)) { valid = false; break; }
+      data.rowHeights.push(rowHeight);
       for (const cell of row.cells) {
         const s = getComputedStyle(cell), cr = cell.getBoundingClientRect();
-        let scale = 1, scaleX = 1;
-        for (let p = cell; p; p = p.parentElement) {
-          const ps = getComputedStyle(p);
-          if (ps.transform !== "none") { const m = new DOMMatrix(ps.transform); scale *= m.d; scaleX *= m.a; }
-          if (Number(ps.zoom || 1) !== 1) valid = false;
-        }
+        const scale = uniformScale(cell);
         if (cell.rowSpan !== 1 || cell.colSpan !== 1 || !visible(cell) || !safe(cell) ||
-            !Number.isFinite(scale) || Math.abs(scaleX - scale) > 0.001 ||
+            scale == null || !(cr.width > 0 && cr.width <= 4096) ||
             !color(s.color) || s.writingMode !== "horizontal-tb" || s.textTransform !== "none" ||
             s.textDecorationLine !== "none" || s.textShadow !== "none") { valid = false; break; }
         for (const child of cell.querySelectorAll("*")) {
@@ -166,17 +180,23 @@
         for (const side of ["Left", "Right", "Top", "Bottom"]) {
           const width = parseFloat(s["border" + side + "Width"]) * scale,
             style = s["border" + side + "Style"], value = rgba(s["border" + side + "Color"]);
-          if (width && (style !== "solid" || !value)) valid = false;
+          if (!(width >= 0 && width <= 100) || width && (style !== "solid" || !value)) valid = false;
           borders.push({ width, color: value?.rgb.map(v => Math.round(v).toString(16).padStart(2,"0")).join(""), alpha: value?.alpha });
         }
         const bg = background(cell,table);
         if (!bg) valid = false;
         const text = cell.innerText;
+        const margins = [s.paddingLeft,s.paddingRight,s.paddingTop,s.paddingBottom].map(v => parseFloat(v) * scale),
+          fontSize = parseFloat(s.fontSize) * scale;
+        // Match the native writer's byte and numeric validation before hiding
+        // any pixels. UTF-16 string.length is not a UTF-8 byte allowance.
+        if (new TextEncoder().encode(text).length > 20000 ||
+            [fontSize,...margins].some(v => !Number.isFinite(v) || v < 0 || v > 4096)) valid = false;
         count += text.length;
         if (index === 0) data.columnWidths.push(cr.width);
         cells.push({ text, color: color(s.color), ...bg, borders,
-          margins: [s.paddingLeft,s.paddingRight,s.paddingTop,s.paddingBottom].map(v => parseFloat(v) * scale),
-          fontFamily: s.fontFamily.split(",")[0].replace(/["']/g, ""), fontSize: parseFloat(s.fontSize) * scale,
+          margins,
+          fontFamily: s.fontFamily.split(",")[0].replace(/["']/g, ""), fontSize,
           bold: Number(s.fontWeight) >= 600, italic: s.fontStyle === "italic", align: s.textAlign });
       }
       data.rows.push(cells);
@@ -234,6 +254,10 @@
       continue;
     const s = getComputedStyle(el);
     if (!color(s.color)) continue;
+    const scale = uniformScale(el);
+    if (scale == null) continue;
+    const fontSize = parseFloat(s.fontSize) * scale;
+    if (!Number.isFinite(fontSize) || fontSize < 1 || fontSize > 512) continue;
     const range = document.createRange();
     range.selectNodeContents(node);
     const rects = Array.from(range.getClientRects());
@@ -284,7 +308,7 @@
         y: r.top,
         width: r.width,
         height: r.height,
-        fontSize: parseFloat(s.fontSize),
+        fontSize,
         fontFamily: s.fontFamily.split(",")[0].replace(/^['"]|['"]$/g, ""),
         color: color(s.color),
         bold: Number(s.fontWeight) >= 600,
