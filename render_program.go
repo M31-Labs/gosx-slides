@@ -210,6 +210,7 @@ func titleCase(s string) string {
 
 func exprFuncs(diagramTheme, deckDir string) map[string]any {
 	return map[string]any{
+		simulationNamespace: map[string]any{"Render": simulationMountNode},
 		mathNamespace: map[string]any{mathRenderFunc: mathNode},
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,

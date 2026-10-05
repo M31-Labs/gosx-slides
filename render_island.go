@@ -252,6 +252,9 @@ func lowerBlockChildren(r islandMounter, n *mdpp.Node, components map[string]*co
 
 func lowerContainerNode(r islandMounter, n *mdpp.Node, components map[string]*compiledComponent, diagramTheme string) gosx.Node {
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	if name == "simulation" {
+		return simulationMountNode(n.Attr("__slides_simulation_mount"))
+	}
 	title := strings.TrimSpace(n.Attr("title"))
 	children := lowerBlockChildren(r, n, components, diagramTheme)
 	if name == "motion" {

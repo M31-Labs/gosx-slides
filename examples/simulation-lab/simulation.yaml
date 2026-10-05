@@ -1,0 +1,21 @@
+version: 1
+simulations:
+  - id: demo
+    label: Seeded particles
+    seed: 1729
+    tick-rate: 30
+    ticks: 180
+    checkpoint-every: 30
+    particles: 12
+    inputs:
+      - {tick: 61, actor: presenter, dx: 20000, dy: -10000}
+    branches:
+      - id: wind
+        label: Strong side wind
+        fork-tick: 60
+        inputs:
+          - {tick: 61, actor: presenter, dx: 120000, dy: -40000}
+    playhead:
+      - {slide: particles, cue: start, tick: 0, end-tick: 60}
+      - {slide: particles, cue: impulse, tick: 60, end-tick: 120}
+      - {slide: particles, cue: settled, tick: 120, end-tick: 180}

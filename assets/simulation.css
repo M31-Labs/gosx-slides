@@ -1,0 +1,15 @@
+.slides-simulation{margin:.7rem 0;max-width:900px;color:var(--fg,#eee)}
+.slides-simulation figcaption{font:500 .85rem/1.5 system-ui;margin:0 0 .35rem}
+.slides-simulation svg{display:block;width:100%;height:auto;max-height:43vh}
+.simulation-background{fill:var(--surface,#20252e);stroke:var(--muted,#798291);stroke-width:1}
+.simulation-particle{fill:var(--accent,#f2ae55)}
+.simulation-color-1{fill:#59a9c8}.simulation-color-2{fill:#a981d1}.simulation-color-3{fill:#70a98b}
+.simulation-controls{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:.5rem;font:500 .8rem/1.5 system-ui}
+.simulation-controls label{display:flex;align-items:center;gap:.3rem}
+.simulation-controls select,.simulation-controls button{font:inherit;color:inherit;background:var(--surface,#20252e);border:1px solid var(--muted,#798291);padding:.25rem .5rem;border-radius:.3rem}
+.simulation-controls :focus-visible{outline:2px solid var(--accent,#f2ae55);outline-offset:3px}
+.simulation-controls input{max-width:9rem;accent-color:var(--accent,#f2ae55)}
+.simulation-controls output{font-variant-numeric:tabular-nums}
+.deck-overview .simulation-controls,.deck-blank .simulation-controls{display:none}
+@media(max-width:500px){.simulation-controls{gap:.5rem}.simulation-controls input{max-width:6rem}}
+@media print{.simulation-controls{display:none}.slides-simulation svg{max-height:none}}

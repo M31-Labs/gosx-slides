@@ -83,6 +83,7 @@ type IslandDeck struct {
 	compositionAssets   map[string]string
 	packLayouts         map[string]bool
 	Story               *CompiledStory
+	Simulations         *CompiledSimulations
 	storySceneSteps     map[string][]byte
 	storyExcludedSlides map[string]bool // audience selection omits already-validated beats
 	// Audience is the selected named variant, or empty for the complete deck.
@@ -169,6 +170,9 @@ func parseIslandDeckAudience(dir string, src []byte, audience string) (*IslandDe
 		return nil, err
 	}
 	if err := attachSemanticStory(deck); err != nil {
+		return nil, err
+	}
+	if err := attachSimulations(deck); err != nil {
 		return nil, err
 	}
 
