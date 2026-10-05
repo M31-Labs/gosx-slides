@@ -15,4 +15,6 @@ browser-test-output/
 chrome-capture
 /slides
 .slides-team.json
+.slides-sessions.json
+.slides-session-*.tmp
 .slides-team-*.tmp

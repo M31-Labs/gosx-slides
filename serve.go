@@ -124,7 +124,8 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	}
 
 	app := server.New()
-	if err := mountSessions(app, opts.Sessions); err != nil {
+	grants, err := mountSessions(app, opts.Sessions, d.Dir)
+	if err != nil {
 		return nil, err
 	}
 	// The authoring directory contains private source, notes, tokens and state.
@@ -141,7 +142,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		}
 	}
 	if opts.Collaborate {
-		if err := mountTeam(app, d); err != nil {
+		if err := mountTeam(app, d, grants); err != nil {
 			return nil, err
 		}
 	}

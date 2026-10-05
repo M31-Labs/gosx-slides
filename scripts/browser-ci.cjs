@@ -26,6 +26,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const sessions = spawnSync(process.execPath, [path.join(__dirname, 'sessions-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(sessions.status, 0, 'session browser failed');
   const team = spawnSync(process.execPath, [path.join(__dirname, 'team-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(team.status, 0, 'team browser failed');
   const semantic = spawnSync(process.execPath, [path.join(__dirname, 'semantic-story-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(semantic.status, 0, 'semantic story browser failed');
+  const sessionSockets = spawnSync(process.execPath, [path.join(__dirname, 'team-session-revocation-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(sessionSockets.status, 0, 'session socket browser failed');
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');

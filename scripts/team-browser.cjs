@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const http=require('node:http');
 const assert=require('node:assert/strict');
-const { chromium }=require(process.env.SLIDES_PLAYWRIGHT_MODULE||'playwright');
+const { launchTestBrowser }=require('./test-browser.cjs');
 
 (async()=>{
   const binary=path.resolve(process.argv[2]||'./slides'),fixture=fs.mkdtempSync(path.resolve('testdata/team-browser-'));
@@ -24,7 +24,7 @@ const { chromium }=require(process.env.SLIDES_PLAYWRIGHT_MODULE||'playwright');
   async function setDraft(page,text,flush=false){await page.evaluate(({text,flush})=>{const input=document.querySelector('.slides-team-draft');input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));if(flush)SlidesTeam.flush();},{text,flush});}
   async function converged(a,b,expected){await Promise.all([a,b].map(page=>page.waitForFunction(expected=>{const state=SlidesTeam.state();return !state.pending&&!state.paused&&expected.every(text=>state.text.includes(text))&&state.text===state.latest;},expected)));assert.equal(await a.evaluate(()=>SlidesTeam.state().text),await b.evaluate(()=>SlidesTeam.state().text));}
   try{
-    await start();browser=await chromium.launch({args:['--no-sandbox'],...(process.env.SLIDES_BROWSER?{executablePath:process.env.SLIDES_BROWSER}:{})});
+    await start();browser=await launchTestBrowser({args:['--no-sandbox']});
     const a=await browser.newPage({viewport:{width:1280,height:720}}),b=await browser.newPage();const errors=[];
     [a,b].forEach(page=>page.on('pageerror',error=>errors.push(error.message)));
     await Promise.all([a,b].map(page=>page.goto(url)));

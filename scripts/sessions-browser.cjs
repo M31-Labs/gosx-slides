@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
-const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const { launchTestBrowser } = require('./test-browser.cjs');
 
 (async () => {
   const binary = path.resolve(process.argv[2] || './slides');
@@ -24,7 +24,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
       if(i>300 || server.exitCode !== null) throw Error('Session server failed to start');
       await new Promise(resolve => setTimeout(resolve,100));
     }
-    browser = await chromium.launch({args:['--no-sandbox'], ...(process.env.SLIDES_BROWSER ? {executablePath:process.env.SLIDES_BROWSER} : {})});
+    browser = await launchTestBrowser({args:['--no-sandbox']});
     const editorContext = await browser.newContext(), audienceContext = await browser.newContext();
     const editor = await editorContext.newPage(), audience = await audienceContext.newPage(), errors = [];
     for (const page of [editor, audience]) page.on('pageerror', error => errors.push(error.message));

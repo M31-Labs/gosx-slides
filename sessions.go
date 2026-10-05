@@ -6,13 +6,13 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"m31labs.dev/gosx/server"
 	"m31labs.dev/gosx/session"
@@ -32,7 +32,7 @@ type SessionOptions struct {
 }
 
 type slidesSessionContextKey struct{}
-type slidesSessionAccess struct{ role, csrf string }
+type slidesSessionAccess struct{ role, csrf, id string }
 
 func requestSession(r *http.Request) (slidesSessionAccess, bool) {
 	if r == nil {
@@ -85,36 +85,42 @@ func validateServeAccess(opts ServeOptions) error {
 	return nil
 }
 
-func mountSessions(app *server.App, opts *SessionOptions) error {
+func mountSessions(app *server.App, opts *SessionOptions, dir string) (*sessionGrants, error) {
 	if opts == nil {
-		return nil
+		return nil, nil
 	}
 	if len(opts.EditorToken) < 32 || len(opts.EditorToken) > 4096 {
-		return fmt.Errorf("editor token must contain 32–4096 bytes")
+		return nil, fmt.Errorf("editor token must contain 32–4096 bytes")
 	}
 	if opts.AudienceToken != "" && (len(opts.AudienceToken) < 32 || len(opts.AudienceToken) > 4096) {
-		return fmt.Errorf("audience token must contain 32–4096 bytes")
+		return nil, fmt.Errorf("audience token must contain 32–4096 bytes")
 	}
 	if opts.AudienceToken == opts.EditorToken {
-		return fmt.Errorf("audience and editor tokens must differ")
+		return nil, fmt.Errorf("audience and editor tokens must differ")
 	}
 	secret := opts.Secret
 	if secret == "" {
 		var key [32]byte
 		if _, err := rand.Read(key[:]); err != nil {
-			return err
+			return nil, err
 		}
 		secret = hex.EncodeToString(key[:])
 	} else if len(secret) < 32 {
-		return fmt.Errorf("session secret must contain at least 32 bytes")
+		return nil, fmt.Errorf("session secret must contain at least 32 bytes")
 	}
 	manager, err := session.New(secret, session.Options{
-		CookieName: "slides_session", MaxAge: 8 * time.Hour,
+		CookieName: "slides_session", MaxAge: presentationSessionAge,
 		HTTPOnly: true, SameSite: http.SameSiteStrictMode, Encrypt: true,
 		AllowInsecure: opts.AllowInsecure, LegacyCookieGrace: -1,
 	})
 	if err != nil {
-		return err
+		return nil, err
+	}
+	scopeInput, _ := json.Marshal([]string{secret, opts.EditorToken, opts.AudienceToken})
+	scope := sha256.Sum256(scopeInput)
+	grants, err := newSessionGrants(dir, hex.EncodeToString(scope[:]))
+	if err != nil {
+		return nil, err
 	}
 	editorHash := sha256.Sum256([]byte(opts.EditorToken))
 	audienceHash := sha256.Sum256([]byte(opts.AudienceToken))
@@ -132,7 +138,10 @@ func mountSessions(app *server.App, opts *SessionOptions) error {
 	app.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			store := manager.Get(r)
-			access := slidesSessionAccess{role: store.String("role"), csrf: manager.Token(r)}
+			access := slidesSessionAccess{role: store.String("role"), csrf: manager.Token(r), id: store.String("room_id")}
+			if !grants.valid(access.id, access.role) {
+				access.role = ""
+			}
 			r = r.WithContext(context.WithValue(r.Context(), slidesSessionContextKey{}, access))
 			w.Header().Set("Cache-Control", "private, no-store")
 			w.Header().Set("Referrer-Policy", "same-origin")
@@ -182,7 +191,14 @@ func mountSessions(app *server.App, opts *SessionOptions) error {
 				io.WriteString(w, sessionPage(manager.Token(r), "Token was not accepted."))
 				return
 			}
-			manager.Get(r).Set("role", role)
+			store := manager.Get(r)
+			id, err := grants.replace(store.String("room_id"), role)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
+			}
+			store.Set("role", role)
+			store.Set("room_id", id)
 			manager.Token(r)
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 		default:
@@ -196,14 +212,24 @@ func mountSessions(app *server.App, opts *SessionOptions) error {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if err := grants.revoke(manager.Get(r).String("room_id")); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		manager.Get(r).Destroy()
 		http.Redirect(w, r, "/_slides/session", http.StatusSeeOther)
 	}))
-	return nil
+	return grants, nil
 }
 
 func sessionPage(csrf, message string) string {
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Join presentation</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111722;color:#edf2f7;font:1rem/1.6 system-ui}main{width:min(25rem,calc(100vw - 3rem))}h1{font-size:2rem}label,input,button{display:block}input,button{box-sizing:border-box;width:100%;font:inherit;padding:.75rem;margin:.5rem 0 1rem;border-radius:.5rem;border:1px solid #63718a}input{background:#1d2736;color:inherit}button{background:#ffd27d;color:#172031;cursor:pointer}p{color:#c4cedd}a{color:#ffd27d}:focus-visible{outline:3px solid #ffd27d;outline-offset:3px}</style></head><body><main><h1>Join presentation</h1><p>Use the audience or editor token provided by the host.</p><p role="status">` + html.EscapeString(message) + `</p><form method="post" action="/_slides/session"><input type="hidden" name="csrf_token" value="` + html.EscapeString(csrf) + `"><label for="token">Room token</label><input id="token" name="token" type="password" autocomplete="off" required maxlength="4096"><button>Join</button></form></main></body></html>`
 }
 
-const sessionHeadersScript = `window.SlidesSessionHeaders=function(headers){var result=Object.assign({},headers),meta=document.querySelector('meta[name="slides-csrf"]');if(meta&&meta.content)result['X-CSRF-Token']=meta.content;return result;};`
+const sessionHeadersScript = `window.SlidesSessionHeaders=function(headers){var result=Object.assign({},headers),meta=document.querySelector('meta[name="slides-csrf"]');if(meta&&meta.content)result['X-CSRF-Token']=meta.content;return result;};
+document.addEventListener('DOMContentLoaded',function(){
+  var controls=document.querySelector('.deck-controls'),meta=document.querySelector('meta[name="slides-csrf"]');if(!controls||!meta)return;
+  var form=document.createElement('form');form.method='post';form.action='/_slides/logout';form.style.display='contents';
+  var token=document.createElement('input');token.type='hidden';token.name='csrf_token';token.value=meta.content;form.appendChild(token);
+  var button=document.createElement('button');button.type='submit';button.className='deck-icon-control';button.textContent='⇥';button.title='Leave presentation room';button.setAttribute('aria-label',button.title);form.appendChild(button);controls.appendChild(form);
+});`

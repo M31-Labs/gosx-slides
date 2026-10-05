@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -152,7 +153,7 @@ func TestTeamPersistenceCommentsHistoryAndPublication(t *testing.T) {
 		t.Fatal("publication invalidated buffered typing", err)
 	}
 	info, err := os.Stat(filepath.Join(r.dir, teamStateFile))
-	if err != nil || info.Mode().Perm() != 0600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0600) {
 		t.Fatal("private state file permissions", err)
 	}
 }
