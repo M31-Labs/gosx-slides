@@ -84,7 +84,7 @@ func slideLayoutInfo(slide IslandSlide) (name string, known bool) {
 	if name == "" {
 		return "default", true
 	}
-	return name, knownLayouts[name]
+	return name, knownLayouts[name] || slide.packLayouts[name]
 }
 
 // slideClickCount is a slide's click budget: the max number of reveal steps over
@@ -184,6 +184,10 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 	}
 	if norm := strings.TrimSpace(strings.ToLower(theme)); norm != "" && themeName(theme) != norm {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
+	}
+	out.SourceFiles = append(out.SourceFiles, d.Includes...)
+	for _, pack := range d.Packs {
+		out.SourceFiles = append(out.SourceFiles, pack.Path+"/pack.json")
 	}
 	graphicBudgets := graphicsClickBudgets(out.Graphics)
 	for _, slide := range d.Slides {
@@ -321,9 +325,13 @@ func DeckComponents(d *IslandDeck) []DeckComponentInfo {
 
 	out := make([]DeckComponentInfo, 0, len(order))
 	for _, name := range order {
+		sourcePath, _ := d.componentSourcePath(name)
+		if sourcePath == "" {
+			sourcePath = filepath.Join(d.Dir, name+".gsx")
+		}
 		info := DeckComponentInfo{
 			Name:   name,
-			Path:   filepath.Join(d.Dir, name+".gsx"),
+			Path:   sourcePath,
 			Slides: slidesByName[name],
 		}
 		if err, failed := failures[name]; failed {
@@ -348,6 +356,12 @@ func Doctor(dir string) (DoctorReport, error) {
 		return report, nil
 	}
 	report.Items = append(report.Items, DoctorItem{Name: "deck", Status: "ok", Detail: d.title() + " / " + strconv.Itoa(len(d.Slides)) + " slides"})
+	for _, include := range d.Includes {
+		report.Items = append(report.Items, DoctorItem{Name: "include:" + include, Status: "ok", Detail: "composed Markdown"})
+	}
+	for _, pack := range d.Packs {
+		report.Items = append(report.Items, DoctorItem{Name: "pack:" + pack.Name, Status: "ok", Detail: pack.Name + "@" + pack.Version + " / " + pack.Path})
+	}
 
 	// Go toolchain — the real lane builds runtime.wasm with `go build GOOS=js`.
 	if goBin, err := exec.LookPath("go"); err == nil {

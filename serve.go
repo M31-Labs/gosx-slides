@@ -106,6 +106,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 
 	app := server.New()
 	app.SetPublicDir(d.Dir)
+	mountCompositionAssets(app, d, opts.Dev || opts.Edit)
 
 	if opts.Edit && !opts.Static {
 		if err := mountSourceEditor(app, d); err != nil {
@@ -480,6 +481,11 @@ func sortedFailureNames(failures map[string]error) []string {
 // without a theme key never panics — themeName then resolves "" to the default.
 func deckTheme(d *IslandDeck) string {
 	if v, ok := deckFrontmatterValues(d)["theme"].(string); ok {
+		for _, pack := range d.Packs {
+			if v == pack.Name && pack.BaseTheme != "" {
+				return pack.BaseTheme
+			}
+		}
 		return v
 	}
 	return ""
@@ -862,12 +868,14 @@ func resolveGoSXRoot(projectDir string) (string, error) {
 	cmd.Dir = projectDir
 	cmd.Env = listEnv
 	out, err := cmd.Output()
-	if err != nil {
+	if err != nil || strings.TrimSpace(string(out)) == "" {
 		listEnv = append(listEnv, "GOFLAGS=-mod=mod")
+		cmd = exec.Command("go", "list", "-m", "-f", "{{.Dir}}", gosxModuleImportPath)
+		cmd.Dir = projectDir
 		cmd.Env = listEnv
 		out, err = cmd.Output()
 	}
-	if err != nil {
+	if err != nil || strings.TrimSpace(string(out)) == "" {
 		// Fall back to a non-module `go list` for older layouts.
 		cmd2 := exec.Command("go", "list", "-f", "{{.Dir}}", gosxModuleImportPath)
 		cmd2.Dir = projectDir

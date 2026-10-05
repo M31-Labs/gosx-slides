@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "name": "labs",
+  "version": "1.0.0",
+  "baseTheme": "aurora",
+  "css": ["theme.css"],
+  "layouts": ["comparison"],
+  "components": {"PackBadge": "PackBadge.gsx"}
+}

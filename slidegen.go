@@ -395,6 +395,9 @@ func slideLayoutClass(slide IslandSlide) string {
 	if slide.Node != nil {
 		layout = parseFrontmatter(slide.Node.Attr("frontmatter"))["layout"]
 	}
+	if name := strings.ToLower(strings.TrimSpace(layout)); slide.packLayouts[name] {
+		return "layout-" + name
+	}
 	return layoutClass(layout)
 }
 
