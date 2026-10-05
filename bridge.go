@@ -85,6 +85,12 @@ type IslandDeck struct {
 	Story               *CompiledStory
 	storySceneSteps     map[string][]byte
 	storyExcludedSlides map[string]bool // audience selection omits already-validated beats
+	// Audience is the selected named variant, or empty for the complete deck.
+	Audience            string
+	audienceNames       []string
+	audienceDocument    *mdpp.Document // unsplit diagnostic AST, original byte coordinates
+	audienceRanges      []mdpp.Range
+	audienceDiagnostics []SourceDiagnostic
 
 	// Document is the parsed (and slide-split) mdpp document.
 	Document *mdpp.Document
@@ -107,6 +113,10 @@ func LoadIslandDeck(dir string) (*IslandDeck, error) {
 }
 
 func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
+	return parseIslandDeckAudience(dir, src, "")
+}
+
+func parseIslandDeckAudience(dir string, src []byte, audience string) (*IslandDeck, error) {
 	composition, err := expandDeckSource(dir, src)
 	if err != nil {
 		return nil, err
@@ -148,6 +158,12 @@ func parseIslandDeck(dir string, src []byte) (*IslandDeck, error) {
 			Components:  collectComponentRefs(slideNode),
 			packLayouts: deck.packLayouts,
 		})
+	}
+	if audience != "" {
+		deck, err = SelectAudience(deck, audience)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := deck.resolveDeckComponents(); err != nil {
 		return nil, err
