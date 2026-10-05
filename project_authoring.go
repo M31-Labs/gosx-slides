@@ -513,7 +513,7 @@ func (p *AuthorProject) Write(edit ProjectEdit) (ProjectSave, error) {
 			continue
 		}
 		if d.File == edit.File {
-			return ProjectSave{}, projectFailure(422, diagnosticMessage(d))
+			return ProjectSave{}, projectFailure(422, "project validation failed: "+diagnosticMessage(d))
 		}
 		// Existing errors in other files must not trap a project in a state
 		// where neither file can be repaired. Only identical baseline errors
@@ -534,7 +534,7 @@ func (p *AuthorProject) Write(edit ProjectEdit) (ProjectSave, error) {
 				continue
 			}
 			if remaining[after] == 0 {
-				return ProjectSave{}, projectFailure(422, diagnosticMessage(after))
+				return ProjectSave{}, projectFailure(422, "project validation failed: "+diagnosticMessage(after))
 			}
 			remaining[after]--
 		}
