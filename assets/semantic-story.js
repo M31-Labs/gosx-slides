@@ -74,9 +74,24 @@
     if (changed) scheduleCaptionLayout();
     if (beat) slide.dataset.storyCue = beat.cue; else delete slide.dataset.storyCue;
   }
-  function target(id) {
+  function targets(id) {
     const slide = active();
-    return Array.from(slide.querySelectorAll('[data-sirena-id],[data-story-id],[data-gosx-scene-label],[id]')).find(el => el.dataset.sirenaId === id || el.dataset.storyId === id || el.id === id || el.dataset.gosxSceneLabel === 'label:' + id);
+    return slide ? Array.from(slide.querySelectorAll('[data-sirena-id],[data-story-id],[data-gosx-scene-label],[id]')).filter(el => el.dataset.sirenaId === id || el.dataset.storyId === id || el.id === id || el.dataset.gosxSceneLabel === 'label:' + id) : [];
+  }
+  function renderedVisible(el) {
+    const style = getComputedStyle(el);
+    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    for (let parent = el; parent; parent = parent.parentElement) {
+      const computed = getComputedStyle(parent);
+      if (parent.hidden || computed.display === 'none' || computed.contentVisibility === 'hidden' || Number(computed.opacity) <= 0) return false;
+    }
+    // A semantic marker by itself is not rendered evidence. Require nonzero
+    // geometry in the viewport, including SVG groups and native scene labels.
+    return Array.from(el.getClientRects()).some(rect => rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0 && rect.left < innerWidth && rect.top < innerHeight);
+  }
+  function target(id) {
+    const candidates = targets(id);
+    return candidates.find(renderedVisible) || candidates[0];
   }
   function assertCurrent() {
     const beat = current(), errors = [];
@@ -84,8 +99,7 @@
     let checks = 0;
     for (const [ids, expected] of [[beat.expect.visible || [], true], [beat.expect.hidden || [], false]]) {
       for (const id of ids) {
-        checks++; const el = target(id), style = el && getComputedStyle(el);
-        const actual = !!el && !el.hidden && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0;
+        checks++; const actual = targets(id).some(renderedVisible);
         if (actual !== expected) errors.push(id + ': rendered visibility expected ' + expected);
       }
     }

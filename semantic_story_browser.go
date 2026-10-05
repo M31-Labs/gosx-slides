@@ -78,16 +78,19 @@ async function pose(time){
 await document.fonts.ready;SlidesMotion.pause();
 for(const beat of beats){
   SlidesNav.preview(beat.slideIndex,beat.step);await ready();
-  const end=await pose(beat.durationMs), assertions=SlidesStory.assertCurrent();
+  // A zero-duration story still has the deck's own entrance transition. Settle
+  // the full presentation pose before making claims about rendered visibility.
+  const duration=Math.max(beat.durationMs,SlidesMotion.duration());
+  const end=await pose(duration), assertions=SlidesStory.assertCurrent();
   report.checks+=assertions.checks;assertions.errors.forEach(error=>report.errors.push(key(beat)+': '+error));
   remembered.set(key(beat),end);
-  const middle=await pose(beat.durationMs/2);await pose(0);
-  report.checks++;if(await pose(beat.durationMs/2)!==middle)report.errors.push(key(beat)+': repeated midpoint seek differs');
-  report.checks++;if(await pose(beat.durationMs)!==end)report.errors.push(key(beat)+': repeated final seek differs');
+  const middle=await pose(duration/2);await pose(0);
+  report.checks++;if(await pose(duration/2)!==middle)report.errors.push(key(beat)+': repeated midpoint seek differs');
+  report.checks++;if(await pose(duration)!==end)report.errors.push(key(beat)+': repeated final seek differs');
 }
 for(const beat of [...beats].reverse()){
   SlidesNav.preview(beat.slideIndex,beat.step);await ready();
-  report.checks++;if(await pose(beat.durationMs)!==remembered.get(key(beat)))report.errors.push(key(beat)+': backward navigation differs');
+  report.checks++;if(await pose(Math.max(beat.durationMs,SlidesMotion.duration()))!==remembered.get(key(beat)))report.errors.push(key(beat)+': backward navigation differs');
 }
 return report;
 })()`

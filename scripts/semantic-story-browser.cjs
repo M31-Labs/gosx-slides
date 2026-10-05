@@ -76,7 +76,7 @@ async function withServer(deck, port, run) {
       await captionFits(page);
       await page.screenshot({ path: path.join(output, 'semantic-story-native.png') });
       await page.evaluate(() => SlidesNav.show(1, 0, true));
-      const overview = await sample(0);
+      const overview = await sample(await page.evaluate(() => SlidesMotion.duration()));
       assert.deepEqual(overview.assertion.errors, []);
       assert.equal(await page.locator('[data-story-id="completion"]').isVisible(), false);
       await page.evaluate(() => SlidesNav.show(1, 1, true));
