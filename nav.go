@@ -240,6 +240,7 @@ func navScript() string {
   // (no-?present) window stays the audience view. Both still share slide state and
   // the BroadcastChannel, so prev/next in either drives the other.
   var present = /(^|[?&])present(=|&|$)/.test(location.search) || /present/.test(location.hash);
+  if (deck.getAttribute('data-session-role') === 'audience') present = false;
   var initialPosition = readPosition(location.hash, slides.length);
   var index = initialPosition.index;
   // Step zero shows the static code union and the first prose fragment. Shared
@@ -465,11 +466,12 @@ func navScript() string {
     if (publishing || !pendingState) return;
     var data = pendingState; pendingState = null; publishing = true;
     try {
-      fetch('presenter/state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true })
+      fetch('presenter/state', { method: 'POST', headers: window.SlidesSessionHeaders ? window.SlidesSessionHeaders({ 'Content-Type': 'application/json' }) : { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true })
         .catch(function () {}).finally(function () { publishing = false; publishPending(); });
     } catch (e) { publishing = false; }
   }
   function broadcast() {
+	if (deck.getAttribute('data-session-role') === 'audience') return;
     if (applyingRemote || (initializing && !location.hash)) return;
     var data = { index: index, step: step, source: sourceID, sequence: ++sequence };
     if (channel) { try { channel.postMessage(data); } catch (e) {} }
@@ -551,6 +553,7 @@ func navScript() string {
   // Open a presenter window for this deck: the SAME page with ?present, in a named
   // window so a second press focuses the existing one instead of stacking copies.
   function openPresenter() {
+	if (deck.getAttribute('data-session-role') === 'audience') return;
     try {
       window.open(location.pathname + '?present', 'gosx-presenter',
         'width=1280,height=800,noopener=no');

@@ -89,6 +89,32 @@ func TestDeckDir(t *testing.T) {
 	}
 }
 
+func TestSessionSecretFilesAreBounded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "token")
+	for _, input := range []struct {
+		source string
+		valid  bool
+	}{{"short", false}, {strings.Repeat("e", 32) + "\n", true}, {strings.Repeat("e", 4097), false}} {
+		if err := os.WriteFile(path, []byte(input.source), 0600); err != nil {
+			t.Fatal(err)
+		}
+		value, err := readSessionSecret(path)
+		if (err == nil) != input.valid || (input.valid && value != strings.TrimSpace(input.source)) {
+			t.Fatal("unexpected secret file result", err)
+		}
+	}
+	for _, args := range [][]string{
+		{"serve", "--session-http"},
+		{"serve", "--audience-token-file", path},
+		{"serve", "--port", "0"},
+		{"serve", "--watch", "--host", "0.0.0.0"},
+	} {
+		if err := run(args); err == nil {
+			t.Fatal("invalid serving configuration accepted", args[1])
+		}
+	}
+}
+
 // TestRunDispatch smoke-tests the command router on the real example deck (the
 // lane-routing + default-mismatch logic the audit flagged as 0%-covered).
 func TestRunDispatch(t *testing.T) {

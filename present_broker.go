@@ -3,6 +3,7 @@ package slides
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"strconv"
@@ -163,9 +164,13 @@ func (b *presenterBroker) handleState(w http.ResponseWriter, r *http.Request) {
 // handleRemote serves the standalone phone-remote page: prev/next/goto that POST
 // to /presenter/state, and an EventSource that mirrors the live slide number. It
 // is a control surface, not a themed deck, so it carries no island runtime.
-func handleRemote(w http.ResponseWriter, _ *http.Request) {
+func handleRemote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	io.WriteString(w, remoteHTML)
+	doc := remoteHTML
+	if csrf := sessionCSRF(r); csrf != "" {
+		doc = strings.Replace(doc, "</head>", `<meta name="slides-csrf" content="`+html.EscapeString(csrf)+`"><script>`+sessionHeadersScript+`</script></head>`, 1)
+	}
+	io.WriteString(w, doc)
 }
 
 const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
@@ -194,7 +199,7 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
   </form>
 <script>
   var cur = 0;
-  function go(i){ if(i<0)i=0; fetch('presenter/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:i,step:0}),keepalive:true}); }
+  function go(i){ if(i<0)i=0; var headers={'Content-Type':'application/json'}; fetch('presenter/state',{method:'POST',headers:window.SlidesSessionHeaders?SlidesSessionHeaders(headers):headers,body:JSON.stringify({index:i,step:0}),keepalive:true}); }
   try {
     var es = new EventSource('presenter/events');
     es.addEventListener('state', function(e){

@@ -1,6 +1,8 @@
 package slides
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"m31labs.dev/gosx"
 	"m31labs.dev/gosx/engine"
@@ -38,6 +41,10 @@ type ServeOptions struct {
 	Static bool
 	// Edit enables validated, revision-checked browser saves to deck.md.
 	Edit bool
+	// Sessions enables authenticated audience and editor roles.
+	Sessions *SessionOptions
+	// TLSCertFile and TLSKeyFile enable HTTPS with the GoSX application handler.
+	TLSCertFile, TLSKeyFile string
 	// Addr is the listen address for Serve (e.g. "127.0.0.1:8080"). Ignored by
 	// NewServer, which only builds the App.
 	Addr string
@@ -84,6 +91,9 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
+	if err := validateServeAccess(opts); err != nil {
+		return nil, err
+	}
 
 	// Compile each distinct component once (CompileComponent recompiles on every
 	// call — cache by name) and mount its JSON. The compiled cache is read-only
@@ -105,6 +115,9 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	}
 
 	app := server.New()
+	if err := mountSessions(app, opts.Sessions); err != nil {
+		return nil, err
+	}
 	app.SetPublicDir(d.Dir)
 	mountCompositionAssets(app, d, opts.Dev || opts.Edit)
 
@@ -188,8 +201,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
-		if opts.Edit && !opts.Static {
+		if opts.Edit && !opts.Static && sourceRequestWriter(ctx.Request) {
 			ctx.AddHead(gosx.RawHTML(`<meta name="slides-edit" content="enabled">`))
+		}
+		if opts.Sessions != nil {
+			ctx.AddHead(gosx.RawHTML(`<meta name="slides-csrf" content="` + html.EscapeString(sessionCSRF(ctx.Request)) + `"><script>` + sessionHeadersScript + `</script>`))
 		}
 		renderDeck, renderCompiled, renderFailures := d, compiled, failures
 		renderProgram, renderErr := deckProgram, deckErr
@@ -234,12 +250,28 @@ func (d *IslandDeck) Serve(opts ServeOptions) error {
 	if opts.Addr == "" {
 		opts.Addr = "127.0.0.1:8080"
 	}
+	if (opts.TLSCertFile == "") != (opts.TLSKeyFile == "") {
+		return fmt.Errorf("TLS requires both certificate and key files")
+	}
+	if opts.Sessions != nil && !opts.Sessions.AllowInsecure && opts.TLSCertFile == "" {
+		return fmt.Errorf("authenticated serving requires TLS, or explicit plain-HTTP sessions")
+	}
 	opts.StageRuntime = true
 	app, err := d.NewServer(opts)
 	if err != nil {
 		return err
 	}
-	return app.ListenAndServe(opts.Addr)
+	// Keep the validated address explicit: GoSX's convenience listener may
+	// replace it from PORT, which could bypass the non-loopback access policy.
+	app.Scheduler().Start(context.Background())
+	listener := &http.Server{Addr: opts.Addr, Handler: app.Build(),
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second,
+		WriteTimeout: 45 * time.Second, IdleTimeout: 120 * time.Second,
+		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12}}
+	if opts.TLSCertFile != "" {
+		return listener.ListenAndServeTLS(opts.TLSCertFile, opts.TLSKeyFile)
+	}
+	return listener.ListenAndServe()
 }
 
 // ServeDeck loads the deck at dir and serves it in the real lane. It is the
@@ -381,6 +413,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// current slide's note out of them. A slide with no note emits nothing (the
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
+	if audienceSession(ctx.Request) {
+		noteNodes = nil
+	}
 	starfield := deckScene3DBackground(ctx.Runtime(), d)
 
 	return gosx.El("main",
@@ -401,6 +436,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 			gosx.Attr("data-caption-guide", boolAttr(conference.CaptionGuide)),
 			gosx.Attr("data-offline", boolAttr(conference.OfflineRequired)),
 			gosx.Attr("data-live-sync", boolAttr(liveSync)),
+			gosx.Attr("data-session-role", sessionRole(ctx.Request)),
 			gosx.Attr("data-hydration", deckFrontmatterString(d, "hydration")),
 		),
 		starfield,

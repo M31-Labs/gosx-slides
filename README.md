@@ -1,5 +1,30 @@
 # gosx-slides
 
+### Authenticated shared presentations
+
+Local serving defaults to `127.0.0.1`. A public listener requires room tokens.
+Keep tokens in files containing 32–4096 bytes, and use distinct audience and
+editor tokens. For HTTPS, run:
+
+```sh
+slides serve my-deck --edit --host 0.0.0.0 --port 8443 \
+  --editor-token-file /private/editor-token \
+  --audience-token-file /private/audience-token \
+  --tls-cert /private/certificate.pem --tls-key /private/key.pem
+```
+
+Visitors join at `/_slides/session`. Audience sessions receive the deck and
+presenter updates; editor sessions can use presenter controls and enabled
+authoring tools. Audience responses omit speaker notes and editor metadata.
+Tokens grant shared roles rather than verified personal identities.
+
+GoSX stores encrypted, signed, HttpOnly, SameSite=Strict cookies for eight hours.
+Unsafe requests also require its session CSRF token, alongside the existing
+revision and authoring-token checks for saves. A random session key invalidates
+sessions on restart; `--session-secret-file` supplies a stable key when desired.
+Plain HTTP requires the explicit `--session-http` flag for trusted local use.
+The watch proxy stays local and cannot be combined with sessions or TLS.
+
 GoSX Slides coordinates element entrances, split text, diagram SVG,
 Scene3D actors and cameras, code morphs, and shader time from one seekable
 playhead. Edit and save motion timings in the browser, navigate named story

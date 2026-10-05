@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -223,16 +224,56 @@ func run(args []string) error {
 		// full-reloads. It fronts the in-process deck server with the gosx dev proxy.
 		watch, rest := takeBoolFlag(rest, "watch")
 		edit, rest := takeBoolFlag(rest, "edit")
+		sessionHTTP, rest := takeBoolFlag(rest, "session-http")
+		flags := map[string]string{}
+		for _, flag := range []string{"host", "editor-token-file", "audience-token-file", "session-secret-file", "tls-cert", "tls-key"} {
+			value, next, err := takeStringFlag(rest, flag, "")
+			if err != nil {
+				return err
+			}
+			flags[flag], rest = value, next
+		}
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("port must be between 1 and 65535")
+		}
+		host := flags["host"]
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		address := net.JoinHostPort(host, strconv.Itoa(port))
+		var sessions *slides.SessionOptions
+		if flags["editor-token-file"] != "" {
+			sessions = &slides.SessionOptions{AllowInsecure: sessionHTTP}
+			for flag, dest := range map[string]*string{"editor-token-file": &sessions.EditorToken, "audience-token-file": &sessions.AudienceToken, "session-secret-file": &sessions.Secret} {
+				if flags[flag] == "" {
+					continue
+				}
+				value, err := readSessionSecret(flags[flag])
+				if err != nil {
+					return fmt.Errorf("%s: %w", flag, err)
+				}
+				*dest = value
+			}
+		} else if sessionHTTP || flags["audience-token-file"] != "" || flags["session-secret-file"] != "" {
+			return fmt.Errorf("session options require --editor-token-file")
+		}
 		if watch && edit {
 			return fmt.Errorf("use serve --edit for browser authoring, or --watch for filesystem hot-swap")
 		}
 		dir := deckDir(rest)
 		if watch {
-			fmt.Printf("gosx-slides (hot-swap) serving %s at http://%s\n", dir, addr(port))
-			return slides.DevDeck(dir, slides.DevOptions{Addr: addr(port), RebuildRuntime: rebuild})
+			if host != "127.0.0.1" || sessions != nil || flags["tls-cert"] != "" || flags["tls-key"] != "" {
+				return fmt.Errorf("watch requires the local default host without sessions or TLS")
+			}
+			fmt.Printf("gosx-slides (hot-swap) serving %s at http://%s\n", dir, address)
+			return slides.DevDeck(dir, slides.DevOptions{Addr: address, RebuildRuntime: rebuild})
 		}
-		fmt.Printf("gosx-slides serving %s at http://%s\n", dir, addr(port))
-		return slides.ServeDeck(dir, slides.ServeOptions{Addr: addr(port), StageRuntime: true, RebuildRuntime: rebuild, Edit: edit})
+		scheme := "http"
+		if flags["tls-cert"] != "" {
+			scheme = "https"
+		}
+		fmt.Printf("gosx-slides serving %s at %s://%s\n", dir, scheme, address)
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: address, StageRuntime: true, RebuildRuntime: rebuild, Edit: edit, Sessions: sessions, TLSCertFile: flags["tls-cert"], TLSKeyFile: flags["tls-key"]})
 	case "bench":
 		runs, rest, err := takeIntFlag(args[1:], "runs", 3)
 		if err != nil {
@@ -332,6 +373,26 @@ func deckDir(args []string) string {
 	return p
 }
 
+func readSessionSecret(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 4097))
+	if err != nil {
+		return "", err
+	}
+	if len(data) > 4096 {
+		return "", fmt.Errorf("secret file exceeds 4096 bytes")
+	}
+	value := strings.TrimSpace(string(data))
+	if len(value) < 32 {
+		return "", fmt.Errorf("secret file must contain at least 32 bytes")
+	}
+	return value, nil
+}
+
 func takeStringFlag(args []string, name, fallback string) (string, []string, error) {
 	value := fallback
 	var rest []string
@@ -422,7 +483,9 @@ slides is the gosx-slides command. One lane: a deck is a directory with deck.md 
 
 Commands:
   init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
-  serve [deck-dir] [--edit] [--port 8080] [--rebuild] [--watch]   serve the deck (live islands). --watch = hot-swap dev loop
+  serve [deck-dir] [--edit] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
+      [--editor-token-file file] [--audience-token-file file] [--session-secret-file file]
+      [--tls-cert file --tls-key file | --session-http]   serve a local or authenticated shared deck
                                                          (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
