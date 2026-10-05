@@ -82,6 +82,10 @@ directly also works (the parent directory is used).
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
 | `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
 | `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
+| `audiences [deck-dir] [--json]` | List declared or discovered audience names. `serve`, `build` and `export` accept `--audience name`; selected variants reject edit/collab/watch and links into omitted slides. |
+| `story inspect [deck-dir] [--audience name] [--json]` | Inspect compiled semantic beats, actor targets and source ranges. |
+| `story assert [deck-dir] [--audience name] [--browser] [--json]` | Gate named targets, links, labels and visibility. `--browser` checks actual geometry/ancestors and repeatable forward, backward and midpoint states through Chrome. |
+| `tour <before.sir> <after.sir> [--out new-deck-dir] [--json]` | Create a fresh runnable Markdown/Sirena architecture change tour and story manifest using stable actor `sid` identities. |
 | `version` | Print the version. |
 | `help`, `-h`, `--help` | Print usage. |
 
@@ -136,6 +140,35 @@ media losses; original note recovery files stay outside `public/`.
 Static exports omit notes by default. `--notes` opts in for SPA, handout and
 editable PPTX. A default SPA export refuses an existing `notes.html` sidecar;
 publish into a fresh folder to avoid retaining older private material.
+
+## Semantic stories, variants and replay
+
+`story: story.yaml` declares version-1 beats addressed by stable `slide` and
+`cue`. Effects are absolute: `focus`, `reveal`, directed `trace`, native
+`camera`, code block/line selection, DOM `show`/`hide`, `caption`, `durationMs`
+and `expect` labels/visibility. Omitted effects restore baseline. A diagram
+slide has one story surface; authored scene Steps and story poses are exclusive.
+See `examples/semantic-story`. Compilation supports 1000 beats; rendered
+assertions support 100 beats and a two-minute Chrome deadline. Exact authored
+beat captions override slide captions in recordings/video, including empty cues.
+
+Deck/slide YAML `audiences:` accepts strings or string lists. Untagged slides
+are shared. `--audience` filters/reindexes content while keeping stable IDs,
+cues and source origins. Omitted link destinations fail with source diagnostics.
+Selected live decks reject cached omitted island programs; SPA builds reject
+unknown/stale program artifacts before replacing an existing page. Use a fresh
+SPA destination for a different variant. Shared `public/` assets are not filtered
+by audience tags. See `examples/audience-variants`.
+
+`simulation: simulation.yaml` plus `:::simulation demo` mounts a seeded
+fixed-step GoSX particle example. Authored slide/cue-to-tick mappings drive
+checkpoint restore, exact scrubbing and explicit branch selection. The compiler
+embeds authoritative frames for offline/export parity. `NewSimulationReplay`
+adapts other GoSX `sim.Simulation` models; factories must return fresh
+deterministic state and descendants share a factory resource lock. Limits:
+120 Hz, 3600 ticks, 512 inputs (4 KiB each), 64 KiB state/checkpoint and 16 MiB
+compiled frames; the manifest supports 8 models, 3 branches and 32 particles.
+See `examples/simulation-lab`.
 
 ## Motion and authoring additions
 

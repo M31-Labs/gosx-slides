@@ -554,16 +554,16 @@ slides is the gosx-slides command. One lane: a deck is a directory with deck.md 
 
 Commands:
   init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
-  serve [deck-dir] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
+  serve [deck-dir] [--audience name] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
       [--editor-token-file file] [--audience-token-file file] [--session-secret-file file]
       [--tls-cert file --tls-key file | --session-http]   serve a local or authenticated shared deck
                                                          (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
   bench [deck-dir] [--runs 3] [--budget file.json]         measure browser readiness, transfer, heap, DOM and frame intervals
-  build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
+  build [deck-dir] [--audience name] [--out dist]          static SPA: index.html + gosx/ assets; islands stay live
   export [deck-dir] --format spa|single|handout|pdf|frames|video|pptx [--out dist]
-      [--aspect 16:9|4:3 | --width N --height N] [--template theme.pptx]
+      [--audience name] [--aspect 16:9|4:3 | --width N --height N] [--template theme.pptx]
       [--narration audio.wav] [--captions authored.vtt]
   import <source.pptx> [--out new-deck-dir] [--json]   migrate supported Office content
     --capture    Render live graphics in single/PDF snapshots (needs Chrome)
@@ -580,6 +580,12 @@ Commands:
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
   packs [deck-dir] [--json]                              enabled local theme/component packs
   pack install <source-dir> [deck-dir]                   vendor a validated pack; enable its exact pin in headmatter
+  audiences [deck-dir] [--json]                          list named content variants
+  story inspect [deck-dir] [--audience name] [--json]     compiled beats, targets and source ranges
+  story assert [deck-dir] [--audience name] [--browser] [--json]
+                                                         gate canonical states; --browser tests rendered forward/reverse poses
+  tour <before.sir> <after.sir> [--out new-deck-dir] [--json]
+                                                         generate a runnable architecture change tour
   Reading view: append ?read or press V; export --format handout for a static reading document
   version
 `))

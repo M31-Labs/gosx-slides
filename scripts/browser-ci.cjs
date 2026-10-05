@@ -80,7 +80,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const editable=path.join(out,'editable.pptx');
   const editableExport=spawnSync(binary,['export','examples/storytelling-lab','--format','pptx','--editable','--out',editable],{stdio:'inherit',env:process.env});assert.equal(editableExport.status,0,'editable PPTX export failed');
   const editableXML=spawnSync('unzip',['-p',editable,'ppt/slides/slide5.xml'],{encoding:'utf8'});assert.equal(editableXML.status,0,'editable PPTX XML missing');assert.ok(editableXML.stdout.includes('<p:txBody>')&&editableXML.stdout.includes('<a:custGeom>')&&editableXML.stdout.includes('<a:alpha val="15000"/>'),'radar must retain editable labels, geometry and translucency');
-  for (const deck of ['examples/authoring-lab', 'examples/math-lab', 'examples/composition-pack']) {
+  for (const deck of ['examples/authoring-lab', 'examples/math-lab', 'examples/composition-pack', 'examples/semantic-story', 'examples/simulation-lab']) {
     const bench=spawnSync(binary,['bench',deck,'--runs','1','--budget','scripts/performance-budget.json'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0 && report.runs[0].frameP95Millis>0);
     fs.writeFileSync(path.join(out, path.basename(deck)+'-benchmark.json'), JSON.stringify(report,null,2));
   }

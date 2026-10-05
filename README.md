@@ -703,3 +703,83 @@ Static exports omit private speaker notes by default. `--notes` explicitly
 publishes them in SPA, handout or editable PPTX output. A default SPA export
 refuses an output folder with an existing `notes.html`; use a fresh folder to
 avoid carrying a previously published private sidecar forward.
+
+### Semantic stories and architecture tours
+
+Headmatter `story: story.yaml` binds one versioned local manifest to stable slide
+IDs and named cues. Each beat declares an absolute pose: Sirena actor focus and
+reveal, a relationship trace, a native camera, code lines, DOM visibility, an
+authored caption and expected visibility/labels. The same playhead drives these
+effects; direct links, scrubbing and backward navigation restore the addressed
+state. The compiler preserves source ranges and leaves author files unchanged.
+
+```sh
+slides serve examples/semantic-story
+slides story inspect examples/semantic-story --json
+slides story assert examples/semantic-story --browser --json
+slides tour before.sir after.sir --out new-tour
+```
+
+The browser assertion gate requires Chrome and checks actual geometry and
+ancestor visibility, plus repeatable final/midpoint states in both directions.
+It supports up to 100 beats in a two-minute browser run; canonical manifests
+support up to 1000 beats. Explicit beat captions also drive local recording and
+video VTT, including deliberately blank cues; slide `caption:` is the fallback
+for other steps. `ArchitectureTour` compares parsed Sirena actors, boundaries
+and relationships using stable `sid` identity, producing a Markdown diagram
+morph and its story manifest in a fresh runnable deck directory.
+
+See [the semantic story example](examples/semantic-story/README.md) for the
+manifest and indexing contract. Each slide currently supports one narrative
+diagram surface; story poses and an explicit scene Steps file are exclusive.
+
+### Audience variants
+
+Deck headmatter can declare `audiences: [engineers, leaders]`. Per-slide YAML
+`audiences:` selects one or more of those names; untagged slides are shared.
+Names are case sensitive. Slides retain their stable IDs/cues and source
+origins while numeric navigation and compiled story/simulation poses are
+reindexed. Links into omitted slides fail selection with source diagnostics.
+
+```sh
+slides audiences examples/audience-variants
+slides serve examples/audience-variants --audience leaders
+slides export examples/audience-variants --audience engineers --format handout
+slides export examples/audience-variants --audience leaders --format pptx --editable
+```
+
+Selection works across the export formats. Use a fresh SPA destination when
+switching variants: builds refuse stale island programs or notes sidecars before
+changing the prior page. Live variants block cached programs from omitted
+slides. Audience selection controls published slide content; `public/` assets
+remain a shared asset library and require their own content policy. It does not
+grant authenticated room roles. Filtered editing, collaboration and watch mode
+are rejected until their source-preview mapping is supported.
+
+### Repeatable simulations
+
+Headmatter `simulation: simulation.yaml` and `:::simulation demo` mount a
+seeded fixed-step particle example built on GoSX `sim.Simulation`. The manifest
+logs inputs, checkpoint spacing and authored branches, then maps stable
+slide/cue addresses to exact ticks. Scrubbing and branch changes use bounded
+precompiled state frames; local viewing, offline exports and captured video
+share the same states, without a wall-clock runner or remote hub.
+
+```sh
+slides serve examples/simulation-lab
+slides export examples/simulation-lab --format single --out simulation-snapshot
+slides export examples/simulation-lab --format video --steps --seconds 2 --out simulation.webm
+```
+
+The Go API `NewSimulationReplay` adapts other deterministic GoSX models using
+explicit seeds, copied input logs, checkpoint restore and immutable branch
+prefixes. A factory must return fresh state. Bounds are 1–120 ticks/second,
+1–3600 ticks, 512 logged inputs of at most 4 KiB, 64 KiB per state/checkpoint and
+16 MiB of compiled frames. The authoring example supports up to 8 models,
+3 branches and 32 particles; it is a small model vocabulary, not a general
+physics language. See [the replay example](examples/simulation-lab/README.md).
+
+Browser developer checks use Node 24, `npm ci` and Playwright. CI runs the Go
+race detector and vet on Linux, Windows and macOS, the complete Chromium export
+suite, and shared navigation, WASM, reading, offline math, sessions and
+collaboration regressions in Firefox and WebKit.
