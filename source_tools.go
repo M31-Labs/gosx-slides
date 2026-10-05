@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 
@@ -34,7 +35,71 @@ type sourceAnalysis struct {
 	Symbols     []mdpp.StorySymbol `json:"symbols"`
 	Outline     []sourceOutline    `json:"outline"`
 	Editable    bool               `json:"editable"`
+	Renameable  bool               `json:"renameable"`
 	Source      *string            `json:"source,omitempty"`
+}
+
+// Deck diagnostics retain the original author file and byte range. A parsed
+// finding spanning multiple origins has no single editable source location.
+func deckSourceDiagnostics(deck *IslandDeck) []SourceDiagnostic {
+	if deck == nil {
+		return nil
+	}
+	out := sourceDiagnostics(deck.Document)
+	sources := map[string][]byte{DeckFileName: deck.Source}
+	for i := range out {
+		diagnostic := &out[i]
+		where, ok := deck.SourceLocation(diagnostic.Range.StartByte, diagnostic.Range.EndByte)
+		if !ok {
+			diagnostic.File = "<composed deck>"
+			continue
+		}
+		source, loaded := sources[where.File]
+		if !loaded {
+			path, err := safeAuthorPath(deck.Dir, where.File)
+			if err == nil {
+				source, err = os.ReadFile(path)
+			}
+			if err != nil {
+				diagnostic.File = "<composed deck>"
+				continue
+			}
+			sources[where.File] = source
+		}
+		if where.StartByte < 0 || where.EndByte > len(source) {
+			diagnostic.File = "<composed deck>"
+			continue
+		}
+		diagnostic.File = where.File
+		diagnostic.Range.StartByte, diagnostic.Range.EndByte = where.StartByte, where.EndByte
+		diagnostic.Range.StartLine, diagnostic.Range.StartCol = sourcePosition(source, where.StartByte)
+		diagnostic.Range.EndLine, diagnostic.Range.EndCol = sourcePosition(source, where.EndByte)
+	}
+	return out
+}
+
+func sourcePosition(source []byte, offset int) (line, column int) {
+	line, column = 1, 1
+	for i := 0; i < offset && i < len(source); i++ {
+		if source[i] == '\r' || source[i] == '\n' {
+			line++
+			column = 1
+			if source[i] == '\r' && i+1 < offset && source[i+1] == '\n' {
+				i++
+			}
+		} else {
+			column++
+		}
+	}
+	return
+}
+
+func diagnosticMessage(diagnostic SourceDiagnostic) string {
+	file := diagnostic.File
+	if file == "" {
+		file = DeckFileName
+	}
+	return fmt.Sprintf("%s:%d:%d: %s: %s", file, diagnostic.Range.StartLine, diagnostic.Range.StartCol, diagnostic.Code, diagnostic.Message)
 }
 
 func sourceDiagnostics(doc *mdpp.Document) []SourceDiagnostic {
@@ -64,12 +129,19 @@ func analyzeSource(source string) (sourceAnalysis, mdpp.StoryIndex, error) {
 		return sourceAnalysis{}, mdpp.StoryIndex{}, err
 	}
 	idx := mdpp.IndexStory(doc)
-	out := sourceAnalysis{Revision: sourceRevision([]byte(source)), Diagnostics: sourceDiagnostics(doc), Symbols: idx.Symbols, Outline: []sourceOutline{}, Editable: !doc.SourceHadCarriageReturns()}
+	hasIncludes, err := HasDeckIncludes([]byte(source))
+	if err != nil {
+		return sourceAnalysis{}, mdpp.StoryIndex{}, err
+	}
+	out := sourceAnalysis{Revision: sourceRevision([]byte(source)), Diagnostics: sourceDiagnostics(doc), Symbols: idx.Symbols, Outline: []sourceOutline{}, Editable: !doc.SourceHadCarriageReturns(), Renameable: !hasIncludes && !doc.SourceHadCarriageReturns()}
 	if out.Symbols == nil {
 		out.Symbols = []mdpp.StorySymbol{}
 	}
 	if !out.Editable {
 		out.Diagnostics = append(out.Diagnostics, SourceDiagnostic{Code: "SOURCE-LF", Severity: "warning", Message: "Structured source edits require LF line endings. Convert this file before using rename.", Range: mdpp.Range{StartLine: 1, StartCol: 1}})
+	}
+	if hasIncludes {
+		out.Diagnostics = append(out.Diagnostics, SourceDiagnostic{Code: "SOURCE-INCLUDES", Severity: "info", Message: "Single-file rename is unavailable while this deck includes fragments. Edit the author files directly.", Range: mdpp.Range{StartLine: 1, StartCol: 1}})
 	}
 	// NodeSlide ranges omit lifted YAML metadata. Group the original top-level
 	// nodes instead, using parsed thematic breaks rather than textual separators.
@@ -101,6 +173,13 @@ func analyzeSource(source string) (sourceAnalysis, mdpp.StoryIndex, error) {
 }
 
 func renameSource(source string, offset int, name string) (string, error) {
+	hasIncludes, err := HasDeckIncludes([]byte(source))
+	if err != nil {
+		return "", err
+	}
+	if hasIncludes {
+		return "", fmt.Errorf("single-file rename cannot update included fragment references; edit the author files directly")
+	}
 	_, idx, err := analyzeSource(source)
 	if err != nil {
 		return "", err

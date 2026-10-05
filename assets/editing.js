@@ -42,7 +42,7 @@
     selectedSymbol = analysis.symbols.find(s => offset >= s.Range.StartByte && offset < s.Range.EndByte);
     const refs = selectedSymbol ? analysis.symbols.filter(s => s.Kind === selectedSymbol.Kind && s.Scope === selectedSymbol.Scope && s.Name === selectedSymbol.Name) : [];
     editor.querySelector('[data-symbol-label]').textContent = selectedSymbol ? selectedSymbol.Kind + ' ' + selectedSymbol.Name + ' · ' + refs.length + ' occurrences' : 'Select a slide ID, cue or Sirena actor';
-    editor.querySelector('[data-rename]').disabled = !selectedSymbol || !analysis.editable;
+    editor.querySelector('[data-rename]').disabled = !selectedSymbol || !analysis.renameable;
     const list = editor.querySelector('[data-references]'); list.replaceChildren(...refs.map(s => listRow((s.Declaration ? 'Definition' : 'Reference') + ' · line ' + s.Range.StartLine, () => selectRange(s.Range))));
   }
   function renderAnalysis(data) {

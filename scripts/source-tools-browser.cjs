@@ -47,6 +47,10 @@ const draft = '```yaml\nid: opening\ncues: arrived, accepted\n```\n\n# Café �
     await page.waitForTimeout(200);
     assert.equal(published, 0, 'source selections and authoring preview never publish audience state');
     await page.keyboard.press('e');
+    await input.fill(draft + '\n<!-- slides:include sections/another.md -->\n');
+    await page.locator('[data-diagnostics]').getByRole('button', { name: /Single-file rename is unavailable/ }).waitFor();
+    await page.locator('[data-symbols]').getByRole('button', { name: 'cue · accepted', exact: true }).first().click();
+    assert.equal(await page.getByRole('button', { name: 'Rename in draft', exact: true }).isDisabled(), true, 'includes prevent incomplete single-file rename');
     await page.getByRole('button', { name: 'Reload source', exact: true }).click();
     await page.locator('[data-status]').filter({ hasText: 'Ready to edit' }).waitFor();
     assert.equal(await input.inputValue(), saved);

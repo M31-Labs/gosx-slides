@@ -132,6 +132,10 @@ func TestSourceToolsAnalyzeDraftWithoutWritesAndSecureOrigin(t *testing.T) {
 	if string(saved) != "# Saved\n" {
 		t.Fatal("draft analysis wrote to disk")
 	}
+	input["source"] = storySource + "\n<!-- slides:include part.md -->\n"
+	if w := request("localhost", "http://localhost", state["token"], input); w.Code != 422 || !strings.Contains(w.Body.String(), "included fragment") {
+		t.Fatal("draft endpoint allowed incomplete included rename", w.Code, w.Body.String())
+	}
 	input["extra"] = true
 	if w := request("localhost", "http://localhost", state["token"], input); w.Code != 400 {
 		t.Fatal("unexpected JSON fields accepted")
@@ -143,5 +147,72 @@ func TestSourceToolsAnalyzeDraftWithoutWritesAndSecureOrigin(t *testing.T) {
 		if w.Code == 200 || w.Code == 403 {
 			t.Fatal("draft endpoint exposed without editor")
 		}
+	}
+}
+
+func TestIncludedStoryDiagnosticsMapToAuthorFiles(t *testing.T) {
+	for _, lineEndings := range []string{"LF", "CRLF", "mixed"} {
+		t.Run(lineEndings, func(t *testing.T) {
+			dir := t.TempDir()
+			root := "# Intro\n\n<!-- notes -->\n\n---\n\n<!-- slides:include sections/chapter.md#shown -->\n\n---\n\n# Tail\n\n:::motion {after=missingroot}\nTail\n:::\n"
+			fragment := "<!-- slides:section skipped -->\n# Skipped\n\n<!-- slides:section shown -->\n# Café 🦊\n\n:::motion {after=missingpart}\nIncluded\n:::\n"
+			if lineEndings != "LF" {
+				root = strings.ReplaceAll(root, "\n", "\r\n")
+			}
+			if lineEndings == "CRLF" {
+				fragment = strings.ReplaceAll(fragment, "\n", "\r\n")
+			}
+			writeCompositionFiles(t, dir, map[string]string{"deck.md": root, "sections/chapter.md": fragment})
+			deck, err := LoadIslandDeck(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report := Validate(deck, ValidateOptions{})
+			wanted := map[string]string{"missingroot": DeckFileName, "missingpart": "sections/chapter.md"}
+			for _, diagnostic := range report.Analysis.Diagnostics {
+				if diagnostic.Code != "STORY-UNRESOLVED" {
+					continue
+				}
+				source := root
+				name := "missingroot"
+				if strings.Contains(diagnostic.Message, "missingpart") {
+					name, source = "missingpart", fragment
+				}
+				if diagnostic.File != wanted[name] || diagnostic.Range.StartByte != strings.Index(source, name) || diagnostic.Range.EndByte != strings.Index(source, name)+len(name) {
+					t.Fatalf("wrong author location: %+v", diagnostic)
+				}
+				line, column := sourcePosition([]byte(source), strings.Index(source, name))
+				if diagnostic.Range.StartLine != line || diagnostic.Range.StartCol != column {
+					t.Fatalf("wrong author line/column: %+v", diagnostic)
+				}
+				if !strings.Contains(strings.Join(report.Warnings, "\n"), diagnostic.File+":") {
+					t.Fatal("CLI warning lost author file")
+				}
+				delete(wanted, name)
+			}
+			if len(wanted) != 0 {
+				t.Fatal("missing composed story diagnostics", wanted)
+			}
+		})
+	}
+}
+
+func TestDraftRenameWithIncludesFailsClosed(t *testing.T) {
+	include := storySource + "\n<!-- slides:include sections/another.md -->\n"
+	report, _, err := analyzeSource(include)
+	if err != nil || !report.Editable || report.Renameable {
+		t.Fatal("draft include editing/rename flags", report, err)
+	}
+	if _, err := renameSource(include, strings.Index(include, "accepted after"), "processed"); err == nil || !strings.Contains(err.Error(), "included fragment") {
+		t.Fatal("incomplete semantic rename allowed", err)
+	}
+	// Literal teaching examples must not disable normal source editing.
+	literal := storySource + "\n```text\n<!-- slides:include sections/another.md -->\n```\n"
+	report, _, err = analyzeSource(literal)
+	if err != nil || !report.Renameable {
+		t.Fatal("literal include disabled rename", err)
+	}
+	if _, err := renameSource(literal, strings.Index(literal, "accepted after"), "processed"); err != nil {
+		t.Fatal(err)
 	}
 }
