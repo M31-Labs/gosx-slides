@@ -70,6 +70,8 @@ type teamRoom struct {
 	members      map[string]teamMember
 	publisher    string
 	publishUntil time.Time
+	grants       *sessionGrants
+	unwatch      map[string]func()
 }
 
 func teamNewDocument(text string) (*crdt.Doc, crdt.ObjID, []byte, error) {
@@ -203,24 +205,34 @@ func (r *teamRoom) publishing() bool {
 	return r.publisher != ""
 }
 func teamWriter(client *hub.Client) bool { value, _ := client.Metadata("writer"); return value == "1" }
+func (r *teamRoom) writer(client *hub.Client) bool {
+	if !teamWriter(client) {
+		return false
+	}
+	if r.grants == nil {
+		return true
+	}
+	id, _ := client.Metadata("session")
+	return r.grants.valid(id, "editor")
+}
 func (r *teamRoom) sendState(client *hub.Client, ack map[string]string) {
 	// Audience/viewer connections never receive a draft, notes, source quotes,
 	// or comments. Collaboration is an explicit authoring surface.
-	if !teamWriter(client) {
+	if !r.writer(client) {
 		r.hub.Send(client.ID, "team:error", map[string]string{"message": "Shared drafts require an editor session."})
 		return
 	}
 	r.hub.Send(client.ID, "team:state", map[string]any{"text": r.text(), "revision": r.stored.Revision, "diskRevision": r.stored.DiskRevision, "comments": r.stored.Comments, "publishing": r.publishing(), "ack": ack})
 }
 func (r *teamRoom) broadcastState(ack map[string]string) {
-	r.hub.BroadcastWhere("team:state", map[string]any{"text": r.text(), "revision": r.stored.Revision, "diskRevision": r.stored.DiskRevision, "comments": r.stored.Comments, "publishing": r.publishing(), "ack": ack}, teamWriter)
+	r.hub.BroadcastWhere("team:state", map[string]any{"text": r.text(), "revision": r.stored.Revision, "diskRevision": r.stored.DiskRevision, "comments": r.stored.Comments, "publishing": r.publishing(), "ack": ack}, r.writer)
 }
 func (r *teamRoom) broadcastPresence() {
 	members := make([]teamMember, 0, len(r.members))
 	for _, member := range r.members {
 		members = append(members, member)
 	}
-	r.hub.BroadcastWhere("team:presence", members, teamWriter)
+	r.hub.BroadcastWhere("team:presence", members, r.writer)
 }
 func (r *teamRoom) fail(ctx *hub.Context, id string, err error, retry bool) {
 	r.hub.Send(ctx.Client.ID, "team:error", map[string]any{"id": id, "message": err.Error(), "retry": retry})
@@ -401,11 +413,29 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 	r.hub = h
 	h.RequireOrigin, h.MaxClients, h.MaxMessagesPerSecond, h.MaxMessageBurst, h.MaxSyncMessageSize = true, 8, 12, 24, 64<<10
 	h.SetBinaryAuthorizer(func(*hub.Client, string) bool { return false })
-	h.On("join", func(ctx *hub.Context) { r.mu.Lock(); defer r.mu.Unlock(); r.sendState(ctx.Client, nil) })
+	r.unwatch = map[string]func(){}
+	h.On("join", func(ctx *hub.Context) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.grants != nil {
+			id, _ := ctx.Client.Metadata("session")
+			cancel, allowed := r.grants.watch(id, ctx.Client.ID, func() { h.Disconnect(ctx.Client.ID, "editor session expired or revoked") })
+			if !allowed {
+				go h.Disconnect(ctx.Client.ID, "editor session required")
+				return
+			}
+			r.unwatch[ctx.Client.ID] = cancel
+		}
+		r.sendState(ctx.Client, nil)
+	})
 	h.On("leave", func(ctx *hub.Context) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		delete(r.members, ctx.Client.ID)
+		if cancel := r.unwatch[ctx.Client.ID]; cancel != nil {
+			cancel()
+			delete(r.unwatch, ctx.Client.ID)
+		}
 		if r.publisher == ctx.Client.ID {
 			r.publisher = ""
 			r.broadcastState(nil)
@@ -414,9 +444,6 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 	})
 	h.On("team:sync", func(ctx *hub.Context) { r.mu.Lock(); defer r.mu.Unlock(); r.sendState(ctx.Client, nil) })
 	h.On("team:presence", func(ctx *hub.Context) {
-		if !teamWriter(ctx.Client) {
-			return
-		}
 		var member teamMember
 		if json.Unmarshal(ctx.Data, &member) != nil || len(member.Label) > 64 || !utf8.ValidString(member.Label) || member.Slide < 0 || member.Slide > 10000 || member.Step < 0 || member.Step > 10000 {
 			return
@@ -428,6 +455,9 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		if !r.writer(ctx.Client) {
+			return
+		}
 		r.members[member.ID] = member
 		r.broadcastPresence()
 	})
@@ -438,7 +468,7 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
-		if !teamWriter(ctx.Client) {
+		if !r.writer(ctx.Client) {
 			r.fail(ctx, edit.ID, fmt.Errorf("editor role required"), false)
 			return
 		}
@@ -454,16 +484,16 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		r.broadcastState(map[string]string{"id": edit.ID, "client": ctx.Client.ID, "branch": branch})
 	})
 	h.On("team:comment", func(ctx *hub.Context) {
-		if !teamWriter(ctx.Client) {
-			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
-			return
-		}
 		var comment teamComment
 		if json.Unmarshal(ctx.Data, &comment) != nil {
 			return
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		if !r.writer(ctx.Client) {
+			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
+			return
+		}
 		label := r.members[ctx.Client.ID].Label
 		if label == "" {
 			label = "Editor"
@@ -476,10 +506,6 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		h.Send(ctx.Client.ID, "team:comment-saved", map[string]string{"text": strings.TrimSpace(comment.Text)})
 	})
 	h.On("team:resolve", func(ctx *hub.Context) {
-		if !teamWriter(ctx.Client) {
-			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
-			return
-		}
 		var input struct {
 			ID       string `json:"id"`
 			Resolved bool   `json:"resolved"`
@@ -489,6 +515,10 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		if !r.writer(ctx.Client) {
+			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
+			return
+		}
 		if err := r.resolveComment(input.ID, input.Resolved); err != nil {
 			r.fail(ctx, "", err, false)
 			return
@@ -496,10 +526,6 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		r.broadcastState(nil)
 	})
 	h.On("team:publish", func(ctx *hub.Context) {
-		if !teamWriter(ctx.Client) {
-			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
-			return
-		}
 		var input struct {
 			Phase    string `json:"phase"`
 			Revision string `json:"revision"`
@@ -509,6 +535,10 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 		}
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		if !r.writer(ctx.Client) {
+			r.fail(ctx, "", fmt.Errorf("editor role required"), false)
+			return
+		}
 		if input.Phase == "begin" {
 			if r.publishing() || input.Revision != r.stored.Revision {
 				r.fail(ctx, "", fmt.Errorf("shared draft changed or another editor is publishing; retry"), false)
@@ -535,11 +565,12 @@ func wireTeamHub(r *teamRoom) *hub.Hub {
 	return h
 }
 
-func mountTeam(app *server.App, deck *IslandDeck) error {
+func mountTeam(app *server.App, deck *IslandDeck, grants *sessionGrants) error {
 	r, err := newTeamRoom(deck)
 	if err != nil {
 		return err
 	}
+	r.grants = grants
 	h := wireTeamHub(r)
 	app.Mount("/_slides/team", http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
@@ -560,7 +591,8 @@ func mountTeam(app *server.App, deck *IslandDeck) error {
 		if writer {
 			flag = "1"
 		}
-		h.ServeHTTPWithMetadata(w, request, hub.ConnectionMetadata{"writer": flag})
+		access, _ := requestSession(request)
+		h.ServeHTTPWithMetadata(w, request, hub.ConnectionMetadata{"writer": flag, "session": access.id})
 	}))
 	return nil
 }
