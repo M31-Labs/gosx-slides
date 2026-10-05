@@ -1,12 +1,29 @@
-.slides-source-panel { box-sizing:border-box; width:min(90vw,1000px); max-height:90vh; padding:24px; border:1px solid #ffffff25; border-radius:16px; background:#151923; color:#f1f3f8; box-shadow:0 24px 80px #0008; }
+.slides-source-panel { box-sizing:border-box; width:min(94vw,1280px); max-height:94dvh; padding:20px; overflow:auto; border:1px solid #ffffff25; border-radius:16px; background:#151923; color:#f1f3f8; box-shadow:0 24px 80px #0008; font:14px/1.5 system-ui; }
 .slides-source-panel::backdrop { background:#0009; }
+.slides-source-panel[open] { display:flex; flex-direction:column; height:min(94dvh,780px); }
 .slides-source-panel header,.slides-source-panel footer { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.slides-source-panel header,.slides-source-panel footer { flex-shrink:0; }
 main.deck dialog.slides-source-panel h2 { margin:0 auto 12px 0; font:600 22px system-ui; }
-.slides-source-panel textarea { display:block; box-sizing:border-box; width:100%; height:55vh; padding:16px; margin:8px 0 16px; resize:vertical; border:1px solid #ffffff35; border-radius:8px; background:#0b0e15; color:#f1f3f8; font:14px/1.6 ui-monospace,monospace; tab-size:2; }
+.slides-source-panel textarea { display:block; box-sizing:border-box; width:100%; height:52dvh; min-height:200px; padding:16px; margin:8px 0; resize:vertical; border:1px solid #ffffff35; border-radius:8px; background:#0b0e15; color:#f1f3f8; font:14px/1.6 ui-monospace,monospace; tab-size:2; }
 .slides-source-panel button,.slides-ink-tools button { cursor:pointer; border:1px solid #ffffff35; border-radius:7px; padding:8px 12px; background:#242c3c; color:#f1f3f8; font:14px system-ui; }
-.slides-source-panel button:focus-visible,.slides-ink-tools :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
+.slides-source-panel :focus-visible,.slides-ink-tools :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
 .slides-source-panel [data-status] { font:14px system-ui; flex:1; }
 .slides-source-panel button:disabled { opacity:.5; }
+.slides-source-workspace { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:20px; margin-bottom:16px; min-height:0; flex:1; overflow:auto; }
+.slides-source-code { min-width:0; }
+.slides-source-history { display:flex; gap:8px; flex-wrap:wrap; }
+.slides-source-panel .slides-source-structure { max-height:64dvh; overflow:auto; border-left:1px solid #ffffff25; padding-left:16px; }
+.slides-source-panel details { margin:0 0 16px; }
+.slides-source-panel summary { cursor:pointer; padding:8px 0; font-weight:600; }
+.slides-source-panel .slides-source-structure p,.slides-source-code p { font:13px/1.5 system-ui; color:#b8c4dc; margin:8px 0; }
+.slides-source-panel .slides-source-structure label { display:block; font-size:13px; margin:8px 0 4px; }
+.slides-source-panel input { box-sizing:border-box; width:100%; padding:8px; border:1px solid #ffffff35; border-radius:6px; background:#0b0e15; color:#f1f3f8; font:14px system-ui; margin-bottom:8px; }
+.slides-source-panel .slides-source-row { width:100%; display:block; text-align:left; overflow-wrap:anywhere; white-space:normal; margin:4px 0; background:#1d2431; line-height:1.5; }
+.slides-source-slide { display:flex; align-items:center; gap:6px; }
+.slides-source-slide .slides-source-row { flex:1; min-width:0; }
+.slides-source-panel [data-severity="warning"] { border-color:#b68b39; }
+.slides-source-panel [data-severity="error"] { border-color:#e96b79; }
+@media(max-width:760px) { .slides-source-panel { padding:14px; } .slides-source-workspace { grid-template-columns:minmax(0,1fr); gap:12px; } .slides-source-panel textarea { height:38dvh; } .slides-source-panel .slides-source-structure { max-height:30dvh; border-left:0; border-top:1px solid #ffffff25; padding:8px 0 0; } }
 .slides-ink { position:fixed; z-index:45; pointer-events:none; touch-action:none; overflow:visible; }
 .slides-ink-tools { position:fixed; z-index:60; left:50%; transform:translateX(-50%); bottom:88px; display:flex; align-items:center; gap:6px; padding:8px; border-radius:12px; background:#151923ee; box-shadow:0 8px 30px #0005; }
 .slides-ink-tools[hidden] { display:none; }

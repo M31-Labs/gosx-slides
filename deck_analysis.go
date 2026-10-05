@@ -169,6 +169,7 @@ func slideCheckpoints(slide IslandSlide) []CheckpointRef {
 func Analyze(d *IslandDeck) DeckAnalysis {
 	theme := deckTheme(d)
 	out := DeckAnalysis{
+		Diagnostics: sourceDiagnostics(d.Document),
 		Graphics:    DeckGraphics(d),
 		Title:       d.title(),
 		Theme:       theme,
@@ -177,6 +178,9 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 		Layouts:     map[string]int{},
 		Components:  map[string]int{},
 		Conference:  deckConferenceConfig(d),
+	}
+	for _, diagnostic := range out.Diagnostics {
+		out.Warnings = append(out.Warnings, fmt.Sprintf("%s:%d:%d: %s: %s", DeckFileName, diagnostic.Range.StartLine, diagnostic.Range.StartCol, diagnostic.Code, diagnostic.Message))
 	}
 	if norm := strings.TrimSpace(strings.ToLower(theme)); norm != "" && themeName(theme) != norm {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
@@ -257,6 +261,11 @@ func Validate(d *IslandDeck, opts ValidateOptions) ValidationReport {
 	}
 	report := ValidationReport{Profile: profile, Analysis: Analyze(d)}
 	report.Warnings = append(report.Warnings, report.Analysis.Warnings...)
+	for _, diagnostic := range report.Analysis.Diagnostics {
+		if diagnostic.Severity == "error" {
+			report.Errors = append(report.Errors, fmt.Sprintf("%s:%d:%d: %s: %s", DeckFileName, diagnostic.Range.StartLine, diagnostic.Range.StartCol, diagnostic.Code, diagnostic.Message))
+		}
+	}
 	switch profile {
 	case "standard":
 	case "conference":

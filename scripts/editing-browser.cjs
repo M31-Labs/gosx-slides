@@ -26,7 +26,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
   await page.getByRole('button',{name:'Save and preview',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.slides-source-panel [data-status]').textContent.includes('changed'));
   assert.ok(fs.readFileSync(sourcePath,'utf8').includes('external edit'));
   await page.getByRole('button',{name:'Close source editor',exact:true}).click();
-  await page.setViewportSize({width:390,height:844});await page.keyboard.press('e');await page.getByRole('status').filter({hasText:'Ready to edit'}).waitFor();const bounds=await page.locator('.slides-source-panel').boundingBox();assert.ok(bounds.x>=0 && bounds.x+bounds.width<=391,'mobile source editor exceeds viewport');
+  await page.setViewportSize({width:390,height:844});await page.keyboard.press('e');await page.locator('.slides-source-panel').waitFor();const bounds=await page.locator('.slides-source-panel').boundingBox();assert.ok(bounds.x>=0 && bounds.x+bounds.width<=391,'mobile source editor exceeds viewport');
   await page.getByRole('button',{name:'Close source editor',exact:true}).click();
   // Exercise the embedded scene studio in this existing CI authoring lane.
   const example=path.join(__dirname,'../examples/request-recovery'), dir=path.dirname(sourcePath);

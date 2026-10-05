@@ -24,7 +24,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');
-  try {await withServer(editDir,8120,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
+  try {await withServer(editDir,8120,async url=>{script('source-tools-browser.cjs',url);const result=spawnSync(process.execPath,[path.join(__dirname,'editing-browser.cjs'),url,sourcePath],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'editing browser failed');},['--edit']);}finally{fs.rmSync(editDir,{recursive:true,force:true})}
 
   const storyDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-story-'));
   try{fs.cpSync('examples/storytelling-lab',storyDir,{recursive:true});await withServer(storyDir,8126,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'storytelling-browser.cjs'),url,path.join(storyDir,'deck.md')],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'storytelling browser failed');script('motion-transport-browser.cjs',url);script('pptx-editable-browser.cjs',url);},['--edit']);}finally{fs.rmSync(storyDir,{recursive:true,force:true})}
