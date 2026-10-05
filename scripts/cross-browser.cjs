@@ -19,7 +19,7 @@ const assert = require('node:assert/strict');
       if (attempt >= 300 || server.exitCode !== null) throw Error('Navigation server failed to start');
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    for (const [script, target] of [['navigation-browser.cjs',url], ['reading-browser.cjs',binary], ['math-browser.cjs',binary]]) {
+    for (const [script, target] of [['navigation-browser.cjs',url], ['reading-browser.cjs',binary], ['math-browser.cjs',binary], ['sessions-browser.cjs',binary], ['team-browser.cjs',binary], ['team-session-revocation-browser.cjs',binary]]) {
       const result = spawnSync(process.execPath, [path.join(__dirname,script),target], {stdio:'inherit',env:process.env,timeout:240000});
       assert.equal(result.status, 0, script + ' failed: ' + (result.error?.message || ''));
     }

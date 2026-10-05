@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const assert = require('node:assert/strict');
-const {chromium} = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright');
+const {launchTestBrowser} = require('./test-browser.cjs');
 
 (async () => {
   const binary = path.resolve(process.argv[2] || './slides');
@@ -44,7 +44,7 @@ const {chromium} = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright')
     return (await fetch(url+'_slides/source',{headers:{Cookie:cookie.name+'='+cookie.value}})).status;
   }
   try {
-    await start(); browser = await chromium.launch({args:['--no-sandbox'],...(process.env.SLIDES_BROWSER ? {executablePath:process.env.SLIDES_BROWSER} : {})});
+    await start(); browser = await launchTestBrowser({args:['--no-sandbox']});
     const context = await browser.newContext(), observerContext = await browser.newContext();
     const editor = await context.newPage(), session = await context.newPage(), observer = await observerContext.newPage();
     const errors=[]; [editor,session,observer].forEach(page=>page.on('pageerror',error=>errors.push(error.message)));
