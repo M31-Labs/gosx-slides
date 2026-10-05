@@ -12,7 +12,9 @@ import (
 // relativizes the page, renames gosx-runtime.wasm -> runtime.wasm, copies island
 // JSON, and writes the notes sidecar.
 func TestExportSPAStagesAssets(t *testing.T) {
-	deck := loadDeckFromSource(t, "# Title\n\nbody\n\n<!-- a speaker note -->\n", nil)
+	deck := loadDeckFromSource(t, "# Title\n\nbody\n\n<Demo/>\n\n<!-- a speaker note -->\n", map[string]string{
+		"Demo": "package main\n//gosx:island\nfunc Demo(props any) Node {\nreturn <span>Demo</span>\n}\n",
+	})
 
 	build := filepath.Join(deck.Dir, "build")
 	if err := os.MkdirAll(filepath.Join(build, "islands"), 0o755); err != nil {
