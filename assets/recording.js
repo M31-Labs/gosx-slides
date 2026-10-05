@@ -111,10 +111,24 @@
       // Invoke screen sharing before awaiting other permissions: browsers require
       // getDisplayMedia to run directly within the Start button's activation.
       const display = own(await navigator.mediaDevices.getDisplayMedia({ video:{frameRate:30}, audio:false, preferCurrentTab:true, selfBrowserSurface:'include' }));
+      const displayTrack = display.getVideoTracks()[0];
+      function liveDisplay() {
+        if (current !== session) throw new DOMException('Recording canceled','AbortError');
+        if (!displayTrack || displayTrack.readyState !== 'live') throw new DOMException('Screen sharing ended before recording started.','AbortError');
+      }
+      // Sharing can end while a separate device permission is still pending.
+      // Cancel this generation immediately; own() stops any late granted tracks.
+      displayTrack?.addEventListener('ended',()=>{
+        if (current !== session) return;
+        if (phase === 'requesting') { stop('Screen sharing ended.'); open(); }
+        else if (phase === 'recording') stop('Screen sharing ended.');
+      },{once:true});
+      liveDisplay();
       const microphone = selection.microphone ? own(await navigator.mediaDevices.getUserMedia({audio:true,video:false})) : null;
       const camera = selection.camera ? own(await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:360}},audio:false})) : null;
+      liveDisplay();
       const screen = await inputVideo(display), face = camera ? await inputVideo(camera) : null;
-      if (current !== session) throw new DOMException('Recording canceled','AbortError');
+      liveDisplay();
       const canvas = document.createElement('canvas'), scale = Math.min(1,1920/(screen.videoWidth || 1280),1080/(screen.videoHeight || 720));
       canvas.width = Math.max(2, Math.round((screen.videoWidth || 1280)*scale)); canvas.height = Math.max(2,Math.round((screen.videoHeight || 720)*scale));
       const context = canvas.getContext('2d');
@@ -135,7 +149,8 @@
       recorder.ondataavailable = event => { if (event.data.size) { chunks.push(event.data); bytes += event.data.size; if (bytes >= MAX_BYTES && phase === 'recording') stop('The 256 MiB recording limit was reached.'); } };
       recorder.onerror = event => { error = event.error?.message || 'The browser could not finish recording.'; if (recorder.state !== 'inactive') stop(); else finished(); };
       recorder.onstop = finished;
-      display.getVideoTracks()[0].addEventListener('ended',()=>{ if (phase === 'recording') stop('Screen sharing ended.'); },{once:true});
+      liveDisplay();
+      if (!output.getVideoTracks().some(track=>track.readyState==='live')) throw new DOMException('Recording video is unavailable.','AbortError');
       recorder.start(1000); started = performance.now(); phase = 'recording'; navigation(); update();
       timer = setInterval(()=>{ update(); if (duration() >= maximum) stop('The recording duration limit was reached.'); },250);
       return state();
@@ -152,7 +167,7 @@
   }
   function stop(message = '') {
     reason = message;
-    if (phase === 'requesting') { session++; stopResources(); phase = 'idle'; status.textContent = 'Recording canceled. Cancel any remaining browser permission prompt.'; update(); return Promise.resolve(null); }
+    if (phase === 'requesting') { session++; stopResources(); phase = 'idle'; status.textContent = (message ? message+' ' : '')+'Recording canceled. Cancel any remaining browser permission prompt.'; update(); return Promise.resolve(null); }
     if (phase !== 'recording') return stopped;
     ended = performance.now(); phase = 'finishing'; clearInterval(timer); timer = 0; cancelAnimationFrame(raf); raf = 0; update();
     if (recorder.state !== 'inactive') recorder.stop(); else finished();

@@ -7,7 +7,7 @@ const { chromium } = require(process.env.SLIDES_PLAYWRIGHT_MODULE || 'playwright
 
 async function fakeCapture(page) {
   await page.addInitScript(() => {
-    window.recordingTest = { streams:[], calls:[], denial:'', delay:false, resolve:null, contexts:[] };
+    window.recordingTest = { streams:[], calls:[], denial:'', delay:false, resolve:null, contexts:[], delayDevice:'', deviceResolve:null, display:null, endDisplayOnGrant:false };
     function screen(color, camera = false) {
       const canvas = document.createElement('canvas'); canvas.width = camera ? 160 : 640; canvas.height = camera ? 90 : 360;
       const context = canvas.getContext('2d'); context.fillStyle = color; context.fillRect(0,0,canvas.width,canvas.height);
@@ -17,16 +17,22 @@ async function fakeCapture(page) {
       recordingTest.calls.push({method:'display',options});
       if (recordingTest.denial === 'display') throw new DOMException('Permission denied','NotAllowedError');
       const stream = screen('#314e93');
+      recordingTest.display=stream;
       if (recordingTest.delay) return new Promise(resolve => { recordingTest.resolve = () => resolve(stream); });
       return stream;
     };
     navigator.mediaDevices.getUserMedia = async options => {
       const kind = options.audio ? 'microphone' : 'camera'; recordingTest.calls.push({method:kind,options});
       if (recordingTest.denial === kind) throw new DOMException('Permission denied','NotAllowedError');
-      if (options.video) return screen('#2fa478', true);
+      const grant=stream=>{
+        if(recordingTest.endDisplayOnGrant)recordingTest.display.getVideoTracks()[0].stop();
+        if(recordingTest.delayDevice===kind)return new Promise(resolve=>{recordingTest.deviceResolve=()=>resolve(stream);});
+        return stream;
+      };
+      if (options.video) return grant(screen('#2fa478', true));
       const audio = new AudioContext(), oscillator = audio.createOscillator(), destination = audio.createMediaStreamDestination();
       oscillator.frequency.value = 440; oscillator.connect(destination); oscillator.start();
-      recordingTest.contexts.push(audio); recordingTest.streams.push(destination.stream); return destination.stream;
+      recordingTest.contexts.push(audio); recordingTest.streams.push(destination.stream); return grant(destination.stream);
     };
   });
 }
@@ -101,6 +107,26 @@ async function fakeCapture(page) {
     await page.evaluate(async()=>{recordingTest.resolve();await pendingRecording;recordingTest.delay=false;recordingTest.resolve=null;});
     assert.equal(await page.evaluate(()=>recordingTest.streams.flatMap(s=>s.getTracks()).filter(t=>t.readyState==='live').length),0);
     assert.equal(await page.evaluate(()=>SlidesRecording.state().phase),'idle');
+
+    // Stop sharing while either optional device permission remains pending.
+    // Late grants must be stopped and must never start a microphone-only video.
+    for(const kind of ['microphone','camera']){
+      await page.evaluate(kind=>{recordingTest.delayDevice=kind;window.pendingRecording=SlidesRecording.start({microphone:true,camera:kind==='camera'}).catch(()=>null);},kind);
+      await page.waitForFunction(()=>recordingTest.deviceResolve!==null);
+      await page.evaluate(()=>{const track=recordingTest.display.getVideoTracks()[0];track.stop();track.dispatchEvent(new Event('ended'));});
+      assert.equal(await page.evaluate(()=>SlidesRecording.state().phase),'idle');
+      await page.evaluate(async()=>{recordingTest.deviceResolve();await pendingRecording;recordingTest.delayDevice='';recordingTest.deviceResolve=null;});
+      assert.equal(await page.evaluate(()=>recordingTest.streams.flatMap(stream=>stream.getTracks()).filter(track=>track.readyState==='live').length),0);
+      assert.equal(await page.evaluate(()=>SlidesRecording.state().phase),'idle');
+      assert.equal(await page.getByRole('link',{name:'Download recording',exact:true}).getAttribute('href'),firstURL);
+      await page.getByRole('button',{name:'Close',exact:true}).click();
+    }
+    const deadDisplay=await page.evaluate(async()=>{
+      recordingTest.endDisplayOnGrant=true;try{await SlidesRecording.start({microphone:true});}catch(_){}recordingTest.endDisplayOnGrant=false;
+      return {state:SlidesRecording.state(),live:recordingTest.streams.flatMap(stream=>stream.getTracks()).filter(track=>track.readyState==='live').length};
+    });
+    assert.equal(deadDisplay.state.phase,'error');assert.equal(deadDisplay.live,0);assert.match(deadDisplay.state.error,/sharing ended/);
+    await page.getByRole('button',{name:'Close',exact:true}).click();
 
     // Exercise a real automatic MediaRecorder stop and object-URL replacement.
     await page.evaluate(()=>SlidesRecording.start({maxDurationMs:1000}));
