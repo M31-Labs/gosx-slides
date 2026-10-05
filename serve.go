@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -37,6 +38,8 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 
 // ServeOptions configures the real-lane deck server.
 type ServeOptions struct {
+	// Audience selects named content; filtered authoring previews are unsupported.
+	Audience string
 	// Static disables server-only audience synchronization in exported decks.
 	Static bool
 	// IncludeNotes opts static exports into publishing presenter notes.
@@ -95,6 +98,9 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
+	if d.Audience != "" && (opts.Edit || opts.Collaborate || opts.Dev) {
+		return nil, fmt.Errorf("audience selection cannot be combined with editing, collaboration or watch mode")
+	}
 	if err := validateServeAccess(opts); err != nil {
 		return nil, err
 	}
@@ -126,6 +132,26 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if err != nil {
 		return nil, err
 	}
+	if d.Audience != "" {
+		app.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requested := path.Clean(r.URL.Path)
+				// Selected programs are served by the compiled API below. Cached
+				// full-deck manifests and component CSS cannot bypass that lookup.
+				for _, namespace := range []string{"/gosx/assets/islands", "/gosx/assets/css", "/gosx/css"} {
+					if requested == namespace || strings.HasPrefix(requested, namespace+"/") {
+						http.NotFound(w, r)
+						return
+					}
+				}
+				if strings.HasPrefix(requested, "/gosx/islands/") && strings.Contains(strings.TrimPrefix(requested, "/gosx/islands/"), "/") {
+					http.NotFound(w, r)
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
+		})
+	}
 	// The authoring directory contains private source, notes, tokens and state.
 	// Publish only its public/ subtree, retaining GoSX's native asset policy.
 	app.SetPublicDir("")
@@ -145,23 +171,26 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		}
 	}
 
-	if opts.Edit && !opts.Static {
-		app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
-			name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
-			fresh, err := LoadIslandDeck(d.Dir)
+	// Always own this namespace. GoSX's disk fallback must never resurrect a
+	// stale program that is no longer referenced by the selected deck.
+	app.API("GET /gosx/islands/{asset}", func(ctx *server.Context) (any, error) {
+		name := strings.TrimSuffix(strings.TrimPrefix(ctx.Request.URL.Path, "/gosx/islands/"), ".json")
+		cc := compiled
+		if opts.Dev || (opts.Edit && !opts.Static) {
+			fresh, err := LoadIslandDeckAudience(d.Dir, d.Audience)
 			if err != nil {
 				return nil, err
 			}
-			cc, _ := fresh.compileComponents()
-			component := cc[name]
-			if component == nil {
-				ctx.SetStatus(http.StatusNotFound)
-				return nil, fmt.Errorf("component %q is unavailable", name)
-			}
-			ctx.Header().Set("Cache-Control", "no-store")
-			return json.RawMessage(component.json), nil
-		})
-	}
+			cc, _ = fresh.compileComponents()
+		}
+		component := cc[name]
+		if component == nil {
+			ctx.SetStatus(http.StatusNotFound)
+			return nil, fmt.Errorf("component %q is unavailable", name)
+		}
+		ctx.Header().Set("Cache-Control", "no-store")
+		return json.RawMessage(component.json), nil
+	})
 
 	for _, name := range sortedKeys(compiled) {
 		if opts.Edit && !opts.Static {
@@ -299,7 +328,10 @@ func (d *IslandDeck) Serve(opts ServeOptions) error {
 // ServeDeck loads the deck at dir and serves it in the real lane. It is the
 // entry point the `slides serve` CLI command calls.
 func ServeDeck(dir string, opts ServeOptions) error {
-	deck, err := LoadIslandDeck(dir)
+	if opts.Audience != "" && (opts.Edit || opts.Collaborate || opts.Dev) {
+		return fmt.Errorf("audience selection cannot be combined with editing, collaboration or watch mode")
+	}
+	deck, err := LoadIslandDeckAudience(dir, opts.Audience)
 	if err != nil {
 		return err
 	}
@@ -481,6 +513,8 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
 		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
+		gosx.RawHTML(semanticStoryAssets(d)),
+		gosx.RawHTML(simulationAssets(d)),
 	)
 }
 
@@ -879,19 +913,49 @@ func StageIslandPrograms(deckDir string) error {
 	if err != nil {
 		return err
 	}
+	return stageDeckIslandPrograms(deck)
+}
+
+// Stage exactly this parsed deck: an audience export must not publish programs
+// belonging only to omitted slides.
+func stageDeckIslandPrograms(deck *IslandDeck) error {
+	absDeckDir, err := filepath.Abs(deck.Dir)
+	if err != nil {
+		return err
+	}
 
 	islandDir := filepath.Join(absDeckDir, "build", "islands")
+	for _, path := range []string{filepath.Dir(islandDir), islandDir} {
+		info, err := os.Lstat(path)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("preflight island build dir: %w", err)
+		}
+		if err == nil && (info.Mode()&os.ModeSymlink != 0 || !info.IsDir()) {
+			return fmt.Errorf("island build dir contains symlink or incompatible path: %s", path)
+		}
+	}
 	if err := os.MkdirAll(islandDir, 0o755); err != nil {
 		return fmt.Errorf("create island build dir: %w", err)
 	}
 
-	// Clear any previously-staged island JSON so a renamed/removed component does
-	// not leave a stale, serveable file behind.
-	if entries, err := os.ReadDir(islandDir); err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-				_ = os.Remove(filepath.Join(islandDir, entry.Name()))
-			}
+	// This directory contains only the flat JSON programs staged here. Reject
+	// unsupported artifacts before cleanup rather than publishing nested or old
+	// binary programs, or removing files whose ownership is unclear.
+	entries, err := os.ReadDir(islandDir)
+	if err != nil {
+		return fmt.Errorf("read island build dir: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !strings.HasSuffix(entry.Name(), ".json") {
+			return fmt.Errorf("unsupported artifact in island build dir: %s; use a fresh build/islands directory", filepath.Join(islandDir, entry.Name()))
+		}
+	}
+	// Cleanup failures must stop the export: a leftover program may belong only
+	// to slides excluded from the selected audience.
+	for _, entry := range entries {
+		path := filepath.Join(islandDir, entry.Name())
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove stale island program %s: %w", path, err)
 		}
 	}
 

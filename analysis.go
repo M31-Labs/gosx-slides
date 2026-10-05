@@ -11,6 +11,7 @@ import (
 
 // DeckAnalysis is a structured authoring report for one deck.
 type DeckAnalysis struct {
+	Story            *CompiledStory     `json:"story,omitempty"`
 	Diagnostics      []SourceDiagnostic `json:"diagnostics,omitempty"`
 	Graphics         []DeckGraphicInfo  `json:"graphics,omitempty"`
 	Title            string             `json:"title"`

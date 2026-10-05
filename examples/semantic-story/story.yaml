@@ -1,0 +1,35 @@
+version: 1
+beats:
+  - slide: request
+    cue: overview
+    caption: Follow the request from the browser to the database.
+    durationMs: 0
+    hide: [completion]
+    expect:
+      visible: [browser, api, worker, db]
+      hidden: [completion]
+      labels: {api: API}
+  - slide: request
+    cue: accepted
+    caption: The API accepts a request and dispatches it to the worker.
+    durationMs: 1200
+    focus: [api]
+    reveal: [browser, api, worker]
+    trace: [browser, api, worker]
+    camera: {x: 0, y: 0, z: 10, fov: 45}
+    code: {block: 0, lines: [1, 2]}
+    hide: [completion]
+    expect:
+      visible: [api, worker]
+      hidden: [db, completion]
+  - slide: request
+    cue: completed
+    caption: The worker persists the request in the database.
+    durationMs: 900
+    focus: [worker, db]
+    trace: [worker, db]
+    camera: {x: 0, y: 0, z: 12, fov: 50}
+    code: {block: 0, lines: [3]}
+    show: [completion]
+    expect:
+      visible: [worker, db, completion]

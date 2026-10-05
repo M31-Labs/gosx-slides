@@ -25,6 +25,9 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const recording = spawnSync(process.execPath, [path.join(__dirname, 'recording-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(recording.status, 0, 'recording browser failed');
   const sessions = spawnSync(process.execPath, [path.join(__dirname, 'sessions-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(sessions.status, 0, 'session browser failed');
   const team = spawnSync(process.execPath, [path.join(__dirname, 'team-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(team.status, 0, 'team browser failed');
+  const semantic = spawnSync(process.execPath, [path.join(__dirname, 'semantic-story-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(semantic.status, 0, 'semantic story browser failed');
+  const simulation = spawnSync(process.execPath, [path.join(__dirname, 'simulation-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(simulation.status, 0, 'simulation browser failed');
+  const visibility = spawnSync(process.execPath, [path.join(__dirname, 'story-visibility-browser.cjs')], { stdio: 'inherit', env: process.env }); assert.equal(visibility.status, 0, 'rendered story visibility failed');
   const sessionSockets = spawnSync(process.execPath, [path.join(__dirname, 'team-session-revocation-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(sessionSockets.status, 0, 'session socket browser failed');
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
@@ -77,7 +80,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   const editable=path.join(out,'editable.pptx');
   const editableExport=spawnSync(binary,['export','examples/storytelling-lab','--format','pptx','--editable','--out',editable],{stdio:'inherit',env:process.env});assert.equal(editableExport.status,0,'editable PPTX export failed');
   const editableXML=spawnSync('unzip',['-p',editable,'ppt/slides/slide5.xml'],{encoding:'utf8'});assert.equal(editableXML.status,0,'editable PPTX XML missing');assert.ok(editableXML.stdout.includes('<p:txBody>')&&editableXML.stdout.includes('<a:custGeom>')&&editableXML.stdout.includes('<a:alpha val="15000"/>'),'radar must retain editable labels, geometry and translucency');
-  for (const deck of ['examples/authoring-lab', 'examples/math-lab', 'examples/composition-pack']) {
+  for (const deck of ['examples/authoring-lab', 'examples/math-lab', 'examples/composition-pack', 'examples/semantic-story', 'examples/simulation-lab']) {
     const bench=spawnSync(binary,['bench',deck,'--runs','1','--budget','scripts/performance-budget.json'],{encoding:'utf8',env:process.env});assert.equal(bench.status,0,bench.stderr);const report=JSON.parse(bench.stdout);assert.equal(report.runs.length,1);assert.ok(report.runs[0].readyMillis>0 && report.runs[0].heapBytes>0 && report.runs[0].domNodes>0 && report.runs[0].frameP95Millis>0);
     fs.writeFileSync(path.join(out, path.basename(deck)+'-benchmark.json'), JSON.stringify(report,null,2));
   }

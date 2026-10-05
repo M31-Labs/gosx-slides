@@ -65,7 +65,7 @@ func compileDeckGraphics(deck *IslandDeck) map[string]deckGraphic {
 		if _, exists := graphics[key]; exists {
 			continue
 		}
-		cfg, err := compileGraphic(deck.Dir, ref)
+		cfg, err := compileGraphicWithStory(deck.Dir, ref, deck.storySceneSteps[key])
 		graphics[key] = deckGraphic{config: cfg, err: err}
 	}
 	return graphics
@@ -97,6 +97,9 @@ func graphicString(props map[string]any, name, fallback string) string {
 	return fallback
 }
 func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
+	return compileGraphicWithStory(dir, ref, nil)
+}
+func compileGraphicWithStory(dir string, ref ComponentRef, storySteps []byte) (engine.Config, error) {
 	props := parseProps(ref.Props)
 	src := graphicString(props, "Src", "")
 	data, err := readGraphicFile(dir, src)
@@ -153,6 +156,9 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 		}
 	} else if strings.EqualFold(filepath.Ext(src), ".sir") {
 		var steps []byte
+		if storySteps != nil {
+			steps = storySteps
+		}
 		if name := graphicString(props, "Steps", ""); name != "" {
 			steps, err = readGraphicFile(dir, name)
 			if err != nil {

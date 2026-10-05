@@ -210,6 +210,7 @@ func titleCase(s string) string {
 
 func exprFuncs(diagramTheme, deckDir string) map[string]any {
 	return map[string]any{
+		simulationNamespace: map[string]any{"Render": simulationMountNode},
 		mathNamespace: map[string]any{mathRenderFunc: mathNode},
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,
@@ -382,7 +383,7 @@ func codeBlockNode(lang, source, highlights string) gosx.Node {
 		b.WriteString(strconv.Itoa(len(steps)))
 	}
 	b.WriteString(`"><code>`)
-	if !isDiff && len(steps) == 0 {
+	if !isDiff && len(steps) == 0 && highlights != storyCodeLines {
 		// No emphasis, not a diff: the original single-string path (one highlighted
 		// block, no per-line wrappers) — byte-identical to the pre-emphasis behavior.
 		b.WriteString(highlight.HTML(normalized, source))

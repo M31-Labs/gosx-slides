@@ -705,6 +705,9 @@ func lowerAdmonitionGSX(n *mdpp.Node) string {
 // so themes and deck CSS can compose columns, callouts, and titled regions.
 func lowerContainerDirectiveGSX(n *mdpp.Node) string {
 	name := mdppSafeToken(strings.ToLower(n.Attr("name")), "container")
+	if name == "simulation" {
+		return "{" + simulationNamespace + ".Render(" + strconv.Quote(n.Attr("__slides_simulation_mount")) + ")}"
+	}
 	if name == "motion" {
 		return lowerMotionDirectiveGSX(n)
 	}

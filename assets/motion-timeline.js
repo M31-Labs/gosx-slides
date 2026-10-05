@@ -238,9 +238,11 @@
   }
   function nativeMounts() { return Array.from(deck.querySelectorAll('.slide.deck-active .slide-graphic, .deck-graphics-background.deck-background-active')); }
   function sample() {
+    window.SlidesSimulation?.sample(time);
     window.SlidesCodeMotion?.seek(time);
     window.SlidesDiagramMotion?.seek(time);
     window.SlidesGraphicsMotion?.seek(time);
+    window.SlidesStory?.seek(time);
     animations().forEach(a => {
       a.pause(); a.currentTime = time;
       const el = a.effect.target?.closest('[data-slides-motion-replay]');
@@ -273,8 +275,9 @@
   function play() { setTransport(false, false); graphicsPause(false); direction = 1; startClock(); updatePanel(); }
   function seek(ms) { stopClock(); setTransport(true, true); pauseActive(); time = Math.max(0, Math.min(duration(), Number(ms) || 0)); sample(); updatePanel(); }
   function duration() {
-    const native = nativeMounts().length ? Number(active().dataset.motionDuration) || 10000 : 0;
-    return Math.max(native, window.SlidesCodeMotion?.duration() || 0, window.SlidesGraphicsMotion?.duration() || 0, window.SlidesDiagramMotion?.duration() || 0,
+    const story = window.SlidesStory?.current();
+    const native = nativeMounts().length ? (story ? story.durationMs : Number(active().dataset.motionDuration) || 10000) : 0;
+    return Math.max(native, window.SlidesSimulation?.duration() || 0, window.SlidesStory?.duration() || 0, window.SlidesCodeMotion?.duration() || 0, window.SlidesGraphicsMotion?.duration() || 0, window.SlidesDiagramMotion?.duration() || 0,
       animations().reduce((n,a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n,end) : n; },0));
   }
   function reverse() { setTransport(false, true); graphicsPause(true); if (time === 0) time = duration(); direction = -1; sample(); startClock(); updatePanel(); }

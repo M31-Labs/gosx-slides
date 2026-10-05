@@ -169,6 +169,7 @@ func slideCheckpoints(slide IslandSlide) []CheckpointRef {
 func Analyze(d *IslandDeck) DeckAnalysis {
 	theme := deckTheme(d)
 	out := DeckAnalysis{
+		Story:       d.Story,
 		Diagnostics: deckSourceDiagnostics(d),
 		Graphics:    DeckGraphics(d),
 		Title:       d.title(),
@@ -186,6 +187,9 @@ func Analyze(d *IslandDeck) DeckAnalysis {
 		out.Warnings = append(out.Warnings, "deck: unknown theme "+theme+" (using "+defaultTheme+")")
 	}
 	out.SourceFiles = append(out.SourceFiles, d.Includes...)
+	if d.Story != nil {
+		out.SourceFiles = append(out.SourceFiles, d.Story.File)
+	}
 	for _, pack := range d.Packs {
 		out.SourceFiles = append(out.SourceFiles, pack.Path+"/pack.json")
 	}

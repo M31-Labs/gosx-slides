@@ -45,7 +45,20 @@ func deckSourceDiagnostics(deck *IslandDeck) []SourceDiagnostic {
 	if deck == nil {
 		return nil
 	}
-	out := sourceDiagnostics(deck.Document)
+	doc := deck.Document
+	if deck.audienceDocument != nil {
+		doc = deck.audienceDocument
+	}
+	out := sourceDiagnostics(doc)
+	if deck.Audience != "" {
+		filtered := out[:0]
+		for _, diagnostic := range out {
+			if deck.audienceContainsRange(diagnostic.Range) {
+				filtered = append(filtered, diagnostic)
+			}
+		}
+		out = append(filtered, deck.audienceDiagnostics...)
+	}
 	sources := map[string][]byte{DeckFileName: deck.Source}
 	for i := range out {
 		diagnostic := &out[i]

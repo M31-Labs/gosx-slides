@@ -30,6 +30,12 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "story":
+		return storyCommand(args[1:])
+	case "tour":
+		return tourCommand(args[1:])
+	case "audiences":
+		return audiencesCommand(args[1:])
 	case "init":
 		// Scaffold a deck you can `slides serve` immediately (live
 		// islands + evaluated {expr} + highlighted code + theme).
@@ -230,7 +236,7 @@ func run(args []string) error {
 		}
 		sessionHTTP, rest := takeBoolFlag(rest, "session-http")
 		flags := map[string]string{}
-		for _, flag := range []string{"host", "editor-token-file", "audience-token-file", "session-secret-file", "tls-cert", "tls-key"} {
+		for _, flag := range []string{"host", "editor-token-file", "audience-token-file", "session-secret-file", "tls-cert", "tls-key", "audience"} {
 			value, next, err := takeStringFlag(rest, flag, "")
 			if err != nil {
 				return err
@@ -245,6 +251,9 @@ func run(args []string) error {
 			host = "127.0.0.1"
 		}
 		address := net.JoinHostPort(host, strconv.Itoa(port))
+		if flags["audience"] != "" && (watch || edit || collaborate) {
+			return fmt.Errorf("--audience cannot be combined with --watch, --edit or --collab")
+		}
 		var sessions *slides.SessionOptions
 		if flags["editor-token-file"] != "" {
 			sessions = &slides.SessionOptions{AllowInsecure: sessionHTTP}
@@ -277,7 +286,7 @@ func run(args []string) error {
 			scheme = "https"
 		}
 		fmt.Printf("gosx-slides serving %s at %s://%s\n", dir, scheme, address)
-		return slides.ServeDeck(dir, slides.ServeOptions{Addr: address, StageRuntime: true, RebuildRuntime: rebuild, Edit: edit, Collaborate: collaborate, Sessions: sessions, TLSCertFile: flags["tls-cert"], TLSKeyFile: flags["tls-key"]})
+		return slides.ServeDeck(dir, slides.ServeOptions{Addr: address, Audience: flags["audience"], StageRuntime: true, RebuildRuntime: rebuild, Edit: edit, Collaborate: collaborate, Sessions: sessions, TLSCertFile: flags["tls-cert"], TLSKeyFile: flags["tls-key"]})
 	case "bench":
 		runs, rest, err := takeIntFlag(args[1:], "runs", 3)
 		if err != nil {
@@ -318,7 +327,11 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", OutDir: out})
+		audience, rest, err := takeStringFlag(rest, "audience", "")
+		if err != nil {
+			return err
+		}
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", Audience: audience, OutDir: out})
 	case "import":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		out, rest, err := takeStringFlag(rest, "out", "imported-deck")
@@ -347,6 +360,10 @@ func run(args []string) error {
 		return nil
 	case "export":
 		format, rest, err := takeStringFlag(args[1:], "format", "spa")
+		if err != nil {
+			return err
+		}
+		audience, rest, err := takeStringFlag(rest, "audience", "")
 		if err != nil {
 			return err
 		}
@@ -398,7 +415,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
@@ -537,16 +554,16 @@ slides is the gosx-slides command. One lane: a deck is a directory with deck.md 
 
 Commands:
   init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
-  serve [deck-dir] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
+  serve [deck-dir] [--audience name] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
       [--editor-token-file file] [--audience-token-file file] [--session-secret-file file]
       [--tls-cert file --tls-key file | --session-http]   serve a local or authenticated shared deck
                                                          (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
   bench [deck-dir] [--runs 3] [--budget file.json]         measure browser readiness, transfer, heap, DOM and frame intervals
-  build [deck-dir] [--out dist]                          static SPA: index.html + gosx/ assets; islands stay live
+  build [deck-dir] [--audience name] [--out dist]          static SPA: index.html + gosx/ assets; islands stay live
   export [deck-dir] --format spa|single|handout|pdf|frames|video|pptx [--out dist]
-      [--aspect 16:9|4:3 | --width N --height N] [--template theme.pptx]
+      [--audience name] [--aspect 16:9|4:3 | --width N --height N] [--template theme.pptx]
       [--narration audio.wav] [--captions authored.vtt]
   import <source.pptx> [--out new-deck-dir] [--json]   migrate supported Office content
     --capture    Render live graphics in single/PDF snapshots (needs Chrome)
@@ -563,6 +580,12 @@ Commands:
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
   packs [deck-dir] [--json]                              enabled local theme/component packs
   pack install <source-dir> [deck-dir]                   vendor a validated pack; enable its exact pin in headmatter
+  audiences [deck-dir] [--json]                          list named content variants
+  story inspect [deck-dir] [--audience name] [--json]     compiled beats, targets and source ranges
+  story assert [deck-dir] [--audience name] [--browser] [--json]
+                                                         gate canonical states; --browser tests rendered forward/reverse poses
+  tour <before.sir> <after.sir> [--out new-deck-dir] [--json]
+                                                         generate a runnable architecture change tour
   Reading view: append ?read or press V; export --format handout for a static reading document
   version
 `))

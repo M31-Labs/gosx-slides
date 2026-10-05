@@ -28,6 +28,7 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
+	Audience     string  // optional named content variant
 	Format       string  // "spa" (default), "single", or "pdf"
 	Editable     bool    // native text and supported SVG objects in PPTX
 	Notes        bool    // publish speaker notes in SPA, handout or PPTX (explicit opt-in)
@@ -54,7 +55,7 @@ type ExportOptions struct {
 //	pdf    — a one-slide-per-page PDF handout printed through a system
 //	         Chrome/Chromium (optional dependency; see exportPDF).
 func ExportStatic(dir string, opts ExportOptions) error {
-	deck, err := LoadIslandDeck(dir)
+	deck, err := LoadIslandDeckAudience(dir, opts.Audience)
 	if err != nil {
 		return err
 	}
@@ -105,7 +106,7 @@ func ExportStatic(dir string, opts ExportOptions) error {
 		return fmt.Errorf("build deck app: %w", err)
 	}
 	if format == "" || format == "spa" {
-		if err := StageIslandPrograms(dir); err != nil {
+		if err := stageDeckIslandPrograms(deck); err != nil {
 			return fmt.Errorf("stage island programs: %w", err)
 		}
 	}

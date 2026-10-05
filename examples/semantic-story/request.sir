@@ -1,0 +1,7 @@
+client browser { label: "Browser" }
+service api { label: "API" }
+job worker { label: "Worker" }
+database db { label: "Database" }
+browser -> api: calls "request"
+api -> worker: flow "dispatch"
+worker -> db: writes "persist"
