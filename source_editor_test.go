@@ -296,7 +296,9 @@ func TestSourceEditorRefusesSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "actual.md")
 	os.WriteFile(target, []byte("# Source"), 0644)
-	os.Symlink(target, filepath.Join(dir, DeckFileName))
+	if err := os.Symlink(target, filepath.Join(dir, DeckFileName)); err != nil {
+		t.Skipf("filesystem does not allow symlinks: %v", err)
+	}
 	deck, err := LoadIslandDeck(dir)
 	if err != nil {
 		t.Fatal(err)
