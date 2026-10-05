@@ -344,6 +344,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+readingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
+	if deckHasMath(d) {
+		ctx.AddHead(gosx.RawHTML(`<style data-slides-math="katex-0.19.0">` + mathCSS() + `</style>`))
+	}
 	if custom := deckCustomCSS(d); custom != "" {
 		// The deck's own stylesheet (deck.css / style.css / headmatter css:) goes
 		// AFTER the theme so the author's rules win the cascade at equal

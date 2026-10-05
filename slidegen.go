@@ -580,10 +580,10 @@ func lowerNodeToGSX(n *mdpp.Node) string {
 		return quoteTextExpr(n.Literal)
 
 	case mdpp.NodeMathInline:
-		return `<span class="math-inline"><code>` + quoteTextExpr(n.Literal) + `</code></span>`
+		return `{` + mathNamespace + `.` + mathRenderFunc + `(` + strconv.Quote(n.Literal) + `, false)}`
 
 	case mdpp.NodeMathBlock:
-		return `<div class="math-block"><code>` + quoteTextExpr(n.Literal) + `</code></div>`
+		return `{` + mathNamespace + `.` + mathRenderFunc + `(` + strconv.Quote(n.Literal) + `, true)}`
 
 	case mdpp.NodeAutoEmbed:
 		src := n.Attr("src")
