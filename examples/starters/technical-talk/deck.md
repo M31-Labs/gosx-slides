@@ -74,6 +74,7 @@ The boundary is small enough to reason about and test.
 
 ```yaml
 id: model
+footer: false
 ```
 
 <p class="studio-kicker">03 / THE MODEL</p>
