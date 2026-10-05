@@ -56,24 +56,27 @@ func stageRuntimeManifest(deckDir, buildDir string) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(deckDir, "dist")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	file, err := os.CreateTemp(dir, ".slides-manifest-*")
+	root, err := os.OpenRoot(deckDir)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
-	if _, err := file.Write(data); err != nil {
-		file.Close()
+	defer root.Close()
+	if err := root.Mkdir("dist", 0755); err != nil && !os.IsExist(err) {
 		return err
 	}
-	if err := file.Close(); err != nil {
+	info, err := root.Lstat("dist")
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("runtime manifest needs a real dist directory")
+	}
+	dist, err := root.OpenRoot("dist")
+	if err != nil {
 		return err
 	}
-	if err := os.Chmod(file.Name(), 0644); err != nil {
+	defer dist.Close()
+	if info, err := dist.Lstat("build.json"); err == nil && !info.Mode().IsRegular() {
+		return fmt.Errorf("runtime manifest destination must be a regular file")
+	} else if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	return os.Rename(file.Name(), filepath.Join(dir, "build.json"))
+	return writeBundledRuntimeAsset(dist, "build.json", data)
 }

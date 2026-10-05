@@ -367,9 +367,22 @@ func Doctor(dir string) (DoctorReport, error) {
 		report.Items = append(report.Items, DoctorItem{Name: "pack:" + pack.Name, Status: "ok", Detail: pack.Name + "@" + pack.Version + " / " + pack.Path})
 	}
 
-	// Go toolchain — the real lane builds runtime.wasm with `go build GOOS=js`.
+	// Release packages carry a verified runtime, so normal presenting needs no Go.
+	bundleReady := false
+	if bundleDir, available, err := runtimeBundlePath(); err != nil {
+		report.Items = append(report.Items, DoctorItem{Name: "runtime", Status: "fail", Detail: err.Error()})
+	} else if available {
+		if bundle, err := readRuntimeBundle(bundleDir); err != nil {
+			report.Items = append(report.Items, DoctorItem{Name: "runtime", Status: "fail", Detail: err.Error()})
+		} else {
+			bundleReady = true
+			report.Items = append(report.Items, DoctorItem{Name: "runtime", Status: "ok", Detail: "verified portable GoSX " + bundle.manifest.GoSXVersion + " runtime; no Go build needed"})
+		}
+	}
 	if goBin, err := exec.LookPath("go"); err == nil {
 		report.Items = append(report.Items, DoctorItem{Name: "go", Status: "ok", Detail: goBin})
+	} else if bundleReady {
+		report.Items = append(report.Items, DoctorItem{Name: "go", Status: "ok", Detail: "optional for --rebuild and --watch; bundled runtime available"})
 	} else {
 		report.Items = append(report.Items, DoctorItem{Name: "go", Status: "fail", Detail: "go toolchain not found (needed to build the wasm runtime)"})
 	}
@@ -385,10 +398,15 @@ func Doctor(dir string) (DoctorReport, error) {
 		}
 	} else {
 		status := "warn"
-		if offlineRequired {
+		if offlineRequired && !bundleReady {
 			status = "fail"
 		}
-		report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: status, Detail: "no go.mod — deck serves only from inside a gosx module (run `slides init` for a portable deck)"})
+		detail := "no go.mod — Go runtime builds need a gosx module (run `slides init` for a portable deck)"
+		if bundleReady {
+			detail = "no go.mod; verified bundled runtime allows portable serving"
+			status = "ok"
+		}
+		report.Items = append(report.Items, DoctorItem{Name: "gomod", Status: status, Detail: detail})
 	}
 
 	// Island compile health — the highest-value check: a broken .gsx degrades to an

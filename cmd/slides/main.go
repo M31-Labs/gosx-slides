@@ -30,6 +30,8 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "runtime":
+		return runtimeCommand(args[1:])
 	case "story":
 		return storyCommand(args[1:])
 	case "tour":
@@ -578,6 +580,7 @@ Commands:
   components [deck-dir] [--json]                          the deck's own .gsx islands + compile status
   doctor [deck-dir] [--json]                             deck health + serve prerequisites
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
+  runtime pack [deck-dir] --out <fresh-dir> [--json]       package a version-matched portable browser runtime
   packs [deck-dir] [--json]                              enabled local theme/component packs
   pack install <source-dir> [deck-dir]                   vendor a validated pack; enable its exact pin in headmatter
   audiences [deck-dir] [--json]                          list named content variants

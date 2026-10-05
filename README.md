@@ -15,6 +15,15 @@ cd gosx-slides
 go install ./cmd/slides
 ```
 
+Release archives include a verified `runtime/` directory beside the executable.
+Keep both together: ordinary `serve` and live SPA exports then require neither Go
+nor a dependency download. `SLIDES_RUNTIME_DIR` selects an explicit bundle.
+Every asset is checked against its manifest before staging, and the GoSX version
+must match the CLI. Missing or damaged explicit bundles fail with diagnostics.
+Source installations build and cache the runtime with Go; `--watch` and `--rebuild`
+remain Go development workflows. Build a portable bundle from a matching source
+installation with `slides runtime pack . --out runtime`.
+
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
 your `{expr}` is evaluated by the GoSX compiler — no JavaScript toolchain.

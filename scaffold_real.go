@@ -254,14 +254,14 @@ func realLaneDeck(theme string) string {
 
 // realLaneReadme is the generated README pointing at the serve command.
 func realLaneReadme(name string) string {
-	return fmt.Sprintf("Real-lane gosx-slides deck.\n\nRun it:\n\n    slides serve %s\n\nThen open the printed URL. Edit deck.md or Counter.gsx and use `slides serve --watch %s` for hot reload.\n\nThis deck is self-contained: its go.mod requires m31labs.dev/gosx, so it serves\nfrom any directory. The first `slides serve` fetches gosx and builds the GOOS=js\nruntime.wasm into build/ (cached, gitignored), which can take a few minutes.\n", name, name)
+	return fmt.Sprintf("Real-lane gosx-slides deck.\n\nRun it:\n\n    slides serve %s\n\nThen open the printed URL. Release archives include a verified runtime/ beside\nthe CLI, so ordinary serving needs no Go toolchain or dependency download. Keep\nthat directory beside the executable, or set SLIDES_RUNTIME_DIR to it.\n\nSource installations build the runtime into build/ (cached, gitignored) with Go.\nThe deck's go.mod pins its GoSX dependency for that development path.\nEdit deck.md or Counter.gsx and use `slides serve --watch %s` for hot reload;\n--watch and --rebuild require Go.\n", name, name)
 }
 
 // fallbackGoSXVersion pins the gosx version the scaffold requires when the running
 // binary carries no usable build info (e.g. `go run`/dev builds, where the dep
 // version reads as "(devel)" or is absent). It tracks the gosx version this module
 // is built against (see go.mod). gosxScaffoldVersion prefers the real build info.
-const fallbackGoSXVersion = "v0.24.3"
+const fallbackGoSXVersion = "v0.57.4"
 
 // gosxScaffoldVersion returns the gosx module version to pin in a scaffolded
 // deck's go.mod. It reads the RUNNING binary's build info and uses the version of

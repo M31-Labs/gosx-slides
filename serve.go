@@ -750,6 +750,15 @@ func stageRuntimeAssets(deckDir string, rebuild, needsWASM bool) (string, error)
 		return "", fmt.Errorf("resolve deck dir: %w", err)
 	}
 	deckDir = absDeckDir
+	if !rebuild {
+		used, err := stageBundledRuntime(deckDir, needsWASM)
+		if err != nil {
+			return "", err
+		}
+		if used {
+			return deckDir, nil
+		}
+	}
 
 	buildDir := filepath.Join(deckDir, "build")
 	if err := os.MkdirAll(buildDir, 0o755); err != nil {

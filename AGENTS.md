@@ -87,6 +87,7 @@ directly also works (the parent directory is used).
 | `story assert [deck-dir] [--audience name] [--browser] [--json]` | Gate named targets, links, labels and visibility. `--browser` checks actual geometry/ancestors and repeatable forward, backward and midpoint states through Chrome. |
 | `tour <before.sir> <after.sir> [--out new-deck-dir] [--json]` | Create a fresh runnable Markdown/Sirena architecture change tour and story manifest using stable actor `sid` identities. |
 | `version` | Print the version. |
+| `runtime pack [deck-dir] [--out runtime] [--json]` | Build a version-matched browser runtime in a fresh directory. Release archives include this `runtime/` beside the CLI; normal serve/SPA export then needs no Go toolchain or downloads. `SLIDES_RUNTIME_DIR` selects a bundle explicitly. Assets are bounded, regular and SHA-256 verified; versions must match. `--watch` and `--rebuild` use Go. |
 | `help`, `-h`, `--help` | Print usage. |
 
 ### `serve` flags
