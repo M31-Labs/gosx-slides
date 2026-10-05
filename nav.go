@@ -323,6 +323,7 @@ func navScript() string {
   var controls = document.createElement('nav'); controls.className = 'deck-controls'; controls.setAttribute('aria-label', 'Presentation controls');
   function control(label, text, action) {
     var button = document.createElement('button'); button.type = 'button'; button.textContent = text;
+    button.className = 'deck-icon-control';
     button.title = label; button.setAttribute('aria-label', label); button.addEventListener('click', action); controls.appendChild(button); return button;
   }
   control('Previous slide (Left arrow)', '←', prev);

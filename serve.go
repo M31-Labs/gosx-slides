@@ -39,6 +39,8 @@ const gosxModuleImportPath = "m31labs.dev/gosx"
 type ServeOptions struct {
 	// Static disables server-only audience synchronization in exported decks.
 	Static bool
+	// IncludeNotes opts static exports into publishing presenter notes.
+	IncludeNotes bool
 	// Edit enables validated, revision-checked browser saves to deck.md.
 	Edit bool
 	// Sessions enables authenticated audience and editor roles.
@@ -123,7 +125,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if err := mountSessions(app, opts.Sessions); err != nil {
 		return nil, err
 	}
-	app.SetPublicDir(d.Dir)
+	// The authoring directory contains private source, notes, tokens and state.
+	// Publish only its public/ subtree, retaining GoSX's native asset policy.
+	app.SetPublicDir("")
+	publicAssets := server.New()
+	publicAssets.SetPublicDir(filepath.Join(d.Dir, "public"))
+	app.Mount("/public/", http.StripPrefix("/public", publicAssets.Build()))
 	mountCompositionAssets(app, d, opts.Dev || opts.Edit)
 
 	if opts.Edit && !opts.Static {
@@ -238,7 +245,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
-		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static)
+		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static, !opts.Static || opts.IncludeNotes)
 		if opts.Collaborate && sourceRequestWriter(ctx.Request) {
 			return gosx.Fragment(body, teamAssets())
 		}
@@ -335,7 +342,7 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync bool) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes bool) gosx.Node {
 	r := runtimeMounter{rt: ctx.Runtime()}
 	if cd != nil {
 		r.graphics = cd.graphics
@@ -427,7 +434,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// current slide's note out of them. A slide with no note emits nothing (the
 	// presenter shows a graceful placeholder).
 	noteNodes := d.noteAsides()
-	if audienceSession(ctx.Request) {
+	if audienceSession(ctx.Request) || !includeNotes {
 		noteNodes = nil
 	}
 	starfield := deckScene3DBackground(ctx.Runtime(), d)

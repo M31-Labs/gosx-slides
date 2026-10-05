@@ -22,6 +22,9 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
 (async()=>{
   const math = spawnSync(process.execPath, [path.join(__dirname, 'math-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(math.status, 0, 'math browser failed');
   const reading = spawnSync(process.execPath, [path.join(__dirname, 'reading-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(reading.status, 0, 'reading browser failed');
+  const recording = spawnSync(process.execPath, [path.join(__dirname, 'recording-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(recording.status, 0, 'recording browser failed');
+  const sessions = spawnSync(process.execPath, [path.join(__dirname, 'sessions-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(sessions.status, 0, 'session browser failed');
+  const team = spawnSync(process.execPath, [path.join(__dirname, 'team-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(team.status, 0, 'team browser failed');
   const samples=spawnSync(process.execPath,["--test",path.join(__dirname,"graphics-motion.test.cjs")],{stdio:"inherit"});assert.equal(samples.status,0,"graphic samples failed");
   const editDir=fs.mkdtempSync(path.join(path.resolve('testdata'),'browser-edit-'));
   const sourcePath=path.join(editDir,'deck.md');fs.writeFileSync(sourcePath,'# Source\n\nOriginal text\n\n<!-- notes -->\n\n---\n\n# Second\n\nAnother slide\n');
@@ -31,6 +34,7 @@ function script(name, url) { const result=spawnSync(process.execPath,[path.join(
   try{fs.cpSync('examples/storytelling-lab',storyDir,{recursive:true});await withServer(storyDir,8126,async url=>{const result=spawnSync(process.execPath,[path.join(__dirname,'storytelling-browser.cjs'),url,path.join(storyDir,'deck.md')],{stdio:'inherit',env:process.env});assert.equal(result.status,0,'storytelling browser failed');script('motion-transport-browser.cjs',url);script('pptx-editable-browser.cjs',url);},['--edit']);}finally{fs.rmSync(storyDir,{recursive:true,force:true})}
 
   await withServer('examples/navigation-lab',8111,url=>script('navigation-browser.cjs',url));
+  await withServer('examples/office-interop',8131,url=>script('office-browser.cjs',url));
   await withServer('testdata/motion-timing',8128,url=>script('motion-timing-browser.cjs',url));
   await withServer('examples/request-recovery',8129,url=>script('request-recovery-browser.cjs',url));
   await withServer('examples/authoring-lab',8112,url=>script('authoring-browser.cjs',url));

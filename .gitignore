@@ -14,3 +14,5 @@ node_modules/
 browser-test-output/
 chrome-capture
 /slides
+.slides-team.json
+.slides-team-*.tmp

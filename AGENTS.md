@@ -86,7 +86,15 @@ directly also works (the parent directory is used).
 
 ### `serve` flags
 
-- `--port N` — listen port (default `8080`); binds **`127.0.0.1`** only.
+- `--port N` — listen port (default `8080`); the default host is `127.0.0.1`.
+- `--host HOST` — non-loopback hosts require `--editor-token-file`; an optional
+  `--audience-token-file` grants audience-only access. Tokens are distinct,
+  32–4096 bytes. Use `--tls-cert`/`--tls-key` for HTTPS or explicitly opt into
+  trusted plain HTTP with `--session-http`. `--session-secret-file` preserves
+  sessions across restarts. The watch proxy stays local.
+- `--collab` — implies `--edit`; editor-only shared CRDT drafts, presence and
+  persisted review comments. One server owns the deck; publish through the
+  existing revision-checked source save. Private `.slides-team.json` is ignored.
 - `--watch` — turn `serve` into the **hot-swap dev loop**: a `.gsx` edit
   hot-swaps the live island in place (state preserved, no reload); a `deck.md`
   edit triggers a full reload with the new content.
@@ -798,8 +806,10 @@ handler swap, attribute swap).
   (e.g. `examples/real-deck`) with no `go.mod` of its own only serves from
   inside the repo. The first `serve` auto-populates `go.sum`
   (`GOFLAGS=-mod=mod`).
-- **`serve` binds `127.0.0.1` only.** It is not reachable from other machines;
-  use SSH port-forwarding to view remotely.
+- **`serve` defaults to `127.0.0.1`.** Use SSH forwarding for local serving, or
+  configure `--host`, room tokens and TLS for authenticated shared access.
+  Only the `public/` subtree and explicitly referenced composition assets are
+  published; source, room tokens and collaboration state stay private.
 - `build/` is gitignored. Don't commit it.
 - `{slide.index}` is **0-based**, but the URL hash (`#N`) is **1-based**.
 - An unknown `{identifier}` renders empty (fail-soft); an unresolvable

@@ -20,6 +20,17 @@ func TestSessionRolesCSRFAndSourceSaves(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, DeckFileName), []byte("# Shared\n\n<!-- Private presenter wording -->\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "editor-token"), []byte(strings.Repeat("e", 40)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "public"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"published.txt": "Published asset", ".env": "secret"} {
+		if err := os.WriteFile(filepath.Join(dir, "public", name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	deck, err := LoadIslandDeck(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +103,14 @@ func TestSessionRolesCSRFAndSourceSaves(t *testing.T) {
 		t.Fatal("audience session CSRF token missing")
 	}
 	csrf := match[1]
+	for _, path := range []string{"/deck.md", "/editor-token", "/public/.env"} {
+		if status, _, _ := request("GET", path, "", "", "", ""); status != 404 {
+			t.Fatal("audience could download private source or tokens", path, status)
+		}
+	}
+	if status, content, _ := request("GET", "/public/published.txt", "", "", "", ""); status != 200 || content != "Published asset" {
+		t.Fatal("published public asset unavailable", status)
+	}
 	for _, path := range []string{"/_slides/source", "/_slides/scene", "/remote", "/?present", "/_slides/team"} {
 		if status, _, _ := request("GET", path, "", "", "", ""); status != 403 {
 			t.Fatal("audience reached editor route", path, status)

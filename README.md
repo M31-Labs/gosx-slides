@@ -1,30 +1,5 @@
 # gosx-slides
 
-### Authenticated shared presentations
-
-Local serving defaults to `127.0.0.1`. A public listener requires room tokens.
-Keep tokens in files containing 32–4096 bytes, and use distinct audience and
-editor tokens. For HTTPS, run:
-
-```sh
-slides serve my-deck --edit --host 0.0.0.0 --port 8443 \
-  --editor-token-file /private/editor-token \
-  --audience-token-file /private/audience-token \
-  --tls-cert /private/certificate.pem --tls-key /private/key.pem
-```
-
-Visitors join at `/_slides/session`. Audience sessions receive the deck and
-presenter updates; editor sessions can use presenter controls and enabled
-authoring tools. Audience responses omit speaker notes and editor metadata.
-Tokens grant shared roles rather than verified personal identities.
-
-GoSX stores encrypted, signed, HttpOnly, SameSite=Strict cookies for eight hours.
-Unsafe requests also require its session CSRF token, alongside the existing
-revision and authoring-token checks for saves. A random session key invalidates
-sessions on restart; `--session-secret-file` supplies a stable key when desired.
-Plain HTTP requires the explicit `--session-http` flag for trusted local use.
-The watch proxy stays local and cannot be combined with sessions or TLS.
-
 GoSX Slides coordinates element entrances, split text, diagram SVG,
 Scene3D actors and cameras, code morphs, and shader time from one seekable
 playhead. Edit and save motion timings in the browser, navigate named story
@@ -32,10 +7,10 @@ cues, and capture repeatable poses for images, video, PDF, or PowerPoint.
 
 Download a binary for Linux, macOS, or Windows from the
 [latest release](https://github.com/M31-Labs/gosx-slides/releases/latest),
-or build the tagged source with Go 1.26 or newer:
+or build current main with Go 1.26 or newer:
 
 ```sh
-git clone --depth 1 --branch v0.8.1 https://github.com/M31-Labs/gosx-slides.git
+git clone --depth 1 --branch main https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
 ```
@@ -634,3 +609,82 @@ library startup, network and paint are excluded. Output bytes and SVG DOM counts
 are reported separately. Execution backends and fonts differ, so the report does
 not imply overall presentation performance or feature parity. See the
 [Mermaid API](https://mermaid.js.org/config/usage.html) for its render contract.
+
+### Authenticated shared presentations
+
+Local serving defaults to `127.0.0.1`. A public listener requires room tokens.
+Keep tokens in files containing 32–4096 bytes, and use distinct audience and
+editor tokens. For HTTPS, run:
+
+```sh
+slides serve my-deck --edit --host 0.0.0.0 --port 8443 \
+  --editor-token-file /private/editor-token \
+  --audience-token-file /private/audience-token \
+  --tls-cert /private/certificate.pem --tls-key /private/key.pem
+```
+
+Visitors join at `/_slides/session`. Audience sessions receive the deck and
+presenter updates; editor sessions can use presenter controls and enabled
+authoring tools. Audience responses omit speaker notes and editor metadata.
+Tokens grant shared roles rather than verified personal identities.
+
+GoSX stores encrypted, signed, HttpOnly, SameSite=Strict cookies for eight hours.
+Unsafe requests also require its session CSRF token, alongside the existing
+revision and authoring-token checks for saves. A random session key invalidates
+sessions on restart; `--session-secret-file` supplies a stable key when desired.
+Plain HTTP requires the explicit `--session-http` flag for trusted local use.
+The watch proxy stays local and cannot be combined with sessions or TLS.
+
+`--collab` enables an editor-only shared draft and review panel, and implies
+`--edit`. It uses GoSX CRDT text merging for concurrent edits, chosen display
+names for presence, and comments anchored to slide IDs, cues or source quotes.
+Publishing uses the normal validated, revision-checked source save. Stale bases,
+external file conflicts and failed writes keep the local draft for explicit
+reconciliation. Use one collaboration server per deck; `.gsx` files remain local
+authoring files. Private `.slides-team.json` stores draft history and comments;
+keep it out of version control and published assets.
+
+### Local recording and narrated exports
+
+The Record button saves a shared tab or screen with optional microphone audio
+and a camera inset. Downloads contain the video, navigation timing JSON, and
+WebVTT when explicit slide `caption:` metadata is present. Recording stays in
+browser memory until downloaded, and requires a supported screen-capture browser
+on HTTPS or localhost. Keep the recording tab active for canvas composition;
+the browser share picker and device permission prompts remain native.
+
+For a reproducible video with existing narration and authored captions:
+
+```sh
+slides export my-deck --format video --seconds 5 --fps 15 \
+  --narration public/narration.wav --captions public/captions.vtt --out talk.webm
+```
+
+Audio and caption paths stay inside the deck. Short narration pads with silence;
+longer narration or captions require a longer video. These inputs are explicit
+author material. Speaker notes never become inferred captions or speech.
+Encoding requires Chrome and ffmpeg; audio also requires ffprobe.
+
+### Office content and export dimensions
+
+`--editable` PPTX retains native text, supported SVG geometry, plain tables,
+and supported Sirena bar/pie charts with embedded editable workbooks. Unsupported
+effects and graphics retain captured pixels. Use `--aspect 4:3`, another bounded
+ratio, or paired `--width 900 --height 600` for consistent capture, PDF and PPTX
+dimensions. `--template prior.pptx` reuses its Office theme; it does not copy
+masters, slide layouts or animations.
+
+```sh
+slides export examples/office-interop --format pptx --editable --aspect 4:3 --out talk.pptx
+slides import prior.pptx --out imported-talk --json
+```
+
+Import migrates supported text, notes, raster images, native tables and cached
+chart data into a fresh Markdown deck. It refuses an existing destination and
+reports unsupported layout, media, motion and other fidelity losses. Original
+note recovery files stay private, outside `public/`.
+
+Static exports omit private speaker notes by default. `--notes` explicitly
+publishes them in SPA, handout or editable PPTX output. A default SPA export
+refuses an output folder with an existing `notes.html`; use a fresh folder to
+avoid carrying a previously published private sidecar forward.

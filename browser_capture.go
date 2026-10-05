@@ -204,7 +204,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 	if err != nil {
 		return err
 	}
-	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true})
+	app, err := deck.NewServer(ServeOptions{StageRuntime: true, Static: true, IncludeNotes: opts.Notes})
 	if err != nil {
 		return err
 	}
@@ -381,7 +381,11 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				label += fmt.Sprintf(" — step %d", step)
 			}
 			if pptx != nil {
-				if err = pptx.addEditable(pixels, label, extractSlideNotes(slide), editableObjects); err != nil {
+				notes := ""
+				if opts.Notes {
+					notes = extractSlideNotes(slide)
+				}
+				if err = pptx.addEditable(pixels, label, notes, editableObjects); err != nil {
 					return err
 				}
 				pageCount++

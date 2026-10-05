@@ -37,7 +37,7 @@ func TestComposedAssetsSurviveSnapshotHandoutAndSPABundles(t *testing.T) {
 		}
 	}
 	out := t.TempDir()
-	if err := exportSPA(dir, deck, `<img src="/public/_slides/sections/chart.svg">`, out); err != nil {
+	if err := exportSPA(dir, deck, `<img src="/public/_slides/sections/chart.svg">`, out, false); err != nil {
 		t.Fatal(err)
 	}
 	asset, err := os.ReadFile(filepath.Join(out, "public", "_slides", "sections", "chart.svg"))
