@@ -1,0 +1,16 @@
+// A copyable Selena background. Speed 0 freezes the pattern.
+material Aurora {
+    param ink : color = rgb(0.031373, 0.070588, 0.121569)
+    param glow : color = rgb(0.317647, 0.839216, 0.690196)
+    param speed : float = 0.18
+    param strength : float = 0.38
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let ribbon = sin(coord.x * 11.0 + sin(coord.y * 5.0 + drift) * 2.0 + drift) * 0.5 + 0.5
+        let light = pow(ribbon, 5.0) * (0.25 + coord.y * 0.6)
+        return mix(ink, glow, clamp(light * strength, 0.0, 1.0))
+    }
+}

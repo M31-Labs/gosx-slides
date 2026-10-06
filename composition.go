@@ -450,6 +450,9 @@ func (d *IslandDeck) rebaseGraphicProps(origin, raw string) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%s: graphic %s must be a relative path", origin, name)
 		}
+		if name == "Src" && strings.HasPrefix(path, "shader:") {
+			continue
+		}
 		rel, err := d.localSourcePath(origin, path)
 		if err != nil {
 			return "", fmt.Errorf("%s: graphic %s: %w", origin, name, err)

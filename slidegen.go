@@ -93,7 +93,8 @@ type slideLayers struct {
 	// Scene is the deck-level scene: headmatter value (a preset key or island
 	// name) rendered full-bleed behind every slide's content; per-slide scene:
 	// frontmatter overrides or disables it (see scene.go).
-	Scene string
+	Scene  string
+	Shader map[string]string
 }
 
 // deckSlideLayers reads the deck's header:/footer:/scene: headmatter.
@@ -105,6 +106,7 @@ func deckSlideLayers(deck *IslandDeck) slideLayers {
 		Header: strings.TrimSpace(deckFrontmatterString(deck, "header")),
 		Footer: strings.TrimSpace(deckFrontmatterString(deck, "footer")),
 		Scene:  strings.TrimSpace(deckFrontmatterString(deck, "scene")),
+		Shader: deckShaderValues(deck),
 	}
 }
 
@@ -261,8 +263,8 @@ func lowerSlideToGSX(slide IslandSlide, layers slideLayers) string {
 			b.WriteString(" " + key + "={" + strconv.Quote(value) + "}")
 		}
 	}
-	if source := resolveSlideLayer(slide, "scene", layers.Scene); graphicsSceneSource(source) {
-		b.WriteString(" data-scene-source={" + strconv.Quote(source) + "}")
+	if ref := slideBackgroundRef(slide, layers); graphicsSceneSource(graphicString(parseProps(ref.Props), "Src", "")) {
+		b.WriteString(" data-scene-source={" + strconv.Quote(backgroundRefID(ref)) + "}")
 	}
 	// Per-slide `transition:` frontmatter overrides the deck-level enter
 	// animation for this one slide (fade | none; anything else stamps nothing).

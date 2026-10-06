@@ -1,0 +1,15 @@
+material Silk {
+    param ink : color = rgb(0.090196, 0.062745, 0.109804)
+    param glow : color = rgb(0.909804, 0.713725, 0.545098)
+    param speed : float = 0.12
+    param strength : float = 0.32
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let fold = sin(coord.x * 7.0 + coord.y * 4.0 + sin(coord.y * 8.0 - drift) * 1.7 + drift)
+        let sheen = pow(fold * 0.5 + 0.5, 3.0) * (0.35 + coord.x * 0.45)
+        return mix(ink, glow, clamp(sheen * strength, 0.0, 1.0))
+    }
+}

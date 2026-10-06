@@ -20,6 +20,7 @@ async function withServer(deck, port, run, flags=[]) {
 }
 function script(name, url) { const result=spawnSync(process.execPath,[path.join(__dirname,name),url],{stdio:'inherit',env:process.env}); assert.equal(result.status,0,name+' failed'); }
 (async()=>{
+  const backgrounds = spawnSync(process.execPath, [path.join(__dirname, 'background-wizard-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(backgrounds.status, 0, 'background wizard browser failed');
   const math = spawnSync(process.execPath, [path.join(__dirname, 'math-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(math.status, 0, 'math browser failed');
   const reading = spawnSync(process.execPath, [path.join(__dirname, 'reading-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(reading.status, 0, 'reading browser failed');
   const recording = spawnSync(process.execPath, [path.join(__dirname, 'recording-browser.cjs'), binary], { stdio: 'inherit', env: process.env }); assert.equal(recording.status, 0, 'recording browser failed');

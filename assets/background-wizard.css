@@ -1,0 +1,65 @@
+main.deck dialog.slides-background-wizard { box-sizing:border-box; width:min(96vw,1080px); max-height:94dvh; padding:24px; border:1px solid #ffffff26; border-radius:16px; background:#151923; color:#f1f3f8; box-shadow:0 24px 80px #0008; font:14px/1.5 system-ui,sans-serif; }
+main.deck dialog.slides-background-wizard::backdrop { background:#000a; }
+main.deck dialog.slides-background-wizard[open] { display:flex; flex-direction:column; }
+main.deck dialog.slides-background-wizard [hidden] { display:none!important; }
+main.deck dialog.slides-background-wizard header { display:flex; justify-content:space-between; align-items:start; gap:16px; }
+main.deck dialog.slides-background-wizard h2 { font-size:28px; font-weight:600; letter-spacing:-.025em; line-height:1.2; margin:5px 0 0; }
+main.deck dialog.slides-background-wizard h3 { font-size:17px; font-weight:600; margin:0 0 16px; }
+main.deck dialog.slides-background-wizard p { margin:12px 0; color:#bdc8db; overflow-wrap:anywhere; }
+main.deck dialog.slides-background-wizard .background-eyebrow { font-size:10px; letter-spacing:.18em; margin:0; color:#a8cbbf; }
+main.deck dialog.slides-background-wizard button { cursor:pointer; padding:9px 12px; border:1px solid #ffffff30; border-radius:7px; background:#242c3c; color:#f1f3f8; font:inherit; }
+main.deck dialog.slides-background-wizard button:hover { border-color:#a8cbbf; }
+main.deck dialog.slides-background-wizard button:disabled { opacity:.45; cursor:default; }
+main.deck dialog.slides-background-wizard :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
+main.deck dialog.slides-background-wizard .background-primary { background:#bce6d6; color:#15231e; border-color:#bce6d6; font-weight:600; }
+main.deck dialog.slides-background-wizard .background-progress { display:flex; list-style:none; gap:20px; padding:0 0 14px; margin:24px 0 22px; border-bottom:1px solid #ffffff20; color:#94a4bd; }
+main.deck dialog.slides-background-wizard .background-progress [aria-current] { color:#bce6d6; font-weight:600; }
+main.deck dialog.slides-background-wizard .background-workspace { display:grid; grid-template-columns:minmax(0,310px) minmax(0,1fr); gap:28px; min-height:0; overflow:auto; }
+main.deck dialog.slides-background-wizard .background-settings { min-width:0; }
+main.deck dialog.slides-background-wizard .background-presets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+main.deck dialog.slides-background-wizard .background-presets button { padding:5px; text-align:left; overflow:hidden; }
+main.deck dialog.slides-background-wizard .background-presets button strong { display:block; padding:7px 5px; font-size:13px; font-weight:500; }
+main.deck dialog.slides-background-wizard .background-presets [aria-pressed="true"] { border-color:#bce6d6; background:#30403e; }
+main.deck dialog.slides-background-wizard .background-swatch { display:block; height:52px; border-radius:4px; background-color:#08121f; }
+main.deck dialog.slides-background-wizard .background-swatch-aurora { background:repeating-linear-gradient(125deg,#08121f,#174539 18%,#08121f 35%); }
+main.deck dialog.slides-background-wizard .background-swatch-silk { background:repeating-linear-gradient(30deg,#17101c,#554034 25%,#17101c 50%); }
+main.deck dialog.slides-background-wizard .background-swatch-contours { background:repeating-radial-gradient(ellipse at 10% 0%,#101b20 0 5px,#34514e 6px 7px,#101b20 8px 13px); }
+main.deck dialog.slides-background-wizard .background-swatch-waves { background:repeating-radial-gradient(ellipse at 0% -60%,#0a1428 0 10px,#293c5d 11px 16px,#0a1428 17px 25px); }
+main.deck dialog.slides-background-wizard .background-swatch-grid { background:linear-gradient(90deg,#ffffff12 1px,transparent 1px),linear-gradient(#ffffff12 1px,transparent 1px),#101821; background-size:14px 14px; }
+main.deck dialog.slides-background-wizard .background-swatch-spotlight { background:radial-gradient(ellipse at 70% 30%,#4a3748,#17151c 85%); }
+main.deck dialog.slides-background-wizard .background-colors { display:flex; gap:16px; margin-bottom:20px; }
+main.deck dialog.slides-background-wizard .background-colors label { flex:1; font-size:13px; }
+main.deck dialog.slides-background-wizard .background-colors input { display:block; box-sizing:border-box; width:100%; height:42px; padding:4px; margin-top:8px; border:1px solid #ffffff30; border-radius:6px; background:#242c3c; cursor:pointer; }
+main.deck dialog.slides-background-wizard .background-range { display:flex; flex-wrap:wrap; margin:20px 0 6px; gap:9px; }
+main.deck dialog.slides-background-wizard .background-range output { margin-left:auto; color:#bce6d6; font-variant-numeric:tabular-nums; }
+main.deck dialog.slides-background-wizard .background-range input { flex-basis:100%; width:100%; margin:4px 0; accent-color:#bce6d6; }
+main.deck dialog.slides-background-wizard .background-preview { min-width:0; }
+main.deck dialog.slides-background-wizard .background-preview-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; font-size:13px; color:#bdc8db; }
+main.deck dialog.slides-background-wizard .background-preview-heading span:last-child { font-size:9px; letter-spacing:.14em; color:#a8cbbf; }
+main.deck dialog.slides-background-wizard .background-preview iframe { display:block; box-sizing:border-box; width:100%; aspect-ratio:16/10; border:1px solid #ffffff20; border-radius:9px; background:#0d1420; }
+main.deck dialog.slides-background-wizard .background-preview p,main.deck dialog.slides-background-wizard .background-settings p { font-size:12px; line-height:1.65; }
+main.deck dialog.slides-background-wizard .background-settings fieldset { padding:12px; margin:0; border:1px solid #ffffff25; border-radius:7px; }
+main.deck dialog.slides-background-wizard .background-settings fieldset label { display:block; padding:8px 0; }
+main.deck dialog.slides-background-wizard .background-settings input[type="radio"] { margin-right:8px; accent-color:#bce6d6; }
+main.deck dialog.slides-background-wizard .background-settings details { border-top:1px solid #ffffff20; padding-top:12px; }
+main.deck dialog.slides-background-wizard .background-settings summary { cursor:pointer; font-size:13px; }
+main.deck dialog.slides-background-wizard .background-settings pre { overflow:auto; padding:12px; border-radius:6px; background:#0b0e15; font:11px/1.6 ui-monospace,monospace; }
+main.deck dialog.slides-background-wizard .background-code-actions { display:flex; flex-wrap:wrap; gap:8px; }
+main.deck dialog.slides-background-wizard footer { display:flex; flex-direction:column; gap:8px; border-top:1px solid #ffffff20; margin-top:22px; padding-top:10px; flex-shrink:0; }
+main.deck dialog.slides-background-wizard footer p { font-size:12px; margin:0; min-height:18px; }
+main.deck dialog.slides-background-wizard .background-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+main.deck dialog.slides-background-wizard .background-actions [data-background-reload] { margin-right:auto; }
+@media(max-width:760px) {main.deck dialog.slides-background-wizard { padding:16px; }
+main.deck dialog.slides-background-wizard .background-workspace { grid-template-columns:minmax(0,1fr); gap:20px; }
+main.deck dialog.slides-background-wizard .background-preview iframe { aspect-ratio:16/9; }
+main.deck dialog.slides-background-wizard .background-swatch { height:44px; }
+main.deck dialog.slides-background-wizard .background-presets { grid-template-columns:repeat(3,minmax(0,1fr)); }
+main.deck dialog.slides-background-wizard .background-progress { gap:16px; margin:18px 0; } }
+@media(max-width:380px) {main.deck dialog.slides-background-wizard .background-presets { grid-template-columns:repeat(2,minmax(0,1fr)); }
+main.deck dialog.slides-background-wizard h2 { font-size:24px; }
+main.deck dialog.slides-background-wizard .background-actions button { font-size:12px; padding:9px; } }
+@media print {main.deck dialog.slides-background-wizard { display:none!important; } }
+
+main.deck dialog.slides-background-wizard h2,main.deck dialog.slides-background-wizard h3 { color:inherit; font-family:system-ui,sans-serif; }
+main.deck dialog.slides-background-wizard .background-progress li { margin:0; padding:0; }
+main.deck dialog.slides-background-wizard .background-progress li::before { content:none; counter-increment:none; }

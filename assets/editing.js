@@ -236,6 +236,7 @@
     catch (error) { status(error.message); }
   }
   const canEdit = !!document.querySelector('meta[name="slides-edit"]');
+  if (canEdit) window.SlidesEditor = { hasDrafts: () => [...drafts.values()].some(row => row.value !== row.baseline) };
   if (canEdit && controls) controls.appendChild(button('Edit', openEditor));
   const ns = 'http://www.w3.org/2000/svg';
   const overlay = document.createElementNS(ns, 'svg'); overlay.classList.add('slides-ink'); overlay.setAttribute('viewBox', '0 0 1000 1000'); overlay.setAttribute('preserveAspectRatio', 'none'); overlay.setAttribute('aria-hidden', 'true'); deck.appendChild(overlay);

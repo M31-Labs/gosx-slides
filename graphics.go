@@ -30,6 +30,9 @@ type deckGraphic struct {
 func isGraphicsComponent(name string) bool  { return name == "Shader" || name == "Scene3D" }
 func graphicsKey(name, props string) string { return name + ":" + strings.TrimSpace(props) }
 func graphicsSceneSource(value string) bool {
+	if strings.HasPrefix(value, "shader:") {
+		return true
+	}
 	switch strings.ToLower(filepath.Ext(value)) {
 	case ".sel", ".json":
 		return true
@@ -38,22 +41,24 @@ func graphicsSceneSource(value string) bool {
 }
 func backgroundGraphicRef(source string) ComponentRef {
 	name := "Scene3D"
-	if strings.EqualFold(filepath.Ext(source), ".sel") {
+	if strings.EqualFold(filepath.Ext(source), ".sel") || strings.HasPrefix(source, "shader:") {
 		name = "Shader"
 	}
 	return ComponentRef{Name: name, Props: "Src=" + strconv.Quote(source) + " Background={true}"}
 }
 func deckGraphicRefs(deck *IslandDeck) []ComponentRef {
 	var refs []ComponentRef
+	layers := deckSlideLayers(deck)
 	for _, slide := range deck.Slides {
 		for _, ref := range slide.Components {
 			if isGraphicsComponent(ref.Name) {
 				refs = append(refs, ref)
 			}
 		}
-		source := resolveSlideLayer(slide, "scene", deckFrontmatterString(deck, "scene"))
+		ref := slideBackgroundRef(slide, layers)
+		source := graphicString(parseProps(ref.Props), "Src", "")
 		if graphicsSceneSource(source) {
-			refs = append(refs, backgroundGraphicRef(source))
+			refs = append(refs, ref)
 		}
 	}
 	return refs
@@ -102,7 +107,19 @@ func compileGraphic(dir string, ref ComponentRef) (engine.Config, error) {
 func compileGraphicWithStory(dir string, ref ComponentRef, storySteps []byte) (engine.Config, error) {
 	props := parseProps(ref.Props)
 	src := graphicString(props, "Src", "")
-	data, err := readGraphicFile(dir, src)
+	var data []byte
+	var err error
+	if ref.Name == "Shader" && strings.HasPrefix(src, "shader:") {
+		var opts BackgroundOptions
+		opts, err = shaderBackgroundOptions(src, props)
+		if err == nil {
+			var source string
+			source, err = BackgroundShaderSource(opts)
+			data = []byte(source)
+		}
+	} else {
+		data, err = readGraphicFile(dir, src)
+	}
 	if err != nil {
 		return engine.Config{}, err
 	}
@@ -289,7 +306,7 @@ func compileGraphicWithStory(dir string, ref ComponentRef, storySteps []byte) (e
 	if background, _ := props["Background"].(bool); background {
 		cfg.MountAttrs["class"] = "deck-graphics-background"
 		cfg.MountAttrs["aria-hidden"] = "true"
-		cfg.MountAttrs["data-scene-source"] = src
+		cfg.MountAttrs["data-scene-source"] = backgroundRefID(ref)
 	}
 	return cfg, nil
 }
@@ -317,13 +334,15 @@ func renderGraphicsBackgrounds(r islandMounter, deck *IslandDeck, cd *compiledDe
 	}
 	seen := map[string]bool{}
 	var nodes []gosx.Node
+	layers := deckSlideLayers(deck)
 	for _, slide := range deck.Slides {
-		src := resolveSlideLayer(slide, "scene", deckFrontmatterString(deck, "scene"))
-		if !graphicsSceneSource(src) || seen[src] {
+		ref := slideBackgroundRef(slide, layers)
+		src := graphicString(parseProps(ref.Props), "Src", "")
+		id := backgroundRefID(ref)
+		if !graphicsSceneSource(src) || seen[id] {
 			continue
 		}
-		seen[src] = true
-		ref := backgroundGraphicRef(src)
+		seen[id] = true
 		nodes = append(nodes, renderDeckGraphic(r, cd.graphics, graphicsKey(ref.Name, ref.Props)))
 	}
 	return gosx.Fragment(nodes...)

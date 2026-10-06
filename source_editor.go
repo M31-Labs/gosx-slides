@@ -81,6 +81,9 @@ func mountSourceEditor(app *server.App, deck *IslandDeck) error {
 	token := hex.EncodeToString(random[:])
 	path := filepath.Join(deck.Dir, DeckFileName)
 	var mu sync.Mutex
+	if err := mountBackgroundWizard(app, deck, token, &mu); err != nil {
+		return err
+	}
 	mountSceneEditor(app, deck, token, &mu)
 	mountSourceTools(app, token)
 	if err := mountProjectEditor(app, deck, token, &mu); err != nil {

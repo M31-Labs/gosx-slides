@@ -84,6 +84,8 @@ directly also works (the parent directory is used).
 | `components [deck-dir] [--json]` | The deck's own `.gsx` islands and their compile status. |
 | `doctor [deck-dir] [--json]` | Deck health + `serve` prerequisites. Exits non-zero on failures. |
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
+| `backgrounds [--json]` | List six bundled Selena background presets, defaults and copyable sources. |
+| `backgrounds source <preset>` | Print an editable standalone `.sel` shader. |
 | `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
 | `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
 | `audiences [deck-dir] [--json]` | List declared or discovered audience names. `serve`, `build` and `export` accept `--audience name`; selected variants reject edit/collab/watch and links into omitted slides. |
@@ -469,6 +471,24 @@ script is not). Per-slide frontmatter overrides: `footer: false` (or `none` /
 `off`) hides it on that slide; any other value replaces it there.
 
 ### Scene layers (living backgrounds & illustrations)
+
+Native Selena background templates use `scene: shader:aurora|silk|contours|waves|grid|spotlight`
+(choose one name). Deck headmatter defaults and per-slide YAML may set
+`shader-ink`/`shader-glow` (`#rrggbb`), `shader-speed` (0–2), `shader-strength`
+(0–1) and `shader-scale` (0.5–4). Controls inherit across slides; speed zero
+makes a still. Equal preset/settings share one surface; differing settings
+mount separately. No source files, islands or WASM are needed. Reduced motion
+hides decorative backgrounds. Custom `.sel` files use their own parameter
+defaults or `<Shader Uniforms="file.json" />`.
+
+With `serve --edit`, **Backgrounds** opens a three-step wizard with native live
+preview, preset/reset controls, Markdown copying and a tuned `.sel` download.
+Only Apply writes. It uses parsed metadata ranges and the guarded project save,
+including original Markdown includes, context conflicts, LF-only writes and
+retained recovery source. Deck default keeps per-slide overrides. Closed source
+drafts block Apply until saved/reloaded; previews never broadcast to an audience.
+Shader keys must have single-line scalar values in block YAML; unrelated bytes
+and comments remain intact. See `examples/background-gallery`.
 
 A deck — or one slide — names an island that renders FULL-BLEED BEHIND the
 content:

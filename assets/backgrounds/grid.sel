@@ -1,0 +1,18 @@
+material Grid {
+    param ink : color = rgb(0.062745, 0.094118, 0.129412)
+    param glow : color = rgb(0.568627, 0.713725, 0.870588)
+    param speed : float = 0.1
+    param strength : float = 0.3
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let cell = fract(coord * 18.0)
+        let lines = 1.0 - smoothstep(0.0, 0.045, min(cell.x, cell.y))
+        let drift = time * speed
+        let center = vec2f(0.65 + sin(drift) * 0.15, 0.5 + cos(drift * 0.8) * 0.12)
+        let radius = length(coord - center)
+        let light = (1.0 - smoothstep(0.0, 0.75, radius)) * 0.25 + lines * 0.6
+        return mix(ink, glow, light * strength)
+    }
+}
