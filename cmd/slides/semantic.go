@@ -185,6 +185,20 @@ func writeArchitectureTourFiles(out, markdown, story string, extra map[string][]
 			return err
 		}
 	}
+	if len(extra) != 0 {
+		ignore, err := os.OpenFile(filepath.Join(dest, ".gitignore"), os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		_, err = ignore.WriteString("\n# Generated revision provenance stays local.\ntour.json\n")
+		closeErr := ignore.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
 	if err := os.Remove(filepath.Join(dest, "Counter.gsx")); err != nil {
 		return err
 	}

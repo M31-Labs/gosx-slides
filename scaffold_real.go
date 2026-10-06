@@ -333,7 +333,7 @@ func moduleNameFromDeck(deckPath string) string {
 
 // realLaneGitignore keeps the staged runtime build (the ~30MB GOOS=js wasm and
 // island JSON under build/) and compiled test binaries out of version control.
-const realLaneGitignore = "build/\n*.test\n.slides-team.json\n.slides-team-*.tmp\n.slides-sessions.json\n.slides-session-*.tmp\n"
+const realLaneGitignore = "build/\n*.test\n.slides-history-*/\n.slides-export-*/\n.slides-team.json\n.slides-team-*.tmp\n.slides-sessions.json\n.slides-session-*.tmp\n"
 
 // realLaneCounter is the working counter island, copied verbatim from
 // examples/showcase/Counter.gsx. It seeds its state from props.Initial, so the
