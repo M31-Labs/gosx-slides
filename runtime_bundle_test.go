@@ -44,6 +44,22 @@ func writeTestRuntimeManifest(t *testing.T, dir string, manifest RuntimeBundle) 
 	}
 }
 
+func TestRuntimePackageRequiresMatchingTransitiveModules(t *testing.T) {
+	base := `{"Path":"m31labs.dev/gosx","Version":"` + gosxScaffoldVersion() + `"}`
+	expected := map[string]string{"example.invalid/dependency": "v1.0.0"}
+	if err := validateRuntimeModules([]byte(base+`{"Path":"example.invalid/dependency","Version":"v1.0.0"}`), expected); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range []string{
+		`{"Path":"example.invalid/dependency","Version":"v1.0.1"}`,
+		`{"Path":"example.invalid/dependency","Version":"v1.0.0","Replace":{"Dir":"private-custom-runtime"}}`,
+	} {
+		if err := validateRuntimeModules([]byte(base+entry), expected); err == nil {
+			t.Fatal("custom transitive runtime accepted")
+		}
+	}
+}
+
 func TestBundledRuntimeServesWithoutGoOrModule(t *testing.T) {
 	bundle, _ := testRuntimeBundle(t)
 	t.Setenv("SLIDES_RUNTIME_DIR", bundle)

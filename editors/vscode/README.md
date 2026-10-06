@@ -21,10 +21,10 @@ not implemented. This companion has no telemetry or installation hooks.
 Build a VSIX with the official VS Code packager from this directory:
 
 ```sh
-npx @vscode/vsce package --no-dependencies
+npx @vscode/vsce@4.0.0 package --no-dependencies
 code --install-extension gosx-slides-0.1.0.vsix
 ```
 
-The repository publishes source for packaging; no Marketplace release is
+Release assets include an installable `.vsix`; no Marketplace release is
 claimed. See [project authoring](../../docs/project-authoring.md) for limits,
 private path policy, MCP setup and reconciliation.

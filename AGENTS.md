@@ -68,6 +68,10 @@ directly also works (the parent directory is used).
 | Command | Purpose |
 |---|---|
 | `init <name> [--theme aurora\|paper\|neon\|swiss]` | Scaffold a **portable** deck you can `serve` immediately: writes `<name>/{deck.md,Counter.gsx,go.mod,.gitignore,README}`. The generated `go.mod` pins the gosx version the running `slides` binary was built against, so the deck serves from any directory. |
+| `init <name> --template architecture-review\|technical-talk\|teaching [--theme name]` | Scaffold a curated portable starter with its pinned local branding and runnable examples. Omitting theme retains the starter default. |
+| `templates [--json]` | Discover the bundled local starter catalog. |
+| `migrate <source> --from slidev\|marp\|quarto --out <fresh-dir> [--json]` | Import supported parsed Markdown and approved local media, retaining private originals and ranged fidelity diagnostics without executing source-engine code. |
+| `mcp [deck-dir]` | Serve eight bounded author tools over stdio MCP: list/read/diagnose/hash-checked write/scoped rename/static story assert/address resolution/snapshot export. See `docs/project-authoring.md`; notes and source require author access. |
 | `serve [deck-dir] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]` | Serve live islands and server expressions. `--edit` enables revision-safe editing; `--collab` adds shared CRDT drafts, presence and anchored reviews. Public listeners require authenticated sessions. Use `--watch` separately. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
 | `export [deck-dir] --format spa\|single\|handout\|pdf\|frames\|video\|pptx [--capture] [--editable] [--steps] [--notes] [--seconds 2] [--fps 15] [--out dist]` | SPA retains live islands; single and handout embed published local assets with static islands. Handout defaults to private notes omitted (`--notes` opts in). PDF/capture/PPTX need Chrome (`SLIDES_CHROME`); video also needs ffmpeg. Editable PPTX supports native text and selected SVG geometry with captured fallbacks. |

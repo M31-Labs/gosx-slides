@@ -65,6 +65,8 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --ignore-scripts
+      - name: Verify VS Code companion protocol
+        run: node --test editors/vscode/client.test.cjs
       - name: Install narration export tools
         run: |
           sudo apt-get update

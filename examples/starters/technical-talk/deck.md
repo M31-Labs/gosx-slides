@@ -28,7 +28,7 @@ One question. A concrete model. Evidence you can inspect.
 
 ```yaml
 id: constraint
-layout: split
+layout: default
 ```
 
 <p class="studio-kicker">01 / THE CONSTRAINT</p>

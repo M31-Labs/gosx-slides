@@ -33,6 +33,18 @@ model, themes, islands, gotchas), see **[AGENTS.md](AGENTS.md)**.
 
 ## Quickstart
 
+With a release archive, start from a curated deck and open project editing:
+
+```sh
+slides templates
+slides init my-talk --template technical-talk
+slides serve my-talk --edit
+```
+
+The starters cover architecture reviews, technical talks and teaching. They
+ship pinned local branding, diagrams, story cues or a repeatable simulation.
+See [the starter catalog](examples/starters/README.md). From a source checkout:
+
 ```bash
 go build -o slides ./cmd/slides
 ./slides serve examples/showcase --port 8080
@@ -50,6 +62,39 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 # edit examples/showcase/Counter.gsx → the island hot-swaps, no reload
 # edit examples/showcase/deck.md     → full reload with new content
 ```
+
+### Project editing and local agent tools
+
+Press **E** in `serve --edit` to select original Markdown fragments, GoSX,
+Sirena, manifests, CSS or shaders. Each tab retains its draft and undo history;
+diagnostics and outline links point back to original files. Saves validate the
+project, check file/dependency revisions and retain the displaced source for
+recovery. Conflicts keep your draft. Unchanged errors elsewhere can remain while
+you repair files individually.
+
+`slides mcp my-talk` exposes eight bounded stdio tools for project discovery,
+read/diagnose/validated write, scoped rename, static story assertions, address
+resolution and actual snapshot/handout export. Sources and speaker notes are
+author material. The [VS Code companion](editors/vscode/README.md) uses the same
+API through its project view; install the release's `.vsix` with **Extensions:
+Install from VSIX**. See [project authoring](docs/project-authoring.md) for
+configuration, limits and recovery. Marketplace publication is separate.
+
+### Markdown presentation migration
+
+```sh
+slides migrate talk.md --from slidev --out imported-talk --json
+slides migrate talk.md --from marp --out imported-talk --json
+slides migrate talk.qmd --from quarto --out imported-talk --json
+```
+
+Migration uses parsed Markdown structure to preserve supported slides, notes,
+IDs, reveal lists, code highlights and approved local images. It never executes
+Vue components, Quarto cells, expressions or package hooks. Unsupported layout,
+motion and runtime behavior produce ranged fidelity diagnostics. Review
+`migration/report.json` against the unchanged private `migration/source.md`
+before presenting. Destinations must be fresh; each result stays within the
+editor's 1MiB deck limit. Original source and reports remain outside publication.
 
 ## Motion, authoring, and exports
 

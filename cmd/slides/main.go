@@ -30,6 +30,12 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "mcp":
+		return mcpCommand(args[1:])
+	case "templates":
+		return templatesCommand(args[1:])
+	case "migrate":
+		return migrateCommand(args[1:])
 	case "runtime":
 		return runtimeCommand(args[1:])
 	case "story":
@@ -41,14 +47,28 @@ func run(args []string) error {
 	case "init":
 		// Scaffold a deck you can `slides serve` immediately (live
 		// islands + evaluated {expr} + highlighted code + theme).
-		theme, rest, err := takeStringFlag(args[1:], "theme", "aurora")
+		theme, rest, err := takeStringFlag(args[1:], "theme", "")
+		if err != nil {
+			return err
+		}
+		template, rest, err := takeStringFlag(rest, "template", "")
 		if err != nil {
 			return err
 		}
 		if len(rest) != 1 {
-			return fmt.Errorf("usage: slides init <name> [--theme aurora|paper|neon|swiss]")
+			return fmt.Errorf("usage: slides init <name> [--template catalog-name] [--theme aurora|paper|neon|swiss]")
 		}
 		name := rest[0]
+		if template != "" {
+			if err := slides.ScaffoldTemplate(name, slides.TemplateOptions{Template: template, Theme: theme}); err != nil {
+				return err
+			}
+			fmt.Printf("created deck %q (template %s)\nrun it:  slides serve %s\n", name, template, name)
+			return nil
+		}
+		if theme == "" {
+			theme = "aurora"
+		}
 		if err := slides.ScaffoldRealLane(name, slides.ScaffoldRealOptions{Theme: theme}); err != nil {
 			return err
 		}
@@ -555,7 +575,12 @@ slides is the gosx-slides command. One lane: a deck is a directory with deck.md 
 <Name>.gsx islands, compiled to live GoSX and served (or exported static).
 
 Commands:
-  init <name> [--theme aurora|paper|neon|swiss]          scaffold a portable deck you can serve immediately
+  init <name> [--template catalog-name] [--theme aurora|paper|neon|swiss]
+                                                        scaffold a portable deck you can serve immediately
+  templates [--json]                                    discover curated local starter decks
+  migrate <source.md> --from slidev|marp|quarto --out <fresh-dir> [--json]
+                                                        import supported Markdown with a fidelity report
+  mcp [deck-dir]                                        serve bounded project tools over stdio JSON-RPC
   serve [deck-dir] [--audience name] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
       [--editor-token-file file] [--audience-token-file file] [--session-secret-file file]
       [--tls-cert file --tls-key file | --session-http]   serve a local or authenticated shared deck

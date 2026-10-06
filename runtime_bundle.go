@@ -74,13 +74,13 @@ func runtimeBundlePath() (string, bool, error) {
 	return dir, true, nil
 }
 
-func binaryGoSXReplaced() bool {
+func binaryRuntimeReplaced() bool {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return false
 	}
 	for _, dep := range info.Deps {
-		if dep.Path == gosxModuleImportPath && dep.Replace != nil {
+		if dep.Replace != nil {
 			return true
 		}
 	}
@@ -122,7 +122,7 @@ func readRuntimeBundle(dir string) (*loadedRuntimeBundle, error) {
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return nil, fmt.Errorf("bundled runtime needs one manifest")
 	}
-	if manifest.Version != 1 || manifest.GoSXVersion != gosxScaffoldVersion() || manifest.GoVersion == "" || binaryGoSXReplaced() {
+	if manifest.Version != 1 || manifest.GoSXVersion != gosxScaffoldVersion() || manifest.GoVersion == "" || binaryRuntimeReplaced() {
 		return nil, fmt.Errorf("bundled runtime does not match this binary's GoSX %s; use --rebuild with Go for custom runtimes", gosxScaffoldVersion())
 	}
 	if len(manifest.Assets) < len(requiredRuntimeBundleAssets) || len(manifest.Assets) > 64 {
@@ -257,20 +257,24 @@ func PackageRuntime(deckDir, destination string) (RuntimeBundle, error) {
 	if _, err := os.Lstat(abs); err == nil || !os.IsNotExist(err) {
 		return manifest, fmt.Errorf("runtime package needs a fresh destination")
 	}
-	cmd := exec.Command("go", "list", "-m", "-json", gosxModuleImportPath)
+	cmd := exec.Command("go", "list", "-m", "-json", "all")
 	cmd.Dir = deckDir
-	cmd.Env = append(execEnvWithoutGoFlags(), "GOFLAGS=-mod=mod")
+	cmd.Env = append(execEnvWithoutGoFlags(), "GOWORK=off", "GOFLAGS=-mod=mod")
 	metadata, err := cmd.Output()
 	if err != nil {
 		return manifest, fmt.Errorf("resolve release runtime: %w", err)
 	}
-	var module struct {
-		Version string
-		Main    bool
-		Replace json.RawMessage
+	expected := map[string]string{}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range info.Deps {
+			expected[dep.Path] = dep.Version
+		}
 	}
-	if err := json.Unmarshal(metadata, &module); err != nil || module.Version != gosxScaffoldVersion() || module.Main || len(module.Replace) != 0 || binaryGoSXReplaced() {
-		return manifest, fmt.Errorf("release runtime needs the binary's unmodified GoSX %s", gosxScaffoldVersion())
+	if binaryRuntimeReplaced() {
+		return manifest, fmt.Errorf("release runtime needs an unmodified binary dependency graph")
+	}
+	if err := validateRuntimeModules(metadata, expected); err != nil {
+		return manifest, err
 	}
 	root, err := stageRuntimeAssets(deckDir, true, true)
 	if err != nil {
@@ -340,4 +344,36 @@ func PackageRuntime(deckDir, destination string) (RuntimeBundle, error) {
 	}
 	complete = true
 	return manifest, nil
+}
+
+func validateRuntimeModules(metadata []byte, expected map[string]string) error {
+	decoder := json.NewDecoder(strings.NewReader(string(metadata)))
+	found := false
+	for count := 0; ; count++ {
+		var module struct {
+			Path, Version string
+			Main          bool
+			Replace       json.RawMessage
+		}
+		err := decoder.Decode(&module)
+		if err == io.EOF {
+			break
+		}
+		if err != nil || count >= 1024 || module.Path == "" {
+			return fmt.Errorf("invalid or oversized release dependency graph")
+		}
+		if len(module.Replace) != 0 || (expected[module.Path] != "" && expected[module.Path] != module.Version) {
+			return fmt.Errorf("release runtime dependency %s differs from the binary; use a matching unmodified module", module.Path)
+		}
+		if module.Path == gosxModuleImportPath {
+			if module.Main || module.Version != gosxScaffoldVersion() {
+				return fmt.Errorf("release runtime needs the binary's unmodified GoSX %s", gosxScaffoldVersion())
+			}
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("release dependency graph omits GoSX")
+	}
+	return nil
 }
