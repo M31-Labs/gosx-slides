@@ -1,0 +1,15 @@
+material Contours {
+    param ink : color = rgb(0.062745, 0.105882, 0.125490)
+    param glow : color = rgb(0.474510, 0.749020, 0.733333)
+    param speed : float = 0.08
+    param strength : float = 0.3
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let terrain = sin(coord.x * 5.0 + drift) + cos(coord.y * 6.0 - drift * 0.7) + sin((coord.x + coord.y) * 4.0)
+        let contour = pow(sin(terrain * 9.0) * 0.5 + 0.5, 24.0)
+        return mix(ink, glow, contour * strength)
+    }
+}

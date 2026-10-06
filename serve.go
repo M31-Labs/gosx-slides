@@ -428,7 +428,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+readingStyle+recordingStyle+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+backgroundWizardStyle+readingStyle+recordingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if deckHasMath(d) {
@@ -512,7 +512,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+backgroundWizardScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
 		gosx.RawHTML(semanticStoryAssets(d)),
 		gosx.RawHTML(simulationAssets(d)),
 	)

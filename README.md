@@ -304,6 +304,38 @@ families alongside semantic Scene3D steps. Mermaid ingestion supports flowcharts
 
 ### Native shaders and Scene3D
 
+For a ready-made background, use a bundled Selena preset:
+
+```yaml
+scene: shader:aurora
+shader-ink: "#08121f"
+shader-glow: "#51d6b0"
+shader-speed: 0.18
+shader-strength: 0.38
+shader-scale: 1
+```
+
+Put these keys in deck headmatter for a default or a slide's leading YAML fence
+for an override. The six presets are **aurora, silk, contours, waves, grid, and
+spotlight**. No shader files or islands are needed. Colors use `#rrggbb`; speed
+is 0–2, strength 0–1, and scale 0.5–4. Speed zero creates a still background;
+reduced motion uses the normal deck background.
+
+Run `slides serve examples/background-gallery --edit` and select **Backgrounds**
+in the toolbar for a three-step wizard: choose, tune, apply. It previews the
+actual native shader, applies to the current slide or deck default, and offers
+copyable Markdown and a `.sel` download with your settings. Deck defaults retain
+per-slide overrides. Saves update the original included Markdown when needed,
+validate the project, reject stale revisions, and retain a recovery copy.
+Existing source drafts must be saved or reloaded before applying a background;
+the wizard retains them. Structured saves require LF line endings and block YAML
+with single-line values for the shader keys.
+
+`slides backgrounds [--json]` lists templates. To own the shader, create a
+`shaders/` directory, run `slides backgrounds source aurora > shaders/aurora.sel`,
+then set `scene: shaders/aurora.sel`. The exported file's parameter defaults
+control custom-file backgrounds; `shader-*` keys control bundled presets.
+
 GoSX v0.57.4's native graphics engine is available directly in Markdown:
 
 ```md
@@ -560,6 +592,7 @@ favicon: {text: "GT", color: "#10b981"}      # 1-2 letter monogram; color defaul
 | `examples/showcase` | Full feature set — best starting point. |
 | `examples/motion-lab` | Native element motion, text stagger, and slide timings. |
 | `examples/shader-lab` | Selena materials, native shapes, diagrams, and backgrounds. |
+| `examples/background-gallery` | Six bundled Selena backgrounds and a wizard to tune and apply them. |
 | `examples/sirena-scene` | Native Sirena diagram with forward/backward click frames. |
 | `examples/real-deck` | The minimum: one slide, a propless `<Counter/>`. |
 | `examples/theme-{neon,paper,swiss}` | The same deck under each theme. |

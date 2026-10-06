@@ -1,6 +1,9 @@
 package slides
 
-import "strings"
+import (
+	"gopkg.in/yaml.v3"
+	"strings"
+)
 
 // frontmatter.go holds the small, lane-agnostic helpers the real lane needs that
 // used to live in the (now deleted) fallback parser: headmatter splitting, the
@@ -43,6 +46,19 @@ func parseFrontmatter(src string) map[string]string {
 		value := strings.TrimSpace(line[idx+1:])
 		value = strings.Trim(value, `"'`)
 		out[key] = value
+	}
+	// Shader controls and scene names use YAML scalar values so a wizard can
+	// preserve inline author comments without making them part of a source path.
+	// Retain the legacy flat-value contract for all other authoring keys.
+	var doc yaml.Node
+	if yaml.Unmarshal([]byte(src), &doc) == nil && len(doc.Content) == 1 && doc.Content[0].Kind == yaml.MappingNode {
+		mapping := doc.Content[0]
+		for i := 0; i+1 < len(mapping.Content); i += 2 {
+			key, value := mapping.Content[i], mapping.Content[i+1]
+			if (key.Value == "scene" || strings.HasPrefix(key.Value, "shader-")) && value.Kind == yaml.ScalarNode {
+				out[key.Value] = value.Value
+			}
+		}
 	}
 	return out
 }

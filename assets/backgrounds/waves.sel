@@ -1,0 +1,16 @@
+material Waves {
+    param ink : color = rgb(0.039216, 0.078431, 0.156863)
+    param glow : color = rgb(0.474510, 0.658824, 0.929412)
+    param speed : float = 0.15
+    param strength : float = 0.36
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let crest = sin(coord.x * 6.0 + drift) * 0.08 + sin(coord.x * 13.0 - drift * 0.8) * 0.03
+        let bands = sin((coord.y + crest) * 26.0) * 0.5 + 0.5
+        let light = pow(bands, 4.0) * smoothstep(0.25, 1.0, coord.y)
+        return mix(ink, glow, clamp(light * strength, 0.0, 1.0))
+    }
+}

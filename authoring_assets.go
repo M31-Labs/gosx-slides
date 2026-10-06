@@ -39,3 +39,9 @@ var graphicsMotionScript string
 
 //go:embed assets/scene-studio.js
 var sceneStudioScript string
+
+//go:embed assets/background-wizard.js
+var backgroundWizardScript string
+
+//go:embed assets/background-wizard.css
+var backgroundWizardStyle string

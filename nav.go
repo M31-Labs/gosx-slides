@@ -412,6 +412,13 @@ func navScript() string {
   // without BroadcastChannel degrade silently to independent per-window navigation.
   var channel = null;
   var applyingRemote = false, initializing = true;
+  var authorReload = false;
+  try {
+    var reloadKey = 'gosx-slides:author-reload';
+    var savedReload = JSON.parse(sessionStorage.getItem(reloadKey) || 'null');
+    sessionStorage.removeItem(reloadKey);
+    authorReload = !!savedReload && savedReload.url === location.href && Date.now() - savedReload.time < 15000;
+  } catch (e) {}
   var sourceID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
   var sequence = 0, pendingState = null, publishing = false;
   var seenSources = new Map();
@@ -476,7 +483,7 @@ func navScript() string {
   }
   function broadcast() {
 	if (deck.getAttribute('data-session-role') === 'audience') return;
-    if (applyingRemote || (initializing && !location.hash)) return;
+    if (applyingRemote || (initializing && (!location.hash || authorReload))) return;
     var data = { index: index, step: step, source: sourceID, sequence: ++sequence };
     if (channel) { try { channel.postMessage(data); } catch (e) {} }
     if (deck.getAttribute('data-live-sync') === '1') { pendingState = data; publishPending(); }
@@ -616,6 +623,12 @@ func navScript() string {
     preview: function (nextIndex, nextStep) {
       var wasRemote = applyingRemote; applyingRemote = true;
       try { show(nextIndex, nextStep, true); } finally { applyingRemote = wasRemote; }
+    },
+    reloadPreview: function () {
+      // Keep an authoring save at its current anchor without publishing that
+      // private preview position as a new presenter action on startup.
+      try { sessionStorage.setItem('gosx-slides:author-reload', JSON.stringify({url:location.href,time:Date.now()})); } catch (e) {}
+      location.reload();
     },
     current: function () { return index + 1; },
     // step exposes the active click step (0-based within the slide) and stepCount

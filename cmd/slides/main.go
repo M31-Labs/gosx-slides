@@ -15,7 +15,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.9.0-dev"
+var version = "v0.10.0-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -30,6 +30,8 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "backgrounds":
+		return backgroundsCommand(args[1:])
 	case "mcp":
 		return mcpCommand(args[1:])
 	case "templates":
@@ -605,6 +607,8 @@ Commands:
   components [deck-dir] [--json]                          the deck's own .gsx islands + compile status
   doctor [deck-dir] [--json]                             deck health + serve prerequisites
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
+  backgrounds [--json]                                  six bundled Selena background presets
+  backgrounds source <preset>                           print a copyable, standalone .sel source
   runtime pack [deck-dir] --out <fresh-dir> [--json]       package a version-matched portable browser runtime
   tour history <history.yaml> [--repo local-repo] [--curation file] [--out fresh-dir] [--json]
                                        create a curated revision tour

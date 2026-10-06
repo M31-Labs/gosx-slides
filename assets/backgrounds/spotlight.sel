@@ -1,0 +1,15 @@
+material Spotlight {
+    param ink : color = rgb(0.090196, 0.082353, 0.109804)
+    param glow : color = rgb(0.835294, 0.662745, 0.784314)
+    param speed : float = 0.08
+    param strength : float = 0.28
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let center = vec2f(0.72 + sin(drift) * 0.08, 0.66 + cos(drift * 0.7) * 0.06)
+        let halo = pow(1.0 - smoothstep(0.0, 0.85, length(coord - center)), 2.0)
+        return mix(ink, glow, halo * strength)
+    }
+}
