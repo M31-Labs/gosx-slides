@@ -1,0 +1,9 @@
+service api { sid: "api" }
+queue pending { sid: "queue" }
+job worker { sid: "worker" }
+database journal { sid: "journal" }
+database store { sid: "store" }
+api -> journal : persist
+journal -> pending : publish
+pending -> worker : drain
+worker -> store : write

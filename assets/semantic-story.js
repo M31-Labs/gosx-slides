@@ -6,6 +6,9 @@
   const beats = new Map(story.beats.map(beat => [beat.slideIndex + ':' + beat.step, beat]));
   const active = () => deck.querySelector('.deck-active[data-slide]');
   const current = () => beats.get((SlidesNav.current() - 1) + ':' + SlidesNav.step());
+  const surfaceNames = new Map(Object.values(story.graphs).filter(graph => graph.surface).map(graph => [graph.containerId, graph.surface]));
+  const surfaceName = el => surfaceNames.get(el.closest('[data-mdpp-container="story-surface"]')?.id);
+  const actorPose = (beat, el) => { const name=surfaceName(el); return name ? beat?.surfaces?.[name] : beat; };
   function original(el) {
     if (!baseline.has(el)) baseline.set(el, { opacity: el.style.opacity, hidden: el.hidden, inert: el.inert, aria: el.getAttribute('aria-hidden') });
     return baseline.get(el);
@@ -39,29 +42,39 @@
   caption.addEventListener('keydown', event => {
     if (caption.scrollHeight > caption.clientHeight && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) event.stopPropagation();
   });
+  let poseAddress = '';
   function seek(ms) {
     const slide = active(); if (!slide) return;
     const beat = current(), previous = beats.get((SlidesNav.current() - 1) + ':' + (SlidesNav.step() - 1));
+    const address=(SlidesNav.current()-1)+':'+SlidesNav.step();
+    // A named story's SVG transition starts at the previous authored pose,
+    // including direct-link startup and backward navigation, not visit history.
+    if (address!==poseAddress) {
+      poseAddress=address;
+      if (beat?.surfaceGraphKeys) { window.SlidesDiagramMotion?.replay(); window.SlidesDiagramMotion?.seek(ms); }
+    }
     const t = reduced.matches || !beat?.durationMs ? 1 : Math.max(0, Math.min(1, ms / beat.durationMs));
     const actors = Array.from(slide.querySelectorAll('svg [data-sirena-id]'));
     const dom = Array.from(slide.querySelectorAll('[data-story-id],[id]')).filter(el => !el.closest('svg'));
     for (const el of [...actors, ...dom]) {
       const actor = el.hasAttribute('data-sirena-id'), id = actor ? el.dataset.sirenaId : el.dataset.storyId || el.id, base = original(el);
-      const target = visible(beat, id, actor, !base.hidden), before = opacity(previous, id, actor, !base.hidden), after = opacity(beat, id, actor, !base.hidden);
+      const pose=actor ? actorPose(beat,el) : beat, prior=actor ? actorPose(previous,el) : previous;
+      const target = visible(pose, id, actor, !base.hidden), before = opacity(prior, id, actor, !base.hidden), after = opacity(pose, id, actor, !base.hidden);
       const amount = before + (after - before) * t;
       el.style.opacity = String(amount); el.hidden = !actor && !target && t >= 1; el.inert = !target; el.setAttribute('aria-hidden', String(!target));
-      if (t >= 1 && !(actor ? beat?.focus?.length || beat?.reveal != null : beat?.show?.includes(id) || beat?.hide?.includes(id))) {
+      if (t >= 1 && !(actor ? pose?.focus?.length || pose?.reveal != null : beat?.show?.includes(id) || beat?.hide?.includes(id))) {
         el.style.opacity = base.opacity; el.hidden = base.hidden; el.inert = base.inert;
         if (base.aria === null) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden', base.aria);
       }
-      el.dataset.storyVisible = String(target); el.dataset.storyFocus = String(!!beat?.focus?.includes(id));
+      el.dataset.storyVisible = String(target); el.dataset.storyFocus = String(!!pose?.focus?.includes(id));
     }
-    const graph = story.graphs[beat?.graphKey], ids = new Map(graph?.actors.map(a => [a.name, a.id]) || []);
     slide.querySelectorAll('svg .edge[data-morph-id]').forEach(el => {
+      const name=surfaceName(el), graph=story.graphs[name ? beat?.surfaceGraphKeys?.[name] : beat?.graphKey];
+      const ids=new Map(graph?.actors.map(a=>[a.name,a.id]) || []), pose=actorPose(beat,el), prior=actorPose(previous,el);
       original(el); const parts = el.dataset.morphId.split(':'), from = ids.get(parts[1]) || parts[1], to = ids.get(parts[2]) || parts[2];
       const traced = value => { const path = value?.trace || []; return path.some((id, i) => i && ((path[i - 1] === from && id === to) || (path[i - 1] === to && id === from))); };
       const strength = value => (!visible(value, from, true, true) || !visible(value, to, true, true)) ? 0 : !value?.trace?.length || traced(value) ? 1 : .15;
-      el.style.opacity = String(strength(previous) + (strength(beat) - strength(previous)) * t); el.dataset.storyTrace = String(traced(beat));
+      el.style.opacity = String(strength(prior) + (strength(pose) - strength(prior)) * t); el.dataset.storyTrace = String(traced(pose));
     });
     slide.querySelectorAll('pre.code-block').forEach((block, index) => block.querySelectorAll('.ts-line').forEach((line, row) => {
       const base = original(line), selected = beat?.code?.block === index;
@@ -76,7 +89,10 @@
   }
   function targets(id) {
     const slide = active();
-    return slide ? Array.from(slide.querySelectorAll('[data-sirena-id],[data-story-id],[data-gosx-scene-label],[id]')).filter(el => el.dataset.sirenaId === id || el.dataset.storyId === id || el.id === id || el.dataset.gosxSceneLabel === 'label:' + id) : [];
+    if (!slide) return [];
+    const beat=current(), slash=id.indexOf('/'), name=slash<0 ? '' : id.slice(0,slash), key=beat?.surfaceGraphKeys?.[name];
+    const local=key ? id.slice(slash+1) : id, container=key ? story.graphs[key].containerId : '';
+    return Array.from(slide.querySelectorAll('[data-sirena-id],[data-story-id],[data-gosx-scene-label],[id]')).filter(el => (!container || el.closest('[data-mdpp-container="story-surface"]')?.id===container) && (el.dataset.sirenaId === local || el.dataset.storyId === local || el.id === local || el.dataset.gosxSceneLabel === 'label:' + local));
   }
   function renderedVisible(el) {
     const style = getComputedStyle(el);

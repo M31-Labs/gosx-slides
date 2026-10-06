@@ -1,0 +1,22 @@
+version: 1
+beats:
+  - slide: system
+    cue: overview
+    caption: One request crosses three explicit ownership boundaries.
+    durationMs: 0
+    expect:
+      visible: [browser, api, worker, db]
+  - slide: system
+    cue: accepted
+    caption: Acceptance hands a stable request to the worker.
+    durationMs: 700
+    focus: [api, worker]
+    trace: [browser, api, worker]
+    code: {block: 0, lines: [1, 2]}
+  - slide: system
+    cue: committed
+    caption: A durable result closes the request lifecycle.
+    durationMs: 700
+    focus: [worker, db]
+    trace: [worker, db]
+    code: {block: 0, lines: [3]}

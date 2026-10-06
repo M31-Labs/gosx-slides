@@ -26,18 +26,28 @@ import (
 // StoryBeat describes one absolute narrative pose, addressed by authored IDs.
 // Missing effects restore baseline state; effects never accumulate on navigation.
 type StoryBeat struct {
-	Slide      string            `json:"slide" yaml:"slide"`
-	Cue        string            `json:"cue" yaml:"cue"`
-	Caption    string            `json:"caption,omitempty" yaml:"caption,omitempty"`
-	DurationMS int               `json:"durationMs" yaml:"durationMs"`
-	Focus      []string          `json:"focus,omitempty" yaml:"focus,omitempty"`
-	Reveal     []string          `json:"reveal" yaml:"reveal,omitempty"`
-	Trace      []string          `json:"trace,omitempty" yaml:"trace,omitempty"`
-	Camera     *StoryCamera      `json:"camera,omitempty" yaml:"camera,omitempty"`
-	Code       *StoryCode        `json:"code,omitempty" yaml:"code,omitempty"`
-	Show       []string          `json:"show,omitempty" yaml:"show,omitempty"`
-	Hide       []string          `json:"hide,omitempty" yaml:"hide,omitempty"`
-	Expect     *StoryExpectation `json:"expect,omitempty" yaml:"expect,omitempty"`
+	Slide      string                      `json:"slide" yaml:"slide"`
+	Cue        string                      `json:"cue" yaml:"cue"`
+	Caption    string                      `json:"caption,omitempty" yaml:"caption,omitempty"`
+	DurationMS int                         `json:"durationMs" yaml:"durationMs"`
+	Focus      []string                    `json:"focus,omitempty" yaml:"focus,omitempty"`
+	Reveal     []string                    `json:"reveal" yaml:"reveal,omitempty"`
+	Trace      []string                    `json:"trace,omitempty" yaml:"trace,omitempty"`
+	Camera     *StoryCamera                `json:"camera,omitempty" yaml:"camera,omitempty"`
+	Code       *StoryCode                  `json:"code,omitempty" yaml:"code,omitempty"`
+	Show       []string                    `json:"show,omitempty" yaml:"show,omitempty"`
+	Hide       []string                    `json:"hide,omitempty" yaml:"hide,omitempty"`
+	Expect     *StoryExpectation           `json:"expect,omitempty" yaml:"expect,omitempty"`
+	Surfaces   map[string]StorySurfacePose `json:"surfaces,omitempty" yaml:"surfaces,omitempty"`
+}
+
+// StorySurfacePose is an absolute pose scoped to one named authored surface.
+// Actor IDs remain local here; expectations qualify them as surface/actor.
+type StorySurfacePose struct {
+	Focus  []string     `json:"focus,omitempty" yaml:"focus,omitempty"`
+	Reveal []string     `json:"reveal" yaml:"reveal,omitempty"`
+	Trace  []string     `json:"trace,omitempty" yaml:"trace,omitempty"`
+	Camera *StoryCamera `json:"camera,omitempty" yaml:"camera,omitempty"`
 }
 type StoryCamera struct {
 	X   float64 `json:"x" yaml:"x"`
@@ -56,10 +66,11 @@ type StoryExpectation struct {
 }
 type CompiledStoryBeat struct {
 	StoryBeat
-	SlideIndex int              `json:"slideIndex"`
-	Step       int              `json:"step"`
-	GraphKey   string           `json:"graphKey"`
-	Source     SourceDiagnostic `json:"source"`
+	SlideIndex       int               `json:"slideIndex"`
+	Step             int               `json:"step"`
+	GraphKey         string            `json:"graphKey"`
+	SurfaceGraphKeys map[string]string `json:"surfaceGraphKeys,omitempty"`
+	Source           SourceDiagnostic  `json:"source"`
 }
 type StoryActor struct {
 	Name  string     `json:"name"`
@@ -75,6 +86,8 @@ type StoryGraph struct {
 	Edges        [][2]string       `json:"edges"`
 	Scene        bool              `json:"scene"`
 	Source       string            `json:"source,omitempty"`
+	Surface      string            `json:"surface,omitempty"`
+	ContainerID  string            `json:"containerId,omitempty"`
 }
 type CompiledStory struct {
 	Version int                   `json:"version"`
@@ -182,21 +195,11 @@ func CompileStory(deck *IslandDeck) (*CompiledStory, error) {
 		if beat.DurationMS < 0 || beat.DurationMS > 600000 || len(beat.Caption) > 4096 {
 			return fail("durationMs must be 0–600000 and caption at most 4096 bytes")
 		}
-		graphStep := 0
-		for _, container := range deck.Slides[slideIndex].Node.Find(mdpp.NodeContainerDirective) {
-			if container.Attr("name") == "diagram-morph" {
-				graphStep = min(step, len(container.Find(mdpp.NodeDiagram))-1)
-			}
+		graphKey, surfaceKeys, err := compileStoryBeatGraphs(deck, story, slideIndex, step, beat)
+		if err != nil {
+			return fail(err.Error())
 		}
-		graphKey := fmt.Sprintf("%d:%d", slideIndex, graphStep)
-		graph, exists := story.Graphs[graphKey]
-		if !exists {
-			graph, err = storyGraph(deck, deck.Slides[slideIndex], graphStep)
-			if err != nil {
-				return fail(err.Error())
-			}
-			story.Graphs[graphKey] = graph
-		}
+		graph := story.Graphs[graphKey]
 		actors := map[string]StoryActor{}
 		for _, actor := range graph.Actors {
 			actors[actor.ID] = actor
@@ -280,12 +283,16 @@ func CompileStory(deck *IslandDeck) (*CompiledStory, error) {
 				}
 			}
 		}
-		story.Beats = append(story.Beats, CompiledStoryBeat{StoryBeat: beat, SlideIndex: slideIndex, Step: step, GraphKey: graphKey, Source: SourceDiagnostic{File: file, Range: rangeValue}})
+		story.Beats = append(story.Beats, CompiledStoryBeat{StoryBeat: beat, SlideIndex: slideIndex, Step: step, GraphKey: graphKey, SurfaceGraphKeys: surfaceKeys, Source: SourceDiagnostic{File: file, Range: rangeValue}})
 	}
 	sort.SliceStable(story.Beats, func(i, j int) bool {
 		a, b := story.Beats[i], story.Beats[j]
 		return a.SlideIndex < b.SlideIndex || a.SlideIndex == b.SlideIndex && a.Step < b.Step
 	})
+	compiled, err := json.Marshal(story)
+	if err != nil || len(compiled) > 16<<20 {
+		return nil, fmt.Errorf("story: compiled metadata exceeds 16 MiB")
+	}
 	return story, nil
 }
 
@@ -681,6 +688,18 @@ func attachSemanticStory(deck *IslandDeck) error {
 		return nil
 	}
 	deck.storySceneSteps = map[string][]byte{}
+	for _, slide := range deck.Slides {
+		surfaces, err := storySurfaces(slide)
+		if err != nil {
+			return err
+		}
+		for _, surface := range surfaces {
+			if surface.node.Attrs == nil {
+				surface.node.Attrs = map[string]string{}
+			}
+			surface.node.Attrs["id"] = surface.containerID
+		}
+	}
 	for _, beat := range story.Beats {
 		if beat.Code != nil {
 			node := deck.Slides[beat.SlideIndex].Node.Find(mdpp.NodeCodeBlock)[beat.Code.Block]
@@ -705,12 +724,13 @@ func attachSemanticStory(deck *IslandDeck) error {
 			if beat.SlideIndex != slideIndex {
 				continue
 			}
-			step := sirenascene.Step{Label: beat.Caption, DurationMS: beat.DurationMS, Focus: beat.Focus, Reveal: beat.Reveal}
-			for i := 1; i < len(beat.Trace); i++ {
-				step.Trace = append(step.Trace, graph.TraceTargets[beat.Trace[i-1]+"->"+beat.Trace[i]])
+			pose := storyPoseForGraph(beat, graph)
+			step := sirenascene.Step{Label: beat.Caption, DurationMS: beat.DurationMS, Focus: pose.Focus, Reveal: pose.Reveal}
+			for i := 1; i < len(pose.Trace); i++ {
+				step.Trace = append(step.Trace, graph.TraceTargets[pose.Trace[i-1]+"->"+pose.Trace[i]])
 			}
-			if beat.Camera != nil {
-				step.Camera = &scene.IRCamera{Kind: "perspective", X: beat.Camera.X, Y: beat.Camera.Y, Z: beat.Camera.Z, FOV: beat.Camera.FOV, Near: .1, Far: 1000}
+			if pose.Camera != nil {
+				step.Camera = &scene.IRCamera{Kind: "perspective", X: pose.Camera.X, Y: pose.Camera.Y, Z: pose.Camera.Z, FOV: pose.Camera.FOV, Near: .1, Far: 1000}
 			}
 			steps[beat.Step] = step
 		}
@@ -730,12 +750,27 @@ func attachSemanticStory(deck *IslandDeck) error {
 				return props
 			}
 			props = strings.TrimSpace(props) + " StorySlide=" + strconv.Quote(strconv.Itoa(slideIndex))
+			if graph.Surface != "" {
+				props += " StorySurface=" + strconv.Quote(graph.Surface)
+			}
 			ref := ComponentRef{Name: "Scene3D", Props: props}
 			deck.storySceneSteps[graphicsKey(ref.Name, ref.Props)] = raw
 			updated = true
 			return props
 		}
-		deck.Slides[slideIndex].Node.Walk(func(node *mdpp.Node) bool {
+		root := deck.Slides[slideIndex].Node
+		if graph.Surface != "" {
+			for _, container := range root.Find(mdpp.NodeContainerDirective) {
+				if container.Attr("id") == graph.ContainerID {
+					root = container
+					break
+				}
+			}
+			if root == deck.Slides[slideIndex].Node {
+				return fmt.Errorf("story surface %s container disappeared", graph.Surface)
+			}
+		}
+		root.Walk(func(node *mdpp.Node) bool {
 			if node.Type == mdpp.NodeCodeBlock {
 				return false
 			}
@@ -837,7 +872,7 @@ func AssertStory(deck *IslandDeck) (StoryAssertionReport, error) {
 				}
 				for _, a := range graph.Actors {
 					if a.ID == id {
-						visible = beat.Reveal == nil || containsString(beat.Reveal, id)
+						visible = storyActorVisible(story, beat, id)
 					}
 				}
 				if visible != group.visible {

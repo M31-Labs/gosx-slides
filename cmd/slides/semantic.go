@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"gopkg.in/yaml.v3"
 	slides "m31labs.dev/gosx-slides"
 )
 
@@ -89,6 +93,9 @@ func audiencesCommand(args []string) error {
 }
 
 func tourCommand(args []string) error {
+	if len(args) > 0 && args[0] == "history" {
+		return historyTourCommand(args[1:])
+	}
 	jsonOut, rest := takeBoolFlag(args, "json")
 	out, rest, err := takeStringFlag(rest, "out", "architecture-tour")
 	if err != nil {
@@ -136,6 +143,10 @@ func tourCommand(args []string) error {
 }
 
 func writeArchitectureTour(out string, tour slides.ArchitectureChangeTour) error {
+	return writeArchitectureTourFiles(out, tour.Markdown, tour.StoryYAML, nil)
+}
+
+func writeArchitectureTourFiles(out, markdown, story string, extra map[string][]byte) error {
 	dest, err := filepath.Abs(out)
 	if err != nil {
 		return err
@@ -145,9 +156,17 @@ func writeArchitectureTour(out string, tour slides.ArchitectureChangeTour) error
 		return fmt.Errorf("tour needs an absent destination with an existing parent: %w", err)
 	}
 	complete := false
+	names := []string{"deck.md", "story.yaml", "Counter.gsx", "go.mod", ".gitignore", "README"}
+	for name := range extra {
+		if filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) {
+			_ = os.Remove(dest)
+			return fmt.Errorf("invalid tour output name")
+		}
+		names = append(names, name)
+	}
 	defer func() {
 		if !complete {
-			for _, name := range []string{"deck.md", "story.yaml", "Counter.gsx", "go.mod", ".gitignore", "README"} {
+			for _, name := range names {
 				_ = os.Remove(filepath.Join(dest, name))
 			}
 			_ = os.Remove(dest)
@@ -156,15 +175,209 @@ func writeArchitectureTour(out string, tour slides.ArchitectureChangeTour) error
 	if err := slides.ScaffoldRealLane(dest, slides.ScaffoldRealOptions{Theme: "aurora"}); err != nil {
 		return err
 	}
-	for name, source := range map[string]string{"deck.md": tour.Markdown, "story.yaml": tour.StoryYAML, "README": "Generated architecture tour. Run slides story assert . and slides serve .\n"} {
+	for name, source := range map[string]string{"deck.md": markdown, "story.yaml": story, "README": "Generated architecture tour. Run slides story assert . and slides serve .\n"} {
 		if err := os.WriteFile(filepath.Join(dest, name), []byte(source), 0644); err != nil {
 			return err
+		}
+	}
+	for name, data := range extra {
+		if err := os.WriteFile(filepath.Join(dest, name), data, 0600); err != nil {
+			return err
+		}
+	}
+	if len(extra) != 0 {
+		ignore, err := os.OpenFile(filepath.Join(dest, ".gitignore"), os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return err
+		}
+		_, err = ignore.WriteString("\n# Generated revision provenance stays local.\ntour.json\n")
+		closeErr := ignore.Close()
+		if err != nil {
+			return err
+		}
+		if closeErr != nil {
+			return closeErr
 		}
 	}
 	if err := os.Remove(filepath.Join(dest, "Counter.gsx")); err != nil {
 		return err
 	}
 	complete = true
+	return nil
+}
+
+type tourHistoryManifest struct {
+	Version   int    `yaml:"version"`
+	Title     string `yaml:"title"`
+	Curation  string `yaml:"curation"`
+	Snapshots []struct {
+		ID       string `yaml:"id"`
+		Label    string `yaml:"label"`
+		Path     string `yaml:"path"`
+		Source   string `yaml:"source"`
+		Revision string `yaml:"revision"`
+	} `yaml:"snapshots"`
+}
+
+func readTourFile(file *os.File, limit int64) ([]byte, error) {
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > limit {
+		return nil, fmt.Errorf("tour source must be a regular file below %d bytes", limit)
+	}
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("tour source exceeds size limit")
+	}
+	return data, err
+}
+
+func decodeTourDocument(data []byte, value any) error {
+	decoder := yaml.NewDecoder(strings.NewReader(string(data)))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return fmt.Errorf("expected one versioned tour document")
+	}
+	return nil
+}
+
+func historyTourCommand(args []string) error {
+	jsonOut, rest := takeBoolFlag(args, "json")
+	out, rest, err := takeStringFlag(rest, "out", "architecture-history")
+	if err != nil {
+		return err
+	}
+	curationPath, rest, err := takeStringFlag(rest, "curation", "")
+	if err != nil {
+		return err
+	}
+	repository, rest, err := takeStringFlag(rest, "repo", "")
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 {
+		return fmt.Errorf("usage: slides tour history <history.yaml> [--repo local-repo] [--curation previous/curation.json] [--out fresh-dir] [--json]")
+	}
+	path, err := filepath.Abs(rest[0])
+	if err != nil {
+		return err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	data, err := readTourFile(file, 128<<10)
+	if err != nil {
+		return err
+	}
+	var manifest tourHistoryManifest
+	if err := decodeTourDocument(data, &manifest); err != nil {
+		return fmt.Errorf("history manifest: %w", err)
+	}
+	if manifest.Version != 1 || len(manifest.Snapshots) < 2 || len(manifest.Snapshots) > 32 {
+		return fmt.Errorf("history manifest needs version 1 and 2–32 snapshots")
+	}
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	readLocal := func(name string, limit int64) ([]byte, error) {
+		if name == "" || !filepath.IsLocal(filepath.FromSlash(name)) || strings.Contains(name, "\\") {
+			return nil, fmt.Errorf("history references must be local relative paths")
+		}
+		info, err := root.Lstat(filepath.FromSlash(name))
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("history reference %q must be a regular local file", name)
+		}
+		file, err := root.Open(filepath.FromSlash(name))
+		if err != nil {
+			return nil, err
+		}
+		return readTourFile(file, limit)
+	}
+	snapshots := make([]slides.ArchitectureSnapshot, 0, len(manifest.Snapshots))
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	var total int
+	for _, snapshot := range manifest.Snapshots {
+		if filepath.Ext(snapshot.Path) != ".sir" {
+			return fmt.Errorf("history snapshot %s must name a .sir file", snapshot.ID)
+		}
+		var data []byte
+		var err error
+		source := snapshot.Source
+		if snapshot.Revision != "" {
+			if repository == "" {
+				return fmt.Errorf("revision snapshots require --repo local-repo")
+			}
+			var commit string
+			data, commit, err = readGitTourSnapshot(ctx, repository, snapshot.Revision, snapshot.Path)
+			canonical := commit + ":" + filepath.ToSlash(filepath.Clean(snapshot.Path))
+			if source != "" {
+				canonical += " (" + source + ")"
+			}
+			source = canonical
+		} else {
+			data, err = readLocal(snapshot.Path, 1<<20)
+		}
+		if err != nil {
+			return fmt.Errorf("snapshot %s: %w", snapshot.ID, err)
+		}
+		total += len(data)
+		if total > 4<<20 {
+			return fmt.Errorf("history source exceeds 4 MiB")
+		}
+		if source == "" {
+			source = snapshot.Path
+		}
+		snapshots = append(snapshots, slides.ArchitectureSnapshot{ID: snapshot.ID, Label: snapshot.Label, Source: source, Sirena: data})
+	}
+	var curation *slides.ArchitectureTourCuration
+	if curationPath != "" || manifest.Curation != "" {
+		var data []byte
+		if curationPath != "" {
+			file, err := os.Open(curationPath)
+			if err != nil {
+				return err
+			}
+			data, err = readTourFile(file, 512<<10)
+			if err != nil {
+				return err
+			}
+		} else {
+			data, err = readLocal(manifest.Curation, 512<<10)
+			if err != nil {
+				return err
+			}
+		}
+		curation = &slides.ArchitectureTourCuration{}
+		if err := decodeTourDocument(data, curation); err != nil {
+			return fmt.Errorf("tour curation: %w", err)
+		}
+	}
+	tour, err := slides.ArchitectureTourHistory(snapshots, slides.ArchitectureTourOptions{Title: manifest.Title, Curation: curation})
+	if err != nil {
+		return err
+	}
+	report, err := json.MarshalIndent(tour, "", "  ")
+	if err != nil {
+		return err
+	}
+	curated, err := json.MarshalIndent(tour.Curation, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := writeArchitectureTourFiles(out, tour.Markdown, tour.StoryYAML, map[string][]byte{"tour.json": report, "curation.json": curated}); err != nil {
+		return err
+	}
+	if jsonOut {
+		return printSemanticJSON(tour)
+	}
+	fmt.Printf("created %s: %d revisions, %d transitions, %d preserved explanations\n", out, len(tour.Snapshots), len(tour.Transitions), len(tour.Curation.Explanations))
 	return nil
 }
 

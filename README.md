@@ -15,6 +15,15 @@ cd gosx-slides
 go install ./cmd/slides
 ```
 
+Release archives include a verified `runtime/` directory beside the executable.
+Keep both together: ordinary `serve` and live SPA exports then require neither Go
+nor a dependency download. `SLIDES_RUNTIME_DIR` selects an explicit bundle.
+Every asset is checked against its manifest before staging, and the GoSX version
+must match the CLI. Missing or damaged explicit bundles fail with diagnostics.
+Source installations build and cache the runtime with Go; `--watch` and `--rebuild`
+remain Go development workflows. Build a portable bundle from a matching source
+installation with `slides runtime pack . --out runtime`.
+
 `gosx-slides` turns a directory of Markdown + GoSX components into a live,
 compiled presentation. Your `<Component/>` tags are real, hydrated GoSX islands;
 your `{expr}` is evaluated by the GoSX compiler — no JavaScript toolchain.
@@ -23,6 +32,18 @@ For the complete capability reference (every command and flag, the authoring
 model, themes, islands, gotchas), see **[AGENTS.md](AGENTS.md)**.
 
 ## Quickstart
+
+With a release archive, start from a curated deck and open project editing:
+
+```sh
+slides templates
+slides init my-talk --template technical-talk
+slides serve my-talk --edit
+```
+
+The starters cover architecture reviews, technical talks and teaching. They
+ship pinned local branding, diagrams, story cues or a repeatable simulation.
+See [the starter catalog](examples/starters/README.md). From a source checkout:
 
 ```bash
 go build -o slides ./cmd/slides
@@ -41,6 +62,39 @@ Hot-swap dev loop — edit a component and watch it swap in place, state preserv
 # edit examples/showcase/Counter.gsx → the island hot-swaps, no reload
 # edit examples/showcase/deck.md     → full reload with new content
 ```
+
+### Project editing and local agent tools
+
+Press **E** in `serve --edit` to select original Markdown fragments, GoSX,
+Sirena, manifests, CSS or shaders. Each tab retains its draft and undo history;
+diagnostics and outline links point back to original files. Saves validate the
+project, check file/dependency revisions and retain the displaced source for
+recovery. Conflicts keep your draft. Unchanged errors elsewhere can remain while
+you repair files individually.
+
+`slides mcp my-talk` exposes eight bounded stdio tools for project discovery,
+read/diagnose/validated write, scoped rename, static story assertions, address
+resolution and actual snapshot/handout export. Sources and speaker notes are
+author material. The [VS Code companion](editors/vscode/README.md) uses the same
+API through its project view; install the release's `.vsix` with **Extensions:
+Install from VSIX**. See [project authoring](docs/project-authoring.md) for
+configuration, limits and recovery. Marketplace publication is separate.
+
+### Markdown presentation migration
+
+```sh
+slides migrate talk.md --from slidev --out imported-talk --json
+slides migrate talk.md --from marp --out imported-talk --json
+slides migrate talk.qmd --from quarto --out imported-talk --json
+```
+
+Migration uses parsed Markdown structure to preserve supported slides, notes,
+IDs, reveal lists, code highlights and approved local images. It never executes
+Vue components, Quarto cells, expressions or package hooks. Unsupported layout,
+motion and runtime behavior produce ranged fidelity diagnostics. Review
+`migration/report.json` against the unchanged private `migration/source.md`
+before presenting. Destinations must be fresh; each result stays within the
+editor's 1MiB deck limit. Original source and reports remain outside publication.
 
 ## Motion, authoring, and exports
 
@@ -731,9 +785,31 @@ for other steps. `ArchitectureTour` compares parsed Sirena actors, boundaries
 and relationships using stable `sid` identity, producing a Markdown diagram
 morph and its story manifest in a fresh runnable deck directory.
 
+`slides tour history examples/architecture-history/history.yaml --out my-tour`
+turns 2–32 authored Sirena revisions into one runnable tour. Stable revision IDs
+keep your explanations attached to the same transition on regeneration. Pass
+`--curation my-tour/curation.json` to preserve edited captions, including an
+intentionally empty caption. Removed explanations remain in the private report;
+a changed predecessor requires an explicit curation update.
+
+Snapshots may instead declare `revision: HEAD~2` with a repository-relative
+`.sir` path; pass `--repo /path/to/local/repo`. Git input resolves to immutable
+commit hashes, ignores working changes and replacement objects, rejects symlink
+tree entries, and disables textconv and all transport protocols. Missing objects
+fail locally. `tour.json` records actual commit/path and content hashes; it and
+`curation.json` use owner-only permissions and are excluded from publication.
+Each generated Markdown/manifest stays within the editor's 1MiB source budget.
+See [the revision tour example](examples/architecture-history/README.md).
+
 See [the semantic story example](examples/semantic-story/README.md) for the
-manifest and indexing contract. Each slide currently supports one narrative
-diagram surface; story poses and an explicit scene Steps file are exclusive.
+manifest and indexing contract, and [the multi-surface example](examples/multi-surface-story/README.md)
+for coordinated diagrams, charts and native scenes. A slide supports up to eight
+named `:::story-surface {name=topology}` regions; each contains exactly one
+diagram, morph or Sirena scene. Beat `surfaces:` poses apply independently, and
+expectations use `topology/api` to qualify actors. Single unwrapped surfaces
+retain the original manifest contract. Story poses and an explicit scene Steps
+file remain exclusive. Browser metadata excludes private source paths/ranges;
+local inspection retains them.
 
 ### Audience variants
 

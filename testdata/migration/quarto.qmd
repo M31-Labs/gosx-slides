@@ -1,0 +1,41 @@
+---
+title: Quarto migration
+author: Teaching team
+format:
+  revealjs:
+    slide-level: 2
+    incremental: true
+execute:
+  echo: false
+---
+
+# Observe a model
+
+## Make a prediction {#prediction}
+
+::: {.incremental}
+
+- Keep the seed
+- Change one input
+
+:::
+
+![Local brand](./assets/logo.svg)
+
+::: {.notes}
+
+PRIVATE QUARTO NOTES: Ask for a prediction before showing the outcome.
+
+:::
+
+## Read the code
+
+```{python}
+from pathlib import Path
+Path("SHOULD_NOT_EXIST").write_text("never execute this")
+```
+
+```text
+## This heading is code.
+---
+```

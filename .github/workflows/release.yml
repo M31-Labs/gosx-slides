@@ -8,7 +8,42 @@ permissions:
   contents: read
 
 jobs:
+  editor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+      - run: node --test editors/vscode/client.test.cjs
+      - name: Package VS Code companion
+        working-directory: editors/vscode
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: npx --yes @vscode/vsce@4.0.0 package --no-dependencies --out ../../gosx-slides-editor.vsix
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gosx-slides-editor
+          path: gosx-slides-editor.vsix
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - run: go build -o /tmp/slides ./cmd/slides
+      - run: /tmp/slides runtime pack . --out runtime
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portable-runtime
+          path: runtime/
   build:
+    needs: runtime
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -22,6 +57,10 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: portable-runtime
+          path: package/runtime
       - name: Build and package
         env:
           CGO_ENABLED: '0'
@@ -36,7 +75,7 @@ jobs:
           cp README.md LICENSE package/
           name="gosx-slides-$RELEASE_VERSION-$GOOS-$GOARCH"
           if [ "$GOOS" = windows ]; then
-            zip -j "artifacts/$name.zip" package/*
+            (cd package && zip -r "../artifacts/$name.zip" .)
           else
             tar -czf "artifacts/$name.tar.gz" -C package .
           fi
@@ -45,7 +84,7 @@ jobs:
           name: gosx-slides-${{ matrix.os }}-${{ matrix.arch }}
           path: artifacts/*
   publish:
-    needs: build
+    needs: [build, editor]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,5 +101,5 @@ jobs:
           RELEASE_REPO: ${{ github.repository }}
         run: |
           cd artifacts
-          sha256sum *.tar.gz *.zip > SHA256SUMS.txt
+          sha256sum *.tar.gz *.zip *.vsix > SHA256SUMS.txt
           gh release create "$RELEASE_VERSION" --repo "$RELEASE_REPO" --verify-tag --title "gosx-slides $RELEASE_VERSION" --generate-notes ./*

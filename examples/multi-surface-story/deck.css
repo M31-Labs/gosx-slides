@@ -1,0 +1,13 @@
+.story-intro{font-size:.9rem;opacity:.7;margin-top:-.5rem}
+main.deck[data-theme="neon"] > .slide{padding:2rem 3rem}
+main.deck[data-theme="neon"] > .slide h1{font-size:clamp(2rem,4.7vw,4rem)}
+main.deck .mdpp-container-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.4rem}
+.mdpp-container-story-surface{border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:.7rem;padding:.6rem;margin-bottom:.6rem}
+.mdpp-container-story-surface .mdpp-diagram{margin:0}
+main.deck .slide .mdpp-container-story-surface svg{max-height:16rem}
+main.deck .slide .mdpp-container-story-surface .slide-graphic{height:18rem;min-height:0}
+.mdpp-container-story-surface .diagram-description{font-size:.7rem}
+pre.code-block{font-size:.8rem}
+[data-story-id="takeaway"]{font-size:1rem}
+main.deck .surface-label{font:700 .75rem/1.2 system-ui;letter-spacing:.12em;color:var(--accent);margin:0 0 .5rem}
+@media(max-width:700px){main.deck .mdpp-container-columns{grid-template-columns:1fr}main.deck .slide .mdpp-container-story-surface .slide-graphic{height:15rem}main.deck .slide .mdpp-container-story-surface svg{max-height:10rem}}

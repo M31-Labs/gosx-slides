@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "name": "studio",
+  "version": "1.0.0",
+  "css": [
+    "studio.css",
+    "brand.css"
+  ]
+}

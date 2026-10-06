@@ -65,6 +65,8 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --ignore-scripts
+      - name: Verify VS Code companion protocol
+        run: node --test editors/vscode/client.test.cjs
       - name: Install narration export tools
         run: |
           sudo apt-get update
@@ -79,6 +81,10 @@ jobs:
           chmod +x chrome-capture
           echo "SLIDES_BROWSER=$capture_browser" >> "$GITHUB_ENV"
           echo "SLIDES_CHROME=$PWD/chrome-capture" >> "$GITHUB_ENV"
+      - name: Verify portable runtime without Go
+        run: |
+          ./slides runtime pack . --out portable-runtime
+          SLIDES_RUNTIME_DIR="$PWD/portable-runtime" node scripts/runtime-bundle-browser.cjs ./slides
       - run: node scripts/browser-ci.cjs ./slides
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

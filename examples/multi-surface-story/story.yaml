@@ -1,0 +1,49 @@
+version: 1
+beats:
+  - slide: pressure
+    cue: baseline
+    caption: At steady load, the API and worker keep pace.
+    durationMs: 0
+    surfaces:
+      runtime: {camera: {x: 0, y: 0, z: 12, fov: 50}}
+    hide: [takeaway]
+    expect:
+      visible: [map/api, runtime/api, load/api]
+      hidden: [takeaway]
+      labels: {map/api: API, runtime/api: API, load/api: API pressure}
+  - slide: pressure
+    cue: burst
+    caption: A burst arrives. The buffer protects the worker while API pressure rises.
+    durationMs: 1200
+    surfaces:
+      map:
+        focus: [api, buffer]
+        reveal: [browser, api, buffer]
+        trace: [browser, api, buffer]
+      runtime:
+        focus: [buffer]
+        reveal: [browser, api, buffer]
+        trace: [api, buffer]
+        camera: {x: 0, y: 0, z: 14, fov: 45}
+      load:
+        focus: [api]
+    code: {block: 0, lines: [1, 2]}
+    hide: [takeaway]
+    expect:
+      visible: [map/buffer, runtime/buffer, load/api]
+      hidden: [map/worker, runtime/worker, takeaway]
+  - slide: pressure
+    cue: recover
+    caption: The worker drains the buffer. Both pressure views return to steady load.
+    durationMs: 1200
+    surfaces:
+      map: {focus: [buffer, worker], trace: [buffer, worker]}
+      runtime:
+        focus: [buffer, worker]
+        trace: [buffer, worker]
+        camera: {x: 0, y: 0, z: 16, fov: 50}
+      load: {focus: [worker]}
+    code: {block: 0, lines: [3]}
+    show: [takeaway]
+    expect:
+      visible: [map/worker, runtime/worker, load/worker, takeaway]
