@@ -73,6 +73,8 @@ const { launchTestBrowser } = require('./test-browser.cjs');
       const before = await still.screenshot(); await page.waitForTimeout(500);
       assert.deepEqual(await still.screenshot(), before, 'speed zero must produce a stable still');
     }
+    const desktop = await dialog.boundingBox(), nextButton = await dialog.getByRole('button', { name: 'Choose where →', exact: true }).boundingBox();
+    assert.ok(desktop.y >= 0 && desktop.y + desktop.height <= 850 && nextButton.y >= 0 && nextButton.y + nextButton.height <= 850, 'desktop wizard and next action fit: ' + JSON.stringify({desktop,nextButton}));
     await page.screenshot({ path: 'browser-test-output/background-wizard-desktop.png' });
     assert.equal(fs.readFileSync(path.join(dir, 'parts/body.md'), 'utf8'), part, 'tuning leaves source untouched');
     await page.setViewportSize({ width: 320, height: 640 });
