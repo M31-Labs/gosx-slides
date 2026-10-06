@@ -49,7 +49,15 @@ func TestAdoptionCommandDiscoveryAndMigration(t *testing.T) {
 	dest := filepath.Join(root, "new")
 	output, err = adoptionCommandOutput(t, func() error { return migrateCommand([]string{source, "--from=marp", "--out=" + dest, "--json"}) })
 	var report slides.MarkdownMigrationReport
-	if err != nil || json.Unmarshal([]byte(output), &report) != nil || report.Slides != 1 || report.Destination != dest || len(report.Diagnostics) == 0 || strings.Contains(output, "PRIVATE CLI NOTE") {
+	if err != nil || json.Unmarshal([]byte(output), &report) != nil || report.Slides != 1 || len(report.Diagnostics) == 0 || strings.Contains(output, "PRIVATE CLI NOTE") {
 		t.Fatal("CLI migration/provenance", output, err)
+	}
+	// Publication pins the canonical parent. macOS /var aliases and Windows
+	// short names can differ from the requested spelling while identifying the
+	// same directory; still require the report to name the actual output.
+	reported, reportErr := os.Stat(report.Destination)
+	requested, requestErr := os.Stat(dest)
+	if reportErr != nil || requestErr != nil || !os.SameFile(reported, requested) {
+		t.Fatal("migration report points to a different destination", report.Destination, reportErr, requestErr)
 	}
 }
