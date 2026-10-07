@@ -35,12 +35,19 @@ func TestWebPageBrowser(t *testing.T) {
 			scriptRuns.Add(1)
 			return
 		}
+		// Full Chrome requests favicons after top-level capture navigation.
+		// Page-owned resources can carry their own referrer and arrive after
+		// navigation; only document requests measure frame privacy/lifetime.
+		if r.URL.Path != "/allows" && r.URL.Path != "/deny" && r.URL.Path != "/ancestors" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		requests.Add(1)
 		if slow.Load() {
 			time.Sleep(500 * time.Millisecond)
 		}
 		if r.Header.Get("Referer") != "" {
-			t.Error("iframe leaked referrer")
+			t.Errorf("document %s leaked referrer", r.URL.Path)
 		}
 		switch r.URL.Path {
 		case "/deny":
