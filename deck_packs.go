@@ -344,7 +344,7 @@ func (d *IslandDeck) resolveDeckComponents() error {
 	var problem error
 	localSources := map[string]string{}
 	bind := func(name, origin string) {
-		if name == "" || isGraphicsComponent(name) || name == reservedNotesTag {
+		if name == "" || isGraphicsComponent(name) || name == "WebPage" || name == reservedNotesTag {
 			return
 		}
 		if _, err := safeAuthorPath(d.Dir, name+".gsx"); err == nil {
@@ -395,7 +395,7 @@ func (d *IslandDeck) resolveDeckComponents() error {
 			}
 		}
 		for _, ref := range slide.Components {
-			if isGraphicsComponent(ref.Name) {
+			if isGraphicsComponent(ref.Name) || ref.Name == "WebPage" {
 				continue
 			}
 			rel := ref.Name + ".gsx"

@@ -800,6 +800,9 @@ func lowerChildrenGSX(n *mdpp.Node) string {
 // the raw mdpp-captured props string (already name={…}/name="…" shaped); it is
 // carried through verbatim so the island receives exactly the authored props.
 func componentTagGSX(name, props string) string {
+	if name == "WebPage" {
+		return "{" + webNamespace + ".Render(" + strconv.Quote(props) + ")}"
+	}
 	if isGraphicsComponent(name) {
 		return "{" + graphicsNamespace + ".Render(" + strconv.Quote(graphicsKey(name, props)) + ")}"
 	}

@@ -894,3 +894,95 @@ Browser developer checks use Node 24, `npm ci` and Playwright. CI runs the Go
 race detector and vet on Linux, Windows and macOS, the complete Chromium export
 suite, and shared navigation, WASM, reading, offline math, sessions and
 collaboration regressions in Firefox and WebKit.
+
+## Web page slides
+
+Use the built-in `<WebPage/>` component to visit an HTTPS page during a talk.
+It needs no `.gsx` file. List the exact hosts permitted to frame live content:
+
+```md
+---
+title: A web demo
+theme: paper
+web-allow: [example.com]
+---
+
+# Visit the page
+
+<WebPage src="https://example.com/" Title="Example page"/>
+```
+
+```sh
+slides web refresh my-deck
+slides serve my-deck
+slides export my-deck --format pdf --out talk.pdf
+slides build my-deck --refresh-web --out site
+```
+
+`web refresh` records every referenced page using Chrome (`SLIDES_CHROME` selects
+the executable). Build/export captures missing snapshots and reuses existing
+ones. `--refresh-web` explicitly replaces the recorded captures. Serving reads
+the assets without fetching snapshots; refresh before serving, then restart or
+reload with `--watch`/`--edit` to use updated metadata. Commit the PNGs and
+`public/webpages/manifest.json` with your deck. Repeated exports reuse identical
+pixels, dates, response policies and filenames.
+
+The sandbox starts empty. Add `Scripts={true}` only when the page needs scripts;
+add `SameOrigin={true}` only when it also needs its own origin's storage or APIs.
+`Popups={true}` permits sandboxed popups explicitly. Top navigation, downloads,
+form submission and popup escape remain blocked. No camera, microphone,
+fullscreen, autoplay or other device permission is granted. Frames use
+`referrerpolicy="no-referrer"` and `loading="lazy"`. Raw HTML iframes, scripts
+and forms still go through the sanitizer and remain blocked. Third-party
+headers are never stripped, and pages are never proxied into the deck origin.
+
+`web-allow` accepts YAML string lists, including block lists. Hosts match exactly:
+`example.com` covers its default HTTPS port, while `example.com:8443` permits
+that explicit port. It does not permit subdomains or wildcards. Non-HTTPS URLs,
+credentials and unknown component props fail deck loading. The HTTP CSP and
+matching HTML meta policy set `frame-src` to the sorted allowlist; no allowlist
+means `frame-src 'none'`. The deck's own host is excluded to keep page scripts
+out of the deck origin. Redirect destinations must also be allowlisted.
+
+The active audience slide mounts at most one frame. Other pages, speaker
+previews, overview and reading mode show snapshots. Leaving the slide or hiding
+the tab removes the frame. Reload, fit/100% zoom and scroll lock controls work
+in the audience and speaker views; speaker commands use presenter synchronization
+across browsers and devices. Scroll lock blocks pointer and keyboard interaction with the
+frame; cross-origin rules prevent controlling its internal scroll position.
+Open in new tab uses a separate tab without an opener or referrer.
+
+| Output | WebPage content |
+|---|---|
+| Live `serve` | Snapshot while loading; live frame for an allowed, frameable page |
+| SPA `build` / `export` | Local snapshot asset, no live frame; other islands stay live |
+| Single HTML / handout | Embedded PNG and URL/date caption |
+| PDF | Snapshot pixels and caption, including `--capture` / `--steps` |
+| PPTX / editable PPTX | Captured snapshot pixels; supported surrounding content can remain editable |
+| Frames / video | Snapshot pixels in every captured slide state |
+
+`offline-required: true` disables frames and sets `frame-src 'none'` even while
+serving. Its exports require recorded snapshots unless you explicitly request
+`--refresh-web`. Author-tool single/handout exports also require recorded assets
+and never launch Chrome. A disallowed host still supports a snapshot; the
+allowlist controls live framing, not explicitly requested capture.
+
+Each capture records its URL, final URL, UTC date, viewport, SHA-256, allowlist,
+`X-Frame-Options` and enforced CSP. Restrictive `frame-ancestors` policies and
+X-Frame-Options denial select the snapshot conservatively because the deck has
+no fixed deployment origin. Policies can change after capture; refresh before
+a talk. The strict host policy also blocks deck-origin frame previews such as
+the background editor's iframe wizard when a deck enables WebPage; author its
+scene settings directly instead. Browsers do not reliably expose cross-origin framing failures through
+iframe load/error events. Cookie consent, login, browser defenses and dynamic
+content can affect pixels; capture uses a fresh profile without your login.
+
+`Width={1280}` and `Height={720}` set the captured viewport and live fit size.
+Bounds are 320–1920 by 240–1080 pixels. `Scroll={true}` captures up to three
+viewports of the page instead of one; it does not promise a full-page archive.
+There are at most 64 pages/hosts per deck, 256 manifest entries, 16 MiB per PNG
+and 96 MiB of referenced snapshot assets. Failed refreshes retain the previous
+manifest. Older unreferenced images remain available for manual cleanup.
+
+See [the runnable web page example](examples/webpage/README.md). CI retains
+desktop, mobile, speaker and framing-denied screenshots in its browser artifacts.

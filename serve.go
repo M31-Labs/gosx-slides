@@ -98,6 +98,12 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	if d == nil {
 		return nil, fmt.Errorf("NewServer: nil deck")
 	}
+	if opts.Static && d.web != nil {
+		copyDeck, copyWeb := *d, *d.web
+		copyWeb.static = true
+		copyDeck.web = &copyWeb
+		d = &copyDeck
+	}
 	if d.Audience != "" && (opts.Edit || opts.Collaborate || opts.Dev) {
 		return nil, fmt.Errorf("audience selection cannot be combined with editing, collaboration or watch mode")
 	}
@@ -275,6 +281,11 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			rt.SetProgramAsset(name, "/gosx/islands/"+name+".json", "json", "")
 		}
 		ctx.SetMetadata(server.Metadata{Title: server.Title{Absolute: title}})
+		if renderDeck.web != nil {
+			csp := renderDeck.webCSP(strings.ToLower(ctx.Request.Host))
+			ctx.Header().Set("Content-Security-Policy", csp)
+			ctx.AddHead(gosx.RawHTML(`<meta http-equiv="Content-Security-Policy" content="` + html.EscapeString(csp) + `">`))
+		}
 		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static, !opts.Static || opts.IncludeNotes)
 		if opts.Collaborate && sourceRequestWriter(ctx.Request) {
 			return gosx.Fragment(body, teamAssets())
@@ -282,7 +293,10 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 		return body
 	})
 
-	if opts.StageRuntime {
+	// The native WebPage controller needs no GoSX bootstrap assets. A deck made
+	// only of prose and web pages remains portable without a Go module/toolchain.
+	nativeWebOnly := d.web != nil && len(compiled) == 0 && deckProgram != nil && len(deckProgram.graphics) == 0 && !deckProgram.motion && d.Simulations == nil
+	if opts.StageRuntime && !nativeWebOnly {
 		root, err := stageRuntimeAssets(d.Dir, opts.RebuildRuntime, len(compiled) > 0)
 		if err != nil {
 			return nil, fmt.Errorf("stage runtime assets: %w", err)
@@ -346,7 +360,10 @@ func ServeDeck(dir string, opts ServeOptions) error {
 type runtimeMounter struct {
 	rt       *server.PageRuntime
 	graphics map[string]deckGraphic
+	deck     *IslandDeck
 }
+
+func (m runtimeMounter) RenderWebPage(raw string) gosx.Node { return m.deck.renderWebPage(raw) }
 
 func (m runtimeMounter) RenderEngine(cfg engine.Config, fallback gosx.Node) gosx.Node {
 	return m.rt.Engine(cfg, fallback)
@@ -376,7 +393,7 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
 func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes bool) gosx.Node {
-	r := runtimeMounter{rt: ctx.Runtime()}
+	r := runtimeMounter{rt: ctx.Runtime(), deck: d}
 	if cd != nil {
 		r.graphics = cd.graphics
 		if cd.motion {
@@ -439,6 +456,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// AFTER the theme so the author's rules win the cascade at equal
 		// specificity. Inlined so exports carry it and dev refreshes pick up edits.
 		ctx.AddHead(gosx.RawHTML(`<style data-deck-css="true">` + custom + `</style>`))
+	}
+	if d.web != nil && len(d.web.pages) > 0 {
+		ctx.AddHead(gosx.RawHTML("<style>" + webPageStyle + "</style>"))
 	}
 	if style := conferenceStyle(conference); style != "" {
 		// The room contract applies after the theme and deck CSS. Normal flow can
@@ -515,6 +535,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+backgroundWizardScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
 		gosx.RawHTML(semanticStoryAssets(d)),
 		gosx.RawHTML(simulationAssets(d)),
+		webPageAssets(d),
 	)
 }
 
@@ -630,7 +651,7 @@ func (d *IslandDeck) compileComponents() (map[string]*compiledComponent, map[str
 	var failures map[string]error
 	for _, slide := range d.Slides {
 		for _, ref := range slide.Components {
-			if isGraphicsComponent(ref.Name) {
+			if isGraphicsComponent(ref.Name) || ref.Name == "WebPage" {
 				continue
 			}
 			if _, ok := compiled[ref.Name]; ok {

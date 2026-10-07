@@ -35,7 +35,7 @@ func (p *AuthorProject) ExportSnapshot(format string) (map[string]string, error)
 		return nil, fmt.Errorf("project cannot be parsed")
 	}
 	out := filepath.Join(deck.Dir, ".export")
-	if err := ExportStatic(deck.Dir, ExportOptions{Format: format, OutDir: out}); err != nil {
+	if err := ExportStatic(deck.Dir, ExportOptions{Format: format, OutDir: out, ReuseWebSnapshots: true}); err != nil {
 		return nil, err
 	}
 	root, err := os.OpenRoot(p.dir)

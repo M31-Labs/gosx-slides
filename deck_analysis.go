@@ -109,7 +109,7 @@ func slideComponentNames(slide IslandSlide) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, ref := range slide.Components {
-		if isGraphicsComponent(ref.Name) {
+		if isGraphicsComponent(ref.Name) || ref.Name == "WebPage" {
 			continue
 		}
 		if !seen[ref.Name] {

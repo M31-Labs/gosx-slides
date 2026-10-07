@@ -28,21 +28,23 @@ import (
 
 // ExportOptions configures a static export.
 type ExportOptions struct {
-	Audience     string  // optional named content variant
-	Format       string  // "spa" (default), "single", or "pdf"
-	Editable     bool    // native text and supported SVG objects in PPTX
-	Notes        bool    // publish speaker notes in SPA, handout or PPTX (explicit opt-in)
-	Narration    string  // deck-relative narration audio for video (short audio pads with silence)
-	Captions     string  // deck-relative authored WebVTT file for video
-	Capture      bool    // capture live graphics through Chrome for single/PDF
-	Steps        bool    // include every reveal/cue state in captured output
-	Seconds      float64 // video hold time per state (default 2)
-	FPS          int     // video sampling rate (default 15)
-	OutDir       string  // output directory (default "dist"); for pdf, may be a .pdf path
-	Aspect       string  // capture/PPTX aspect; defaults to deck aspect-ratio, then 16:9
-	Width        int     // custom CSS-pixel viewport, paired with Height (320–4096)
-	Height       int     // custom CSS-pixel viewport, paired with Width; at most 8MP
-	PPTXTemplate string  // optional PPTX from which only its theme is reused
+	Audience          string  // optional named content variant
+	Format            string  // "spa" (default), "single", or "pdf"
+	Editable          bool    // native text and supported SVG objects in PPTX
+	Notes             bool    // publish speaker notes in SPA, handout or PPTX (explicit opt-in)
+	Narration         string  // deck-relative narration audio for video (short audio pads with silence)
+	Captions          string  // deck-relative authored WebVTT file for video
+	Capture           bool    // capture live graphics through Chrome for single/PDF
+	Steps             bool    // include every reveal/cue state in captured output
+	Seconds           float64 // video hold time per state (default 2)
+	FPS               int     // video sampling rate (default 15)
+	OutDir            string  // output directory (default "dist"); for pdf, may be a .pdf path
+	Aspect            string  // capture/PPTX aspect; defaults to deck aspect-ratio, then 16:9
+	Width             int     // custom CSS-pixel viewport, paired with Height (320–4096)
+	Height            int     // custom CSS-pixel viewport, paired with Width; at most 8MP
+	PPTXTemplate      string  // optional PPTX from which only its theme is reused
+	RefreshWeb        bool    // refresh all referenced web snapshots before export
+	ReuseWebSnapshots bool    // author tools require pre-recorded assets and run no Chrome capture
 }
 
 // ExportStatic renders the real-lane deck at dir to a static bundle.
@@ -93,6 +95,9 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	}
 	if (opts.Capture || opts.Steps) && format == "handout" {
 		return fmt.Errorf("handout is a reading document; --capture and --steps require single, pdf, frames, video, or pptx")
+	}
+	if err := deck.captureWebSnapshots(opts.RefreshWeb, opts.ReuseWebSnapshots || (deckConferenceConfig(deck).OfflineRequired && !opts.RefreshWeb)); err != nil {
+		return err
 	}
 	if opts.Capture || opts.Steps || format == "frames" || format == "video" || format == "pptx" {
 		if format == "" || format == "spa" {

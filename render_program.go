@@ -98,7 +98,7 @@ func loadIslandDefs(deck *IslandDeck) map[string]islandDef {
 	defs := map[string]islandDef{}
 	for _, slide := range deck.Slides {
 		for _, ref := range slide.Components {
-			if isGraphicsComponent(ref.Name) {
+			if isGraphicsComponent(ref.Name) || ref.Name == "WebPage" {
 				continue
 			}
 			if _, ok := defs[ref.Name]; ok {
@@ -165,6 +165,7 @@ func renderProgramSlides(r islandMounter, deck *IslandDeck, cd *compiledDeck, co
 	deckVals := deckFrontmatterValues(deck)
 	funcs := exprFuncs(diagramTheme, deck.Dir)
 	funcs[graphicsNamespace] = map[string]any{"Render": func(key string) gosx.Node { return renderDeckGraphic(r, cd.graphics, key) }}
+	funcs[webNamespace] = map[string]any{"Render": deck.renderWebPage}
 
 	var nodes []gosx.Node
 	for _, slide := range deck.Slides {
@@ -211,7 +212,7 @@ func titleCase(s string) string {
 func exprFuncs(diagramTheme, deckDir string) map[string]any {
 	return map[string]any{
 		simulationNamespace: map[string]any{"Render": simulationMountNode},
-		mathNamespace: map[string]any{mathRenderFunc: mathNode},
+		mathNamespace:       map[string]any{mathRenderFunc: mathNode},
 		"strings": map[string]any{
 			"ToUpper":   strings.ToUpper,
 			"ToLower":   strings.ToLower,
