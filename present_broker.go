@@ -232,7 +232,7 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
   try {
     var es = new EventSource('presenter/events');
     es.addEventListener('state', function(e){
-      try { var d = JSON.parse(e.data); if (typeof d.index === 'number'){ cur = d.index; document.getElementById('cur').textContent = (cur+1); } } catch(_){}
+      try { var d = JSON.parse(e.data); if (!d.web && typeof d.index === 'number'){ cur = d.index; document.getElementById('cur').textContent = (cur+1); } } catch(_){}
     });
   } catch(_){}
 </script></body></html>`

@@ -259,6 +259,8 @@ func TestWebPageBrowser(t *testing.T) {
 		t.Fatal("speaker created a live frame", err)
 	}
 	speaker.close()
+	navigate(server.URL+"/remote", `window.__webTestSources.length===1 && document.getElementById('cur').textContent==='2'`)
+	eval(`(()=>{const data=JSON.stringify({index:0,web:{page:0,action:'reload',value:''}});window.__webTestSources[0].dispatchEvent(new MessageEvent('state',{data}));return document.getElementById('cur').textContent==='2';})()`)
 	// Every export uses recorded pixels, even when the page could frame live.
 	before = requests.Load()
 	if err := d.captureWebSnapshots(false, false); err != nil {
