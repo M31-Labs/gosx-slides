@@ -28,10 +28,11 @@ var netDialer = net.Dialer{Timeout: 10 * time.Second}
 // Chrome's local DevTools protocol keeps graphic capture pure Go. Neither Node
 // nor Playwright is required to export; they are only browser-test dependencies.
 type captureBrowser struct {
-	conn *websocket.Conn
-	id   int
-	cmd  *exec.Cmd
-	tmp  string
+	conn    *websocket.Conn
+	id      int
+	cmd     *exec.Cmd
+	tmp     string
+	onEvent func(string, json.RawMessage)
 }
 
 func findChrome() (string, error) {
@@ -55,7 +56,7 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 		return nil, err
 	}
 	b := &captureBrowser{tmp: tmp}
-	b.cmd = exec.CommandContext(ctx, chrome, "--headless=new", "--no-first-run", "--no-default-browser-check", "--enable-unsafe-swiftshader", "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=http://127.0.0.1", "--remote-debugging-port=0", "--user-data-dir="+tmp, "about:blank")
+	b.cmd = exec.CommandContext(ctx, chrome, "--headless=new", "--mute-audio", "--autoplay-policy=user-gesture-required", "--no-first-run", "--no-default-browser-check", "--enable-unsafe-swiftshader", "--remote-debugging-address=127.0.0.1", "--remote-allow-origins=http://127.0.0.1", "--remote-debugging-port=0", "--user-data-dir="+tmp, "about:blank")
 	var logs bytes.Buffer
 	b.cmd.Stderr = &logs
 	if err = b.cmd.Start(); err != nil {
@@ -109,10 +110,12 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 func (b *captureBrowser) close() {
 	if b.conn != nil {
 		b.conn.Close()
+		b.conn = nil
 	}
 	if b.cmd != nil && b.cmd.Process != nil {
 		b.cmd.Process.Kill()
 		b.cmd.Wait()
+		b.cmd = nil
 	}
 	if b.tmp != "" {
 		os.RemoveAll(b.tmp)
@@ -127,6 +130,8 @@ func (b *captureBrowser) call(method string, params any, out any) error {
 	for {
 		var response struct {
 			ID     int             `json:"id"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
 			Result json.RawMessage `json:"result"`
 			Error  *struct {
 				Message string `json:"message"`
@@ -136,6 +141,9 @@ func (b *captureBrowser) call(method string, params any, out any) error {
 			return err
 		}
 		if response.ID != b.id {
+			if b.onEvent != nil && response.Method != "" {
+				b.onEvent(response.Method, response.Params)
+			}
 			continue
 		}
 		if response.Error != nil {

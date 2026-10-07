@@ -86,6 +86,7 @@ directly also works (the parent directory is used).
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
 | `backgrounds [--json]` | List six bundled Selena background presets, defaults and copyable sources. |
 | `backgrounds source <preset>` | Print an editable standalone `.sel` shader. |
+| `web refresh [deck-dir]` | Capture all referenced HTTPS web pages with Chrome and record PNGs, dates, hashes and framing policies in `public/webpages/manifest.json`. Build/export captures missing images; `--refresh-web` refreshes all. |
 | `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
 | `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
 | `audiences [deck-dir] [--json]` | List declared or discovered audience names. `serve`, `build` and `export` accept `--audience name`; selected variants reject edit/collab/watch and links into omitted slides. |
@@ -571,6 +572,37 @@ receive a subtle tint. Both are themed via CSS custom properties and adapt to
 the active theme automatically.
 
 ### Components / islands
+
+`<WebPage src="https://example.com/" Title="Example page"/>` is a reserved,
+typed built-in component: it needs no `.gsx` file or WASM. Deck YAML
+`web-allow: [example.com]` permits exact HTTPS hosts (optional explicit ports,
+no wildcard/subdomain inheritance) in the CSP `frame-src` policy. No list means
+`frame-src 'none'`. Raw HTML iframe sanitization stays unchanged.
+
+WebPage's sandbox defaults to empty. `Scripts={true}`, `SameOrigin={true}` and
+`Popups={true}` opt into those capabilities separately; top navigation, forms,
+downloads, popup escape and device permissions remain blocked. The deck origin
+is excluded from framing. Frames are lazy and send no referrer. Only one frame
+on the active audience slide mounts; all speaker/next/overview/reading previews
+use its snapshot. Reload, fit/100% zoom and scroll lock synchronize through the
+presenter broker. The open-tab link uses `noopener noreferrer`.
+
+Run `slides web refresh my-deck` before serving to record snapshots; Chrome
+reads the remote page directly without proxying or stripping headers. The
+manifest records URL, final URL, date, viewport, hash, allowlist and framing
+headers. Disallowed hosts and restrictive X-Frame-Options/CSP ancestors use
+pixels. Every export format, including SPA, uses snapshots and publishes the
+URL/date caption. `offline-required: true` also disables served frames;
+offline/author-tool exports require existing captures unless an explicit CLI
+refresh is requested. Keep the PNGs and manifest with the deck.
+
+Viewport props `Width={1280}` / `Height={720}` accept 320–1920 / 240–1080 pixels.
+`Scroll={true}` captures up to three viewports. Limits: 64 pages/hosts,
+256 manifest entries, 16 MiB per PNG, 96 MiB of referenced pixels. Capture uses
+a fresh profile; authenticated pages and changed framing policies can need a
+new capture. See [README web page slides](README.md#web-page-slides) and
+`examples/webpage`. Browser tests use muted headless Chrome and local HTTPS
+fixtures, including framing denial; close all browser processes you open.
 
 A `<Name .../>` tag resolves to a sibling `Name.gsx`. That file defines a GoSX
 island:

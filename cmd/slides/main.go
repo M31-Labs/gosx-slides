@@ -30,6 +30,18 @@ func run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "web":
+		if len(args) < 2 || args[1] != "refresh" {
+			return fmt.Errorf("usage: slides web refresh [deck-dir]")
+		}
+		if len(args) > 3 {
+			return fmt.Errorf("usage: slides web refresh [deck-dir]")
+		}
+		if err := slides.RefreshWebSnapshots(deckDir(args[2:]), true); err != nil {
+			return err
+		}
+		fmt.Println("web snapshots refreshed")
+		return nil
 	case "backgrounds":
 		return backgroundsCommand(args[1:])
 	case "mcp":
@@ -347,7 +359,8 @@ func run(args []string) error {
 		}
 		return report.CheckBudget(budget)
 	case "build":
-		out, rest, err := takeStringFlag(args[1:], "out", "dist")
+		refreshWeb, buildArgs := takeBoolFlag(args[1:], "refresh-web")
+		out, rest, err := takeStringFlag(buildArgs, "out", "dist")
 		if err != nil {
 			return err
 		}
@@ -355,7 +368,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", Audience: audience, OutDir: out})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: "spa", Audience: audience, OutDir: out, RefreshWeb: refreshWeb})
 	case "import":
 		jsonOut, rest := takeBoolFlag(args[1:], "json")
 		out, rest, err := takeStringFlag(rest, "out", "imported-deck")
@@ -396,6 +409,7 @@ func run(args []string) error {
 			return err
 		}
 		capture, rest := takeBoolFlag(rest, "capture")
+		refreshWeb, rest := takeBoolFlag(rest, "refresh-web")
 		steps, rest := takeBoolFlag(rest, "steps")
 		editable, rest := takeBoolFlag(rest, "editable")
 		notes, rest := takeBoolFlag(rest, "notes")
@@ -439,7 +453,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps, RefreshWeb: refreshWeb})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
@@ -580,6 +594,7 @@ Commands:
   init <name> [--template catalog-name] [--theme aurora|paper|neon|swiss]
                                                         scaffold a portable deck you can serve immediately
   templates [--json]                                    discover curated local starter decks
+  web refresh [deck-dir]                               refresh recorded HTTPS page snapshots (needs Chrome)
   migrate <source.md> --from slidev|marp|quarto --out <fresh-dir> [--json]
                                                         import supported Markdown with a fidelity report
   mcp [deck-dir]                                        serve bounded project tools over stdio JSON-RPC
@@ -591,6 +606,7 @@ Commands:
                                                          (audience screens follow over SSE, across machines).
   bench [deck-dir] [--runs 3] [--budget file.json]         measure browser readiness, transfer, heap, DOM and frame intervals
   build [deck-dir] [--audience name] [--out dist]          static SPA: index.html + gosx/ assets; islands stay live
+    --refresh-web  Refresh all recorded web page snapshots before build/export
   export [deck-dir] --format spa|single|handout|pdf|frames|video|pptx [--out dist]
       [--audience name] [--aspect 16:9|4:3 | --width N --height N] [--template theme.pptx]
       [--narration audio.wav] [--captions authored.vtt]

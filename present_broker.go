@@ -26,10 +26,18 @@ import (
 // computes the next position (step-then-slide) and clamps against its own DOM, so
 // the server stays a dumb relay.
 type presenterState struct {
-	Index    int    `json:"index"`
-	Step     int    `json:"step"`
-	Source   string `json:"source,omitempty"`
-	Sequence uint64 `json:"sequence,omitempty"`
+	Index    int         `json:"index"`
+	Step     int         `json:"step"`
+	Source   string      `json:"source,omitempty"`
+	Sequence uint64      `json:"sequence,omitempty"`
+	Web      *webControl `json:"web,omitempty"`
+}
+
+// Absolute values keep repeated presenter delivery from toggling a control twice.
+type webControl struct {
+	Page   int    `json:"page"`
+	Action string `json:"action"`
+	Value  string `json:"value"`
 }
 
 // presenterBroker fans one published position out to every subscribed SSE client
@@ -79,7 +87,10 @@ func (b *presenterBroker) current() presenterState {
 // or on reconnect) rather than stalling the presenter.
 func (b *presenterBroker) publish(s presenterState) {
 	b.mu.Lock()
-	b.state = s
+	// A delayed page control must not replace the authoritative slide position.
+	if s.Web == nil {
+		b.state = s
+	}
 	for ch := range b.subs {
 		select {
 		case ch <- s:
@@ -157,6 +168,24 @@ func (b *presenterBroker) handleState(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "source exceeds 128 bytes", http.StatusBadRequest)
 		return
 	}
+	if s.Web != nil {
+		v := s.Web
+		valid := v.Page >= 0 && v.Page < 64 && s.Index >= 0
+		switch v.Action {
+		case "reload":
+			valid = valid && v.Value == ""
+		case "zoom":
+			valid = valid && (v.Value == "100" || v.Value == "fit")
+		case "lock":
+			valid = valid && (v.Value == "true" || v.Value == "false")
+		default:
+			valid = false
+		}
+		if !valid {
+			http.Error(w, "invalid web page control", http.StatusBadRequest)
+			return
+		}
+	}
 	b.publish(s)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -203,7 +232,7 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
   try {
     var es = new EventSource('presenter/events');
     es.addEventListener('state', function(e){
-      try { var d = JSON.parse(e.data); if (typeof d.index === 'number'){ cur = d.index; document.getElementById('cur').textContent = (cur+1); } } catch(_){}
+      try { var d = JSON.parse(e.data); if (!d.web && typeof d.index === 'number'){ cur = d.index; document.getElementById('cur').textContent = (cur+1); } } catch(_){}
     });
   } catch(_){}
 </script></body></html>`

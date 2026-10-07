@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "snapshots": {
+    "4b325d7de9a9b23375ca5f1fee32f90902488eab2246afee5221ef920d823dad": {
+      "url": "https://example.com/",
+      "finalURL": "https://example.com/",
+      "capturedAt": "2026-10-07T05:47:38.983296123Z",
+      "image": "web-6160b35cac1a17e3c5c778c3a8c8082e8a425c25a2182b189f493fef9e031770.png",
+      "sha256": "5b3aac2fba1c7f041fb6b7699725ebe71186c6f5ff3fc36a0380ff2f97ff24c2",
+      "width": 1280,
+      "height": 720,
+      "scroll": false,
+      "allowedHosts": [
+        "example.com"
+      ],
+      "framingBlocked": false
+    }
+  }
+}

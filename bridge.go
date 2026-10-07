@@ -98,6 +98,7 @@ type IslandDeck struct {
 
 	// Slides are the deck's slides with their component references.
 	Slides []IslandSlide
+	web    *deckWebPages
 }
 
 // LoadIslandDeck reads <dir>/deck.md, parses it with mdpp, splits it into slides
@@ -167,6 +168,9 @@ func parseIslandDeckAudience(dir string, src []byte, audience string) (*IslandDe
 		}
 	}
 	if err := deck.resolveDeckComponents(); err != nil {
+		return nil, err
+	}
+	if err := deck.loadWebPages(); err != nil {
 		return nil, err
 	}
 	if err := attachSemanticStory(deck); err != nil {

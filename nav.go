@@ -423,7 +423,8 @@ func navScript() string {
   var sequence = 0, pendingState = null, publishing = false;
   var seenSources = new Map();
   function acceptRemote(data) {
-    if (!data || typeof data.index !== 'number' || data.source === sourceID) return false;
+    // Page controls carry their target slide, but never navigate the deck.
+    if (!data || data.web || typeof data.index !== 'number' || data.source === sourceID) return false;
     if (data.source && typeof data.sequence === 'number') {
       if (data.sequence <= (seenSources.get(data.source) || 0)) return false;
       seenSources.set(data.source, data.sequence);
