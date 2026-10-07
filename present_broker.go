@@ -87,7 +87,10 @@ func (b *presenterBroker) current() presenterState {
 // or on reconnect) rather than stalling the presenter.
 func (b *presenterBroker) publish(s presenterState) {
 	b.mu.Lock()
-	b.state = s
+	// A delayed page control must not replace the authoritative slide position.
+	if s.Web == nil {
+		b.state = s
+	}
 	for ch := range b.subs {
 		select {
 		case ch <- s:

@@ -206,6 +206,24 @@ func TestWebPageAssetPathsAndPresenterControls(t *testing.T) {
 	}
 }
 
+func TestWebPageControlPreservesPresenterPosition(t *testing.T) {
+	b := newPresenterBroker()
+	position := presenterState{Index: 2, Step: 1, Source: "navigation", Sequence: 3}
+	b.publish(position)
+	listener := b.subscribe()
+	defer b.unsubscribe(listener)
+	control := presenterState{Index: 0, Source: "page-controls", Sequence: 1, Web: &webControl{Page: 0, Action: "reload"}}
+	b.publish(control)
+	if delivered := <-listener; delivered.Web == nil || delivered.Index != 0 {
+		t.Fatalf("control was not relayed: %+v", delivered)
+	}
+	late, replay := b.subscribeSnapshot()
+	defer b.unsubscribe(late)
+	if replay != position || b.current() != position {
+		t.Fatalf("delayed control changed the current/replayed slide: %+v", replay)
+	}
+}
+
 func TestWebPageRawIframeStillDropped(t *testing.T) {
 	d := loadDeckFromSource(t, "# Raw\n\n<iframe src=\"https://example.com\">IFRAME_SECRET</iframe>\n\n<script>SCRIPT_SECRET</script>\n\n<form>FORM_SECRET</form>\n", nil)
 	body := renderSlidesHTML(t, d)

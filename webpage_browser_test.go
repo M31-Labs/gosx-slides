@@ -129,6 +129,11 @@ func TestWebPageBrowser(t *testing.T) {
 	if err := b.call("Network.setBlockedURLs", map[string]any{"urls": []string{"*fonts.googleapis.com*", "*fonts.gstatic.com*"}}, nil); err != nil {
 		t.Fatal(err)
 	}
+	// Retain the real streams so a delayed control can be dispatched directly
+	// into their handlers, independently of network timing.
+	if err := b.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": `window.__webTestSources=[];window.EventSource=class extends EventSource{constructor(...args){super(...args);window.__webTestSources.push(this);}};`}, nil); err != nil {
+		t.Fatal(err)
+	}
 	navigate := func(target, ready string) {
 		t.Helper()
 		if err := b.call("Page.navigate", map[string]any{"url": target}, nil); err != nil {
@@ -192,6 +197,7 @@ func TestWebPageBrowser(t *testing.T) {
 	eval(`(()=>{document.querySelector('[data-web-action="zoom"]').click();return true;})()`)
 	save("live-desktop")
 	eval(`(()=>{SlidesNav.show(1,0,false);return document.querySelectorAll('iframe').length===0 && !!document.querySelector('.deck-active .webpage-snapshot');})()`)
+	eval(`(()=>{const data=JSON.stringify({index:0,step:0,source:'delayed-web-control',sequence:1,web:{page:0,action:'reload',value:''}});window.__webTestSources.forEach(stream=>stream.dispatchEvent(new MessageEvent('state',{data})));return SlidesNav.current()===2 && document.querySelectorAll('iframe').length===0;})()`)
 	save("framing-denied")
 	before = requests.Load()
 	navigate(server.URL+"?present#1", `!!window.SlidesNav && SlidesNav.isPresenter() && !!document.querySelector('.pv-current .webpage-snapshot')`)
