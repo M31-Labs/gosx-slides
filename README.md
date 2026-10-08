@@ -26,6 +26,10 @@ Download your platform's archive from the
 Keep the executable and its `runtime/` directory together. Ordinary serving and
 live web exports then need neither Go nor Node.
 
+The [first-deck walkthrough](docs/getting-started.md) covers archive selection,
+Windows/macOS/Linux PATH setup, editing, cues and sharing. If a command fails,
+start with [troubleshooting and export choices](docs/troubleshooting.md).
+
 ```sh
 slides templates
 slides init my-talk --template technical-talk
@@ -44,6 +48,14 @@ To build from source, install Go 1.26 or newer:
 git clone https://github.com/M31-Labs/gosx-slides.git
 cd gosx-slides
 go install ./cmd/slides
+go env GOBIN GOPATH
+```
+
+Go installs into `GOBIN` when set, otherwise `GOPATH`'s `bin` directory. Use
+`go env GOBIN GOPATH` to find it, add it to PATH, then check `slides version`.
+
+```sh
+slides version
 slides serve examples/effects-cookbook --edit
 ```
 
@@ -142,6 +154,8 @@ export with `--notes`.
 
 | Want to… | Start here |
 |---|---|
+| Install, create a deck and make your first reveal | [First-deck walkthrough](docs/getting-started.md) |
+| Fix setup, editing or capture; choose an export format | [Troubleshooting and export choices](docs/troubleshooting.md) |
 | Try a complete talk or download a PDF | [Example gallery](docs/examples.md) |
 | Design backgrounds and vary motion effects | [Shader and motion cookbook](docs/shaders-and-motion.md) |
 | Edit a multi-file project or use local agent tools | [Project authoring and VS Code](docs/project-authoring.md) |
