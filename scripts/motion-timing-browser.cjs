@@ -95,6 +95,14 @@ const assert = require('node:assert/strict');
       assert.equal(await page.locator('[data-slides-motion-cue="other"]').evaluate(el => getComputedStyle(el).opacity), '0', 'the current cue still obeys its own playhead');
     }
     await page.evaluate(() => SlidesNav.show(0, 1, true));
+    await follower.evaluate(el => { el.dataset.slidesMotionReplay = 'once'; });
+    await steppedSplit.evaluate(el => { el.dataset.slidesMotionReplay = 'once'; });
+    await page.evaluate(() => { SlidesMotion.replay(); SlidesMotion.seek(0); });
+    await page.waitForFunction(() => document.querySelectorAll('[data-slides-motion-step="1"] .gosx-motion-unit').length === 3);
+    await page.evaluate(async () => { SlidesNav.show(0, 2, true); SlidesMotion.seek(0); await SlidesMotion.settled(); });
+    assert.equal(await follower.evaluate(el => getComputedStyle(el).opacity), '1', 'once-only rich entrance finishes on fast advance');
+    assert.deepEqual(await steppedSplit.locator('.gosx-motion-unit').evaluateAll(els => els.map(el => getComputedStyle(el).opacity)), ['1','1','1'], 'once-only split entrance finishes on fast advance');
+    await page.evaluate(() => SlidesNav.show(0, 1, true));
     // A long forward chain used to depend on recursive traversal and repeated
     // linear cue scans. Verify its actual WAAPI delay without a stack overflow.
     const measured = await page.evaluate(() => {

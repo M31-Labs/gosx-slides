@@ -208,6 +208,8 @@
     if (el?.dataset.slidesMotionStep) {
       const start = Number(el.dataset.slidesMotionStep), step = SlidesNav.step();
       if (start !== step && !(includeEarlier && start < step)) return false;
+      // A once-only entrance still has to finish when its cue becomes history.
+      if (includeEarlier && start < step) return true;
     }
     return !(el?.dataset.slidesMotionReplay === 'once' && segments.has(a) && segments.get(a) !== segment);
   }); }
