@@ -11,4 +11,5 @@ main.deck .slide-footer { font: 500 .65rem/1.4 var(--font-mono); letter-spacing:
   main.deck > .slide { padding: 1.5rem 1.25rem 4rem; }
   main.deck .recipe-note { font-size: .72rem; }
   main.deck .slide-graphic { height: 28vh; }
+  main.deck .slide-footer { display: none; }
 }

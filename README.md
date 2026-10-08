@@ -161,11 +161,13 @@ claiming lossless conversion. Stateful simulations need explicit replay state.
 go test ./...
 go vet ./...
 npm ci --ignore-scripts
+npx playwright install chromium
 npm test
 ```
 
 Browser/export checks require Chrome and ffmpeg/ffprobe; Playwright is a test
-dependency, not an authoring requirement. CI also runs Go race tests on Linux,
+dependency, not an authoring requirement. Use `SLIDES_BROWSER` to select an
+existing Chrome executable for Playwright. CI also runs Go race tests on Linux,
 macOS and Windows, plus Firefox/WebKit browser checks. See
 [regenerating the gallery](docs/examples.md#maintaining-the-gallery) for one
 command to refresh the published PDFs, screenshots and source hashes.
