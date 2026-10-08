@@ -38,6 +38,11 @@ server-side; `<Component/>` tags hydrate as live islands.
 
 ## 30-second quickstart
 
+For installation, PATH setup and a complete first-deck exercise, use
+`docs/getting-started.md`. `docs/troubleshooting.md` maps common symptoms to
+recovery steps and compares export formats. Keep generated starter READMEs
+and CLI quickstart help consistent with those author workflows.
+
 ```bash
 go build -o /tmp/slides ./cmd/slides
 /tmp/slides serve examples/showcase --port 8080

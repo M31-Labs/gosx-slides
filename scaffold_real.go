@@ -31,7 +31,7 @@ import (
 //     so the scaffold requires the SAME gosx the `slides` binary was built against.
 //   - .gitignore — ignores build/ (the staged ~30MB GOOS=js wasm + island JSON)
 //     and *.test, so a scaffolded deck is clean to commit.
-//   - README — a one-liner pointing at `slides serve <name>`.
+//   - README — local editing, presentation, export and troubleshooting guidance.
 //
 // Authoring invariants the template MUST honor (they are the real lane's
 // contract, and getting them wrong silently degrades the deck):
@@ -108,7 +108,7 @@ func ScaffoldRealLane(name string, opts ScaffoldRealOptions) error {
 		return err
 	}
 
-	if err := os.WriteFile(filepath.Join(name, "README"), []byte(realLaneReadme(name)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(name, "README"), []byte(realLaneReadme()), 0o644); err != nil {
 		return err
 	}
 	return nil
@@ -252,9 +252,45 @@ func realLaneDeck(theme string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// realLaneReadme is the generated README pointing at the serve command.
-func realLaneReadme(name string) string {
-	return fmt.Sprintf("Real-lane gosx-slides deck.\n\nRun it:\n\n    slides serve %s\n\nThen open the printed URL. Release archives include a verified runtime/ beside\nthe CLI, so ordinary serving needs no Go toolchain or dependency download. Keep\nthat directory beside the executable, or set SLIDES_RUNTIME_DIR to it.\n\nSource installations build the runtime into build/ (cached, gitignored) with Go.\nThe deck's go.mod pins its GoSX dependency for that development path.\nEdit deck.md or Counter.gsx and use `slides serve --watch %s` for hot reload;\n--watch and --rebuild require Go.\n", name, name)
+// realLaneReadme uses deck-relative commands so the instructions survive moves.
+func realLaneReadme() string {
+	return `Your GoSX Slides deck
+
+Open a terminal in this deck directory, then run:
+
+    slides serve . --edit
+
+Open the printed URL. Keep the terminal running; Ctrl+C stops the server.
+Press E to edit deck.md or Counter.gsx, M for the motion studio, and choose
+Backgrounds to tune a shader. Save before reloading the browser: reload discards
+unsaved drafts. P opens presenter view, O opens overview, and ? lists shortcuts.
+
+Edit deck.md for slide content and speaker notes. Counter.gsx is the live
+component example. Keep go.mod with the deck when moving or sharing its source.
+The generated build/ directory is cached and ignored by Git.
+
+Check and share from another terminal in this directory:
+
+    slides doctor .
+    slides validate .
+    slides build . --out dist
+    slides export . --format pdf --capture --steps --out talk.pdf
+
+Publish the whole dist/ folder through HTTP for live interaction. PDF capture
+needs Chrome or Chromium (SLIDES_CHROME selects its executable). --steps includes
+every click state as a still. Speaker notes stay private unless explicitly
+included in a supported export with --notes. Inspect exports before sharing.
+
+Release archives include a verified runtime/ beside the CLI. Keep them together,
+or set SLIDES_RUNTIME_DIR to that matching bundle. Ordinary serving and web
+export then need no Go or Node. Source installations build and cache the runtime
+with Go. Use slides serve . --watch for edits in an external editor; --watch and
+--rebuild require Go and are separate from browser editing with --edit.
+
+First deck: https://github.com/M31-Labs/gosx-slides/blob/main/docs/getting-started.md
+Help: https://github.com/M31-Labs/gosx-slides/blob/main/docs/troubleshooting.md
+Effects: https://github.com/M31-Labs/gosx-slides/blob/main/docs/shaders-and-motion.md
+`
 }
 
 // fallbackGoSXVersion pins the gosx version the scaffold requires when the running

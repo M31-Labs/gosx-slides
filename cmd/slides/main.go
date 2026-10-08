@@ -15,7 +15,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.11.0-dev"
+var version = "v0.11.1-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -587,8 +587,22 @@ func addr(port int) string {
 
 func usage() {
 	fmt.Println(strings.TrimSpace(`
-slides is the gosx-slides command. One lane: a deck is a directory with deck.md +
-<Name>.gsx islands, compiled to live GoSX and served (or exported static).
+slides builds presentations from Markdown, with live GoSX components and graphics.
+A deck is a directory containing deck.md and any components or assets it uses.
+
+Start a presentation:
+  slides init my-talk --template technical-talk
+  slides serve my-talk --edit
+
+Check and share:
+  slides doctor my-talk
+  slides build my-talk --out talk-web
+  slides export my-talk --format pdf --capture --steps --out talk.pdf
+
+Release archives: keep runtime/ beside the executable; ordinary use needs no Go
+or Node. PDF/PowerPoint capture needs Chrome; set SLIDES_CHROME if needed.
+Guide: https://github.com/M31-Labs/gosx-slides/blob/main/docs/getting-started.md
+Help:  https://github.com/M31-Labs/gosx-slides/blob/main/docs/troubleshooting.md
 
 Commands:
   init <name> [--template catalog-name] [--theme aurora|paper|neon|swiss]
@@ -601,7 +615,8 @@ Commands:
   serve [deck-dir] [--audience name] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]
       [--editor-token-file file] [--audience-token-file file] [--session-secret-file file]
       [--tls-cert file --tls-key file | --session-http]   serve a local or authenticated shared deck
-                                                         (.gsx swaps in place, deck.md reloads); --rebuild = fresh runtime.wasm.
+                                                         --edit enables browser editing; --watch watches external edits (needs Go).
+                                                         --rebuild regenerates runtime.wasm with Go.
                                                          Presenter: open with ?present or the 'p' key; phone remote at /remote
                                                          (audience screens follow over SSE, across machines).
   bench [deck-dir] [--runs 3] [--budget file.json]         measure browser readiness, transfer, heap, DOM and frame intervals
