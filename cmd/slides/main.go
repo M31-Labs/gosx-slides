@@ -15,7 +15,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.10.0-dev"
+var version = "v0.11.0-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -625,6 +625,8 @@ Commands:
   themes [--json]                                        themes selectable via deck headmatter "theme: <name>"
   backgrounds [--json]                                  six bundled Selena background presets
   backgrounds source <preset>                           print a copyable, standalone .sel source
+    --ink #rrggbb --glow #rrggbb --speed 0..2 --strength 0..1 --scale 0.5..4
+                                                         bake chosen settings into the shader
   runtime pack [deck-dir] --out <fresh-dir> [--json]       package a version-matched portable browser runtime
   tour history <history.yaml> [--repo local-repo] [--curation file] [--out fresh-dir] [--json]
                                        create a curated revision tour

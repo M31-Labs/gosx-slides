@@ -1,6 +1,7 @@
 ---
 title: Selena background gallery
 theme: aurora
+offline-required: true
 scene: shader:aurora
 footer: SELENA · BACKGROUND GALLERY
 ---

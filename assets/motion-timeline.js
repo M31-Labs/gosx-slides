@@ -202,10 +202,15 @@
     }
     return starts;
   }
-  function animations() { return active().getAnimations({ subtree: true }).filter(a => {
+  function animations(includeEarlier = false) { return active().getAnimations({ subtree: true }).filter(a => {
     if (!a.effect) return false;
     const el = a.effect.target?.closest('[data-slides-motion-replay]');
-    if (el?.dataset.slidesMotionStep && Number(el.dataset.slidesMotionStep) !== SlidesNav.step()) return false;
+    if (el?.dataset.slidesMotionStep) {
+      const start = Number(el.dataset.slidesMotionStep), step = SlidesNav.step();
+      if (start !== step && !(includeEarlier && start < step)) return false;
+      // A once-only entrance still has to finish when its cue becomes history.
+      if (includeEarlier && start < step) return true;
+    }
     return !(el?.dataset.slidesMotionReplay === 'once' && segments.has(a) && segments.get(a) !== segment);
   }); }
   function graphicsPause(value) {
@@ -243,14 +248,19 @@
     window.SlidesDiagramMotion?.seek(time);
     window.SlidesGraphicsMotion?.seek(time);
     window.SlidesStory?.seek(time);
-    animations().forEach(a => {
-      a.pause(); a.currentTime = time;
+    animations(true).forEach(a => {
       const el = a.effect.target?.closest('[data-slides-motion-replay]');
-      if (el && records.get(el) === a) { const state = time >= Number(a.effect.getComputedTiming().endTime) ? 'finished' : 'running'; if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state; }
+      const end = Number(a.effect.getComputedTiming().endTime);
+      // Past cues are absolute completed poses. Their paused entrances must not
+      // remain at zero when deep-linking or advancing before an entrance ends.
+      const earlier = el?.hasAttribute('data-slides-motion-step') && Number(el.dataset.slidesMotionStep) < SlidesNav.step();
+      a.pause(); a.currentTime = earlier && Number.isFinite(end) ? end : time;
+      if (el && records.get(el) === a) { const state = a.currentTime >= end ? 'finished' : 'running'; if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state; }
     });
     items().forEach(el => {
       const list = unitRecords.get(el); if (!list?.length) return;
-      const state = time >= Number(list[list.length-1].effect.getComputedTiming().endTime) ? 'finished' : 'running';
+      const earlier = el.hasAttribute('data-slides-motion-step') && Number(el.dataset.slidesMotionStep) < SlidesNav.step();
+      const state = earlier || time >= Number(list[list.length-1].effect.getComputedTiming().endTime) ? 'finished' : 'running';
       if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state;
     });
     nativeMounts().forEach(mount => {

@@ -200,6 +200,10 @@ const captureReady = `async function waitFor(test) {
  while (!test()) { if (Date.now() > deadline) throw new Error('Slide runtime or graphic did not become ready'); await new Promise(r => setTimeout(r, 50)); }
 }`
 
+// Adopt ordinary native split text before measuring a still's end pose, so its
+// complete stagger becomes seekable through the shared motion transport.
+const captureStillPose = `(async()=>{if(window.SlidesMotion){SlidesMotion.replay();await SlidesMotion.settled();SlidesMotion.seek(SlidesMotion.duration());await SlidesMotion.settled();}return true;})()`
+
 // Capture exports use the same served runtime, including shaders and Scene3D.
 // Every selected state is visited and checked before pixels are read.
 func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
@@ -358,7 +362,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				}
 				continue
 			}
-			if err = browser.eval(`(async()=>{if(window.SlidesMotion){SlidesMotion.seek(SlidesMotion.duration());await SlidesMotion.settled();}return true;})()`, nil); err != nil {
+			if err = browser.eval(captureStillPose, nil); err != nil {
 				return err
 			}
 			var editableObjects []pptxObject

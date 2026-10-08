@@ -1,0 +1,16 @@
+// UV coordinates describe the surface; time is the shared motion clock.
+material Ribbons {
+    param ink : color = rgb(0.031373, 0.070588, 0.121569)
+    param glow : color = rgb(0.317647, 0.839216, 0.690196)
+    param speed : float = 0.12
+    param strength : float = 0.35
+    param scale : float = 1.0
+    context { time : float }
+    surface(geo) -> color {
+        let coord = geo.uv * scale
+        let drift = time * speed
+        let wave = sin(coord.x * 10.0 + sin(coord.y * 4.0 + drift) * 2.0 + drift) * 0.5 + 0.5
+        let ribbon = pow(wave, 5.0)
+        return mix(ink, glow, clamp(ribbon * strength, 0.0, 1.0))
+    }
+}

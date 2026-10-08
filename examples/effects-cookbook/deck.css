@@ -1,0 +1,15 @@
+main.deck[data-theme="aurora"] { --accent: #66e7bc; --bg: #08121f; --surface: #101c29; }
+main.deck > .slide { padding: clamp(1.5rem, 5vw, 4rem) clamp(1.5rem, 7vw, 6rem) 4rem; }
+main.deck .eyebrow { font: 600 .72rem/1.4 var(--font-mono); letter-spacing: .16em; color: var(--accent); }
+main.deck h1 { font-size: clamp(2.2rem, 5.6vw, 5rem); line-height: 1.06; letter-spacing: -.045em; margin: .9rem 0 1.4rem; }
+main.deck h2 { font-size: clamp(1.5rem, 3vw, 2.6rem); }
+main.deck .recipe-note { font: 400 .8rem/1.7 var(--font-mono); color: #a8bbcc; margin-top: 2rem; }
+main.deck .slide-graphic { height: 36vh; min-height: 150px; border-radius: 16px; background: #0b1725; border: 1px solid #ffffff18; }
+main.deck .material h1 { font-size: clamp(2rem, 4vw, 3.5rem); }
+main.deck .slide-footer { font: 500 .65rem/1.4 var(--font-mono); letter-spacing: .12em; color: #a8bbcc; }
+@media (max-width: 600px) {
+  main.deck > .slide { padding: 1.5rem 1.25rem 4rem; }
+  main.deck .recipe-note { font-size: .72rem; }
+  main.deck .slide-graphic { height: 28vh; }
+  main.deck .slide-footer { display: none; }
+}

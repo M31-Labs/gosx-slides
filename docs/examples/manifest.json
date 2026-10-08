@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "cli": "gosx-slides v0.11.0-dev",
+  "binarySHA256": "b2bdebaa5c13f2ac9c1aaa1c7dade029aeb78d6486d44175d466c608593612d7",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "flags": [
+    "--capture",
+    "--steps"
+  ],
+  "decks": [
+    {
+      "name": "effects-cookbook",
+      "preview": "slide-001-step-000.png",
+      "pages": 7,
+      "sources": {
+        "examples/effects-cookbook/deck.css": "5edc307d003d2f5aa06e9c305baa7284a83a27b045abe7a94fc0f93757b1c78c",
+        "examples/effects-cookbook/deck.md": "99a9d02e78a5c3e7d342df5e3b6b0535f6a9fa46f903db4612dfbfed21d4ff65",
+        "examples/effects-cookbook/shaders/ribbons.sel": "596ab4ce82cf75d3f04b7aa3f61f54fd1b5a39762f9640b79c066bc5af3c9a55",
+        "examples/effects-cookbook/shaders/shape.json": "ad679450f55affc9cf395afb5e3f9203322ac5329ef455f9f81b34e588764452"
+      },
+      "outputs": {
+        "effects-cookbook.pdf": {
+          "bytes": 718312,
+          "sha256": "1fd8c9ba92342ea588a0075d4c169bffb7f668afb2337d574b1d63e3b3450e26"
+        },
+        "effects-cookbook.png": {
+          "bytes": 175718,
+          "sha256": "4df23dabd544260f9487cd8d6d34bcd6dbd14a14086204a24649861d6a78c100"
+        }
+      }
+    },
+    {
+      "name": "background-gallery",
+      "preview": "slide-001-step-000.png",
+      "pages": 6,
+      "sources": {
+        "examples/background-gallery/deck.md": "931b63b8d7a3e498a028b2a9291fe028ae4398617c8735d1a16063e1076e3145"
+      },
+      "outputs": {
+        "background-gallery.pdf": {
+          "bytes": 607877,
+          "sha256": "d6a794e70c4b9042f5b416580e24fa95a37713b6672731a482b9b85d044e1b55"
+        },
+        "background-gallery.png": {
+          "bytes": 140952,
+          "sha256": "9d531d6ffd59912fa5f984be30b5810daf7a290b706b8969711a7c7a68e0907e"
+        }
+      }
+    },
+    {
+      "name": "request-recovery",
+      "preview": "slide-002-step-001.png",
+      "pages": 5,
+      "sources": {
+        "examples/request-recovery/deck.css": "a4a43deca346cad63666cd888de719fc346e0a519261f0ac88755dd01cb66511",
+        "examples/request-recovery/deck.md": "a6704ae8ab89ae17ab7dbbd3db2b3746ee09ff0f15f1f1a5e38ca0e7f0d90afb",
+        "examples/request-recovery/material.sel": "0a3f67ba8a9c4c262897ed04d07e616616eb648797da2f03aef6a1e35d0d6ab9",
+        "examples/request-recovery/request.scene.json": "ab70ff22cafe63fb1febc03e6a99965b51276b92a94d14167328519af49853aa",
+        "examples/request-recovery/request.sir": "b976c5338185a4a5c3fc9d5a2c8f6dd8eb9612fe85217b0926205e5f6b90887c",
+        "examples/request-recovery/steps.json": "effdc9576d6bbf047cd46b47388cbac1f003f4405570e186389190efa2bca601"
+      },
+      "outputs": {
+        "request-recovery.pdf": {
+          "bytes": 484541,
+          "sha256": "c929ce71dd662ed606062416c37d32837f175d6543eb69472db2258bfdf47de1"
+        },
+        "request-recovery.png": {
+          "bytes": 132034,
+          "sha256": "35cc67ab85d3ed6dfee6a46efe8117ae0cab2d8fc9c36ea23b99cea09e47fcab"
+        }
+      }
+    }
+  ]
+}
