@@ -52,9 +52,41 @@ function check() {
   console.log('Gallery sources and all six published assets match their SHA-256 manifest.');
 }
 
+function publishGallery(destination, files, manifest, verify = () => {}, io = fs) {
+  // Stage beside the destination so renames stay on the same filesystem.
+  // Keep a complete prior directory until the new gallery passes validation.
+  const work = io.mkdtempSync(path.join(path.dirname(destination), '.gallery-publish-'));
+  const next = path.join(work, 'next'), previous = path.join(work, 'previous');
+  let saved = false, installed = false, retainBackup = false;
+  try {
+    if (io.existsSync(destination)) io.cpSync(destination, next, { recursive: true });
+    else io.mkdirSync(next);
+    for (const [name, source] of Object.entries(files)) io.copyFileSync(source, path.join(next, name));
+    io.writeFileSync(path.join(next, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+    if (io.existsSync(destination)) {
+      io.renameSync(destination, previous);
+      saved = true;
+    }
+    io.renameSync(next, destination);
+    installed = true;
+    verify();
+  } catch (error) {
+    try {
+      if (installed) io.rmSync(destination, { recursive: true, force: true });
+      if (saved) io.renameSync(previous, destination);
+    } catch (rollbackError) {
+      retainBackup = true;
+      throw new AggregateError([error, rollbackError], `Gallery rollback failed; retained recovery files at ${work}: ${rollbackError.message} (original error: ${error.message})`);
+    }
+    throw error;
+  } finally {
+    if (!retainBackup) io.rmSync(work, { recursive: true, force: true });
+  }
+}
+
 function generate(binary) {
-  fs.mkdirSync(output, { recursive: true });
-  const temp = fs.mkdtempSync(path.join(output, '.capture-'));
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  const temp = fs.mkdtempSync(path.join(path.dirname(output), '.capture-'));
   try {
     const manifest = { schema: 1, cli: run(binary, ['version']), binarySHA256: hash(binary), viewport: { width: 1280, height: 720 }, flags: ['--capture', '--steps'], decks: [] };
     for (const entry of catalog) {
@@ -73,24 +105,29 @@ function generate(binary) {
       for (const ext of ['pdf', 'png']) outputs[`${entry.name}.${ext}`] = fingerprint(path.join(temp, `${entry.name}.${ext}`));
       manifest.decks.push({ ...entry, sources: before, outputs });
     }
-    // Publish only after all decks captured successfully; failed captures leave
-    // the previous gallery intact. Write the manifest last for integrity checks.
+    // Capture and copy failures leave the old gallery untouched. A failed
+    // directory replacement or validation restores the complete previous set.
+    const files = {};
     for (const deck of catalog) for (const ext of ['pdf', 'png']) {
-      fs.copyFileSync(path.join(temp, `${deck.name}.${ext}`), path.join(output, `${deck.name}.${ext}`));
+      const name = `${deck.name}.${ext}`;
+      files[name] = path.join(temp, name);
     }
-    fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-    check();
+    publishGallery(output, files, manifest, check);
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
 }
 
-try {
-  const args = process.argv.slice(2);
-  if (args.length > 1 || args[0]?.startsWith('--') && args[0] !== '--check') throw Error('Usage: node scripts/export-examples.cjs [./slides | --check]');
-  if (args[0] === '--check') check();
-  else generate(path.resolve(args[0] || './slides'));
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    const args = process.argv.slice(2);
+    if (args.length > 1 || args[0]?.startsWith('--') && args[0] !== '--check') throw Error('Usage: node scripts/export-examples.cjs [./slides | --check]');
+    if (args[0] === '--check') check();
+    else generate(path.resolve(args[0] || './slides'));
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { publishGallery };

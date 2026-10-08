@@ -106,7 +106,11 @@ node scripts/export-examples.cjs --check
 
 The regeneration script needs Node and Chrome, but no npm packages. It checks
 the expected state counts, captures at a fixed viewport and only publishes
-after all captures succeed. `docs/examples/manifest.json` records the CLI
+after all captures succeed. Publication stages the complete replacement and
+keeps the previous directory until validation passes. Copy, manifest, replace,
+or validation errors preserve or restore the previous gallery. If the filesystem
+also prevents rollback, the error identifies retained recovery files.
+`docs/examples/manifest.json` records the CLI
 version and binary hash, source hashes, dimensions, selected frames, and output
 hashes. `--check` detects stale sources or modified assets without a browser;
 it does not regenerate anything. Review the actual pages and previews before
