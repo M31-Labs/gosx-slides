@@ -80,6 +80,21 @@ const assert = require('node:assert/strict');
     await settle();
     assert.equal(await steppedSplit.evaluate(el => el.getAnimations({subtree:true}).length), 0, 'once replay does not restart native units');
     await steppedSplit.evaluate(el => { el.dataset.slidesMotionReplay = 'slide'; });
+    // Deep links and fast forward navigation must settle all earlier cues,
+    // including native split units, even while the active cue is paused at 0.
+    await page.goto(process.argv[2] + '#1/2', {waitUntil: 'domcontentloaded'});
+    await page.waitForFunction(() => window.__gosx?.ready && window.SlidesMotion);
+    for (const step of [2, 1, 0, 2]) {
+      await page.evaluate(step => { SlidesNav.show(0, step, true); SlidesMotion.seek(0); }, step);
+      await page.evaluate(() => SlidesMotion.settled());
+      assert.equal(await page.locator('[data-slides-motion-cue="other"]').evaluate(el => el.dataset.slidesCueVisible), String(step >= 2));
+      if (step < 2) continue;
+      assert.equal(await follower.evaluate(el => getComputedStyle(el).opacity), '1', 'earlier rich entrance stays visible at a later cue');
+      await page.waitForFunction(() => Array.from(document.querySelectorAll('[data-slides-motion-step="1"] .gosx-motion-unit')).length === 3);
+      assert.deepEqual(await steppedSplit.locator('.gosx-motion-unit').evaluateAll(els => els.map(el => getComputedStyle(el).opacity)), ['1','1','1'], 'earlier split words settle at a later cue');
+      assert.equal(await page.locator('[data-slides-motion-cue="other"]').evaluate(el => getComputedStyle(el).opacity), '0', 'the current cue still obeys its own playhead');
+    }
+    await page.evaluate(() => SlidesNav.show(0, 1, true));
     // A long forward chain used to depend on recursive traversal and repeated
     // linear cue scans. Verify its actual WAAPI delay without a stack overflow.
     const measured = await page.evaluate(() => {

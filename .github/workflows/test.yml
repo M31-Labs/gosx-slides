@@ -65,6 +65,8 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --ignore-scripts
+      - name: Check published example freshness
+        run: node scripts/export-examples.cjs --check
       - name: Verify VS Code companion protocol
         run: node --test editors/vscode/client.test.cjs
       - name: Install narration export tools

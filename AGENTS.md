@@ -85,7 +85,7 @@ directly also works (the parent directory is used).
 | `doctor [deck-dir] [--json]` | Deck health + `serve` prerequisites. Exits non-zero on failures. |
 | `themes [--json]` | List the themes selectable via headmatter `theme:`. |
 | `backgrounds [--json]` | List six bundled Selena background presets, defaults and copyable sources. |
-| `backgrounds source <preset>` | Print an editable standalone `.sel` shader. |
+| `backgrounds source <preset> [--ink #rrggbb] [--glow #rrggbb] [--speed 0..2] [--strength 0..1] [--scale 0.5..4]` | Print an editable standalone `.sel` shader with validated settings baked in. Quote hex colors in a shell. |
 | `web refresh [deck-dir]` | Capture all referenced HTTPS web pages with Chrome and record PNGs, dates, hashes and framing policies in `public/webpages/manifest.json`. Build/export captures missing images; `--refresh-web` refreshes all. |
 | `packs [deck-dir] [--json]` | List enabled local theme/layout/component pack pins. |
 | `pack install <source-dir> [deck-dir]` | Validate and vendor a local pack, then print its exact headmatter pin; never overwrites an installed pack or runs hooks. |
@@ -184,8 +184,14 @@ See `examples/simulation-lab`.
 
 ## Motion and authoring additions
 
-See [README motion and export recipes](README.md#motion-authoring-and-exports)
+See [motion and export recipes](docs/reference.md#motion-authoring-and-exports)
 and `examples/authoring-lab` for runnable examples.
+
+The [example gallery](docs/examples.md) has committed PDFs and preview images.
+Regenerate them with `node scripts/export-examples.cjs ./slides`; check retained
+source/output hashes with `node scripts/export-examples.cjs --check`. The
+[shader and motion cookbook](docs/shaders-and-motion.md) is the step-by-step
+author guide. Keep recipes runnable and inspect captures when sources change.
 
 - Slide YAML `id:` and comma-separated `cues:` create stable `#id/cue` addresses.
   Motion `cue`, `step`, `after`, `group`, and `stagger` share the click budget.

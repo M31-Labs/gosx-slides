@@ -8,7 +8,6 @@ examples/*/build/
 
 # Working notes / reports / roadmaps — these live in hyphae, not the repo.
 ROADMAP.md
-docs/
 
 node_modules/
 browser-test-output/
