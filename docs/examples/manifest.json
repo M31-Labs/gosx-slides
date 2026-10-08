@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "cli": "gosx-slides v0.11.0-dev",
-  "binarySHA256": "17bdc46c0b9f95cae8209ecc660bc4ceb39d3d3e57f0f44277feb6890a057095",
+  "binarySHA256": "b2bdebaa5c13f2ac9c1aaa1c7dade029aeb78d6486d44175d466c608593612d7",
   "viewport": {
     "width": 1280,
     "height": 720
@@ -23,12 +23,12 @@
       },
       "outputs": {
         "effects-cookbook.pdf": {
-          "bytes": 718333,
-          "sha256": "d332b05f7b72c5336417a0d4b8acb5acc994c4f19dd45d7facc7536e5766d7eb"
+          "bytes": 718312,
+          "sha256": "1fd8c9ba92342ea588a0075d4c169bffb7f668afb2337d574b1d63e3b3450e26"
         },
         "effects-cookbook.png": {
-          "bytes": 174941,
-          "sha256": "0be2b8483e4606f6382ff07de75fc036e62537693cd5d85701e3b54936ae5e6c"
+          "bytes": 175718,
+          "sha256": "4df23dabd544260f9487cd8d6d34bcd6dbd14a14086204a24649861d6a78c100"
         }
       }
     },
@@ -41,12 +41,12 @@
       },
       "outputs": {
         "background-gallery.pdf": {
-          "bytes": 608234,
-          "sha256": "be5cfa16baafbb7513eb1dae388bdf758bd482609b75bd6fa9e325a3a552826b"
+          "bytes": 607877,
+          "sha256": "d6a794e70c4b9042f5b416580e24fa95a37713b6672731a482b9b85d044e1b55"
         },
         "background-gallery.png": {
-          "bytes": 138175,
-          "sha256": "1b766340b94e29b96e24365f401c87fef85b768ec35851abfc13787ffcc9b950"
+          "bytes": 140952,
+          "sha256": "9d531d6ffd59912fa5f984be30b5810daf7a290b706b8969711a7c7a68e0907e"
         }
       }
     },
@@ -64,12 +64,12 @@
       },
       "outputs": {
         "request-recovery.pdf": {
-          "bytes": 484547,
-          "sha256": "5f6314e337490e60a35d9d487ed45a63dd336041cbf8b9c06447aea6287394f6"
+          "bytes": 484541,
+          "sha256": "c929ce71dd662ed606062416c37d32837f175d6543eb69472db2258bfdf47de1"
         },
         "request-recovery.png": {
-          "bytes": 132043,
-          "sha256": "357ccd384be1b92303c56270147d6999be62c12c5be2c7ce8ed77d26fb9a369b"
+          "bytes": 132034,
+          "sha256": "35cc67ab85d3ed6dfee6a46efe8117ae0cab2d8fc9c36ea23b99cea09e47fcab"
         }
       }
     }
