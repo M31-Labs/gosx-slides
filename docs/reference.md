@@ -341,7 +341,7 @@ See the [cookbook](shaders-and-motion.md) for full sources and effect variations
 then set `scene: shaders/aurora.sel`. The exported file's parameter defaults
 control custom-file backgrounds; `shader-*` keys control bundled presets.
 
-GoSX v0.57.4's native graphics engine is available directly in Markdown:
+GoSX v0.57.6's native graphics engine is available directly in Markdown:
 
 ```md
 <Shader Src="shaders/ink.sel" Shape="torus" Label="Shader illustration" />
@@ -465,11 +465,17 @@ slide timing and staggered text.
 
 ### Upgrade and performance inventory
 
-The current dependency baseline is GoSX **v0.57.4**, mdpp **v0.5.0**,
+The current dependency baseline is GoSX **v0.57.6**, mdpp **v0.5.0**,
 gotreesitter **v0.55.1**, and Sirena **v0.7.0**. Existing Sirena/Mermaid diagrams,
 live islands, code walkthroughs, notes, phone remote, and SPA/PDF exports remain
 available. The native graphics components add the current GoSX scene engine
 without a separate renderer or frontend build system.
+
+The v0.11.2 patch updates GoSX to v0.57.6, including its retained scene playback,
+background and model-transform fixes. Audience pages and static exports omit
+project editor and background wizard JavaScript/CSS. Serve with `--edit` to load
+those tools for an authorized editor; drawing, laser pointers and motion controls
+remain available while presenting.
 
 The v0.7.1 patch restores custom shader shapes beside retained Scene3D meshes
 on WebGPU, including the API box in `examples/request-recovery`. Browser

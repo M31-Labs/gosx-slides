@@ -2,9 +2,12 @@ package slides
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -70,5 +73,42 @@ const flush = async () => {for (let i = 0; i < 8; i++) await Promise.resolve()};
 	}
 	if out, err := exec.Command(node, path).CombinedOutput(); err != nil {
 		t.Fatalf("late runtime lifecycle: %v\n%s", err, out)
+	}
+}
+
+func TestPresentationAssetsRespectEditingAccess(t *testing.T) {
+	deck := loadDeckFromSource(t, "# Present\n\nReady to draw and animate.\n", nil)
+	for _, tc := range []struct {
+		name, host string
+		opts       ServeOptions
+		editable   bool
+	}{
+		{"audience", "localhost", ServeOptions{}, false},
+		{"local editor", "localhost", ServeOptions{Edit: true}, true},
+		{"untrusted host", "untrusted.example", ServeOptions{Edit: true}, false},
+		{"static export", "localhost", ServeOptions{Edit: true, Static: true}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			app, err := deck.NewServer(tc.opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec := httptest.NewRecorder()
+			app.Build().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "http://"+tc.host+"/", nil))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("page status = %d", rec.Code)
+			}
+			body := rec.Body.String()
+			for _, asset := range []string{"window.SlidesEditor =", "data-background-option", ".slides-source-workspace", ".slides-background-wizard"} {
+				if strings.Contains(body, asset) != tc.editable {
+					t.Errorf("editor asset %q present = %v; editable = %v", asset, strings.Contains(body, asset), tc.editable)
+				}
+			}
+			for _, asset := range []string{"window.SlidesInk =", "window.SlidesMotion =", ".slides-ink {"} {
+				if !strings.Contains(body, asset) {
+					t.Errorf("presentation asset %q missing", asset)
+				}
+			}
+		})
 	}
 }

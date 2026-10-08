@@ -1,0 +1,13 @@
+.slides-ink-tools button { cursor:pointer; border:1px solid #ffffff35; border-radius:7px; padding:8px 12px; background:#242c3c; color:#f1f3f8; font:14px system-ui; }
+.slides-ink-tools :focus-visible { outline:3px solid #92b5ff; outline-offset:3px; }
+.slides-ink { position:fixed; z-index:45; pointer-events:none; touch-action:none; overflow:visible; }
+.slides-ink-tools { position:fixed; z-index:60; left:50%; transform:translateX(-50%); bottom:88px; display:flex; align-items:center; gap:6px; padding:8px; border-radius:12px; background:#151923ee; box-shadow:0 8px 30px #0005; }
+.slides-ink-tools[hidden] { display:none; }
+.slides-ink-tools input { width:30px; height:30px; border:0; background:transparent; }
+.slides-laser { fill:#ff4b73; opacity:0; }
+@media(max-width:480px) { .slides-ink-tools { gap:3px; width:max-content; max-width:96vw; padding:5px; } .slides-ink-tools button { padding:8px; } }
+@media print { .slides-ink,.slides-ink-tools { display:none!important; } }
+
+.deck-overview .slides-ink,.deck-blank .slides-ink { display:none; }
+
+.deck-controls .slides-extra-control { font-size:14px; min-width:40px; width:auto; padding-inline:5px; }

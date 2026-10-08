@@ -67,6 +67,20 @@ const assert = require('node:assert/strict');
     assert.ok((await page.locator('.deck-active .slides-code-morph pre:visible').textContent()).includes('message :='));
     await page.keyboard.press('ArrowLeft');
     assert.ok(!(await page.locator('.deck-active .slides-code-morph pre:visible').textContent()).includes('message :='));
+    // Drawing remains available when the project editor is not shipped.
+    assert.equal(await page.evaluate(() => typeof window.SlidesEditor), 'undefined');
+    await page.keyboard.press('e');
+    assert.equal(await page.locator('.slides-source-panel').count(), 0);
+    await page.keyboard.press('d');
+    assert.equal(await page.locator('main.deck').getAttribute('data-ink-mode'), 'pen');
+    const ink = await page.locator('.slides-ink').boundingBox();
+    await page.mouse.move(ink.x + ink.width * .2, ink.y + ink.height * .3);
+    await page.mouse.down();
+    await page.mouse.move(ink.x + ink.width * .4, ink.y + ink.height * .4, { steps: 4 });
+    await page.mouse.up();
+    assert.equal(await page.evaluate(() => SlidesInk.count()), 1);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('main.deck').getAttribute('data-ink-mode'), '');
     const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
     mobile.on('pageerror', error => errors.push(error.message));
     await mobile.goto(url+'#pipeline/worker', { waitUntil: 'domcontentloaded' });
@@ -79,6 +93,6 @@ const assert = require('node:assert/strict');
     await reduced.waitForFunction(() => window.SlidesMotion);
     assert.equal(await reduced.evaluate(() => document.querySelector('.deck-active').getAnimations({subtree:true}).length), 0);
     assert.deepEqual(errors, []);
-    console.log('Authoring browser checks passed: named cues, deferred islands, studio, reverse code steps, mobile, reduced motion.');
+    console.log('Authoring browser checks passed: named cues, deferred islands, studio, reverse code steps, audience annotations, mobile, reduced motion.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
