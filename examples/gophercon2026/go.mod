@@ -2,7 +2,7 @@ module m31labs.dev/talks/gophercon2026
 
 go 1.26
 
-require m31labs.dev/gosx v0.57.4
+require m31labs.dev/gosx v0.57.6
 
 require (
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect

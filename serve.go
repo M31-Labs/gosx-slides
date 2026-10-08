@@ -254,7 +254,8 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	// dev proxy's full reload. A re-load failure falls back to the startup deck +
 	// cache so a mid-edit deck.md never 500s the page.
 	app.Page("/", func(ctx *server.Context) gosx.Node {
-		if opts.Edit && !opts.Static && sourceRequestWriter(ctx.Request) {
+		editable := opts.Edit && !opts.Static && sourceRequestWriter(ctx.Request)
+		if editable {
 			ctx.AddHead(gosx.RawHTML(`<meta name="slides-edit" content="enabled">`))
 		}
 		if opts.Sessions != nil {
@@ -286,7 +287,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 			ctx.Header().Set("Content-Security-Policy", csp)
 			ctx.AddHead(gosx.RawHTML(`<meta http-equiv="Content-Security-Policy" content="` + html.EscapeString(csp) + `">`))
 		}
-		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static, !opts.Static || opts.IncludeNotes)
+		body := renderDeck.renderPageBody(ctx, renderCompiled, opts.Dev, renderFailures, renderProgram, renderErr, !opts.Static, !opts.Static || opts.IncludeNotes, editable)
 		if opts.Collaborate && sourceRequestWriter(ctx.Request) {
 			return gosx.Fragment(body, teamAssets())
 		}
@@ -392,7 +393,8 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 // them and ships the manifest + bootstrap. If the deck fails to compile, the flow
 // falls back to the hand-built lane (renderIslandSlide) so a transient bad deck
 // still serves (prose + islands; {expr} as raw text).
-func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes bool) gosx.Node {
+func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes, editable bool) gosx.Node {
+	editorScript, editorStyle := editorAssets(editable)
 	r := runtimeMounter{rt: ctx.Runtime(), deck: d}
 	if cd != nil {
 		r.graphics = cd.graphics
@@ -445,7 +447,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present chrome) go in one <style>. presenterStyle is inert until the
 		// controller adds the deck-presenter class on a ?present load AND hides the
 		// speaker-note asides below in BOTH views, so the audience page is unaffected.
-		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+editingStyle+backgroundWizardStyle+readingStyle+recordingStyle+"</style>"),
+		gosx.RawHTML("<style>"+navStyle()+"\n"+presenterStyle()+"\n"+baseContentStyle()+"\n"+graphicsStyle()+presentationControlsStyle()+authoringStyle+inkStyle+editorStyle+readingStyle+recordingStyle+"</style>"),
 		gosx.RawHTML("<style>"+themeCSS(theme)+"\n"+baseLayoutStyle()+"</style>"),
 	)
 	if deckHasMath(d) {
@@ -532,7 +534,7 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		// ?present load) calls the presenter controller; both are self-contained (no
 		// island-runtime dependency) and do not disturb the island bootstrap the App
 		// adds to the head — hidden slides still hydrate.
-		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+editingScript+"\n"+backgroundWizardScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
+		gosx.RawHTML("<script>"+presenterScript()+"\n"+navScript()+"\n"+lazyIslandScript+"\n"+graphicsStepScript()+"\n"+sceneStudioScript+"\n"+motionTimelineScript+"\n"+motionReplayScript()+"\n"+morphScript+"\n"+codeMorphScript+"\n"+deckDiagramMotionScript(d)+"\n"+readabilityScript+"\n"+codeCopyScript()+"\n"+inkScript+"\n"+editorScript+"\n"+readingScript+"\n"+recordingScript+"</script>"),
 		gosx.RawHTML(semanticStoryAssets(d)),
 		gosx.RawHTML(simulationAssets(d)),
 		webPageAssets(d),

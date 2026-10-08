@@ -28,6 +28,12 @@ var editingScript string
 //go:embed assets/editing.css
 var editingStyle string
 
+//go:embed assets/ink.js
+var inkScript string
+
+//go:embed assets/ink.css
+var inkStyle string
+
 //go:embed assets/diagram-motion.js
 var diagramMotionScript string
 
@@ -45,3 +51,12 @@ var backgroundWizardScript string
 
 //go:embed assets/background-wizard.css
 var backgroundWizardStyle string
+
+// The audience keeps presentation annotations and motion controls without
+// downloading the project editor or background wizard.
+func editorAssets(enabled bool) (script, style string) {
+	if enabled {
+		return editingScript + "\n" + backgroundWizardScript, editingStyle + backgroundWizardStyle
+	}
+	return "", ""
+}

@@ -36,6 +36,8 @@ lukechampine.com/blake3 v1.4.1/go.mod h1:QFosUxmjB8mnrWFSNwKmvxHpfY72bmD2tQ0kBMM
 m31labs.dev/eos v0.1.4/go.mod h1:5PuY4szJG+bC1Q6+K/wwBZORBaON4GcOkzy+ZljrOv4=
 m31labs.dev/gosx v0.57.4 h1:bFHdeqvTWKtCUWh0trUyoI3rK0UJfZGwnPJRNLlx67U=
 m31labs.dev/gosx v0.57.4/go.mod h1:WTzNAh0VS8v8W17gQxdTCBq3sbm8hCKNViB2pUHwJ4w=
+m31labs.dev/gosx v0.57.6 h1:ItLDLtFAz5m4EXfauSeZqO6EcTWrz9/kqZo6Uveayxs=
+m31labs.dev/gosx v0.57.6/go.mod h1:WTzNAh0VS8v8W17gQxdTCBq3sbm8hCKNViB2pUHwJ4w=
 m31labs.dev/mll v0.1.0/go.mod h1:7NwSeLhUULCN4Ylcdm9ICzJsAlZWvqH0l0RYkuxTd6w=
 m31labs.dev/prism v0.1.3/go.mod h1:y3Eg5GDXRB6G0rNIPOOnmFXpmZGjy4eOjyDMORyWHf8=
 m31labs.dev/selena v0.5.2/go.mod h1:gWixT9H7Gbfs+SBKJj12/01lEXu5YpBuabrQUiH0TD0=

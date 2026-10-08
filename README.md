@@ -42,6 +42,10 @@ Changes saved through the editor are validated, checked for concurrent edits,
 and retain a recovery copy. Start with the architecture review or teaching
 template when those better fit your talk.
 
+Present with `slides serve my-talk` when you are done editing. Audience pages
+and exports omit the project editor and background wizard assets; motion
+controls, drawing and the laser pointer stay available.
+
 To build from source, install Go 1.26 or newer:
 
 ```sh

@@ -91,8 +91,10 @@ func TestWebPagePolicy(t *testing.T) {
 			if strings.Contains(body, `data-web-src="`) != tc.live {
 				t.Fatalf("live candidate mismatch")
 			}
-			if got := rec.Header().Get("Content-Security-Policy"); got != tc.csp {
-				t.Fatalf("CSP %q; want %q", got, tc.csp)
+			// GoSX's framing restriction and the deck's allowed embedded pages
+			// are separate policies; browsers enforce every header value.
+			if got := rec.Header().Values("Content-Security-Policy"); len(got) != 2 || got[0] != "frame-ancestors 'self'" || got[1] != tc.csp {
+				t.Fatalf("CSP %q; want same-origin ancestors and %q", got, tc.csp)
 			}
 			if !strings.Contains(body, s.Image) || !strings.Contains(body, s.CapturedAt) {
 				t.Fatal("snapshot or caption missing")
