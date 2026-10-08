@@ -100,7 +100,7 @@ readability, and the [cookbook](shaders-and-motion.md) for complete examples.
 | PDF with selectable text | `export my-talk --format pdf --out talk-text.pdf` | Browser print layout and static reveal content; native graphics use fallbacks. Needs Chrome. |
 | PDF showing every rendered beat | `export my-talk --format pdf --capture --steps --out talk.pdf` | Image-based pages of shader/3D and cue states. Needs Chrome; no live motion or selectable slide text. |
 | Editable PowerPoint | `export my-talk --format pptx --editable --steps --out talk.pptx` | Supported native text, tables, SVG and charts; other graphics use captured images. Needs Chrome. |
-| A movie | `export my-talk --format video --steps --seconds 2 --fps 30 --out talk.mp4` | Sampled presentation motion, without live interaction. Needs Chrome and ffmpeg. |
+| A movie | `export my-talk --format video --steps --seconds 2 --fps 30 --out talk.webm` | Sampled presentation motion in WebM, without live interaction. Needs Chrome and ffmpeg. |
 
 Use a fresh web/handout output directory for publication. Speaker notes remain
 private by default; `--notes` includes them in supported exports. Editable PPTX
