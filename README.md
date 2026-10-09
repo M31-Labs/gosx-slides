@@ -138,20 +138,25 @@ its parameters, or download a tuned `.sel` from **Backgrounds**.
 
 ```sh
 slides build my-talk --out dist                         # live web presentation
-slides export my-talk --format pdf --capture --steps --out talk.pdf
+slides export my-talk --format pdf --steps --pdf-navigation --out talk.pdf
 slides export my-talk --format handout --out handout     # readable HTML
 slides export my-talk --format pptx --editable --steps --out talk.pptx
 ```
 
 PDF capture and PowerPoint need Chrome or Chromium; set `SLIDES_CHROME` if it
 isn't discoverable on PATH. `--capture` preserves rendered shader/3D pixels;
-`--steps` includes every click state. PDFs are stills. Use SPA for interaction,
+`--steps` includes every click state. Add `--pdf-navigation` for clickable
+Previous/Next controls beneath the slide, so a reader can click through the
+reveals. The full frame fits above the controls without cropping. PDFs are stills.
+Use SPA for interaction,
 or video export for motion. Editable PowerPoint supports native text, tables,
 selected SVG shapes and charts, with captured fallbacks for other graphics.
 
 Present with **P** for speaker view, **O** for overview/search, **V** for
 reading, and **?** for shortcuts. Stable `#slide/cue` links restore story
-states. Speaker notes are private unless explicitly included in a supported
+states. Presenter Next/Previous and the `/remote` phone controls advance through
+cues before changing slides, including the first and last slide. The current
+presenter preview plays its animations as you advance. Speaker notes are private unless explicitly included in a supported
 export with `--notes`.
 
 ## Go deeper

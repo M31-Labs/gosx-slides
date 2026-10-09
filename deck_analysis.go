@@ -87,17 +87,37 @@ func slideLayoutInfo(slide IslandSlide) (name string, known bool) {
 	return name, knownLayouts[name] || slide.packLayouts[name]
 }
 
-// slideClickCount is a slide's click budget: the max number of reveal steps over
-// its stepped code blocks. Mirrors the client stepCountFor (nav.go), which takes
-// the max data-steps across the slide's <pre> elements.
+// slideClickCount mirrors the code and list-reveal budgets in stepCountFor.
+// A code morph owns its steps; highlights inside its frames are not extra cues.
 func slideClickCount(slide IslandSlide) int {
 	if slide.Node == nil {
 		return 0
 	}
 	max := 0
-	for _, cb := range slide.Node.Find(mdpp.NodeCodeBlock) {
-		if n := len(parseHighlightSteps(cb.Attr("highlights"))); n > max {
-			max = n
+	slide.Node.Walk(func(node *mdpp.Node) bool {
+		if node.Type == mdpp.NodeContainerDirective && node.Attr("name") == "code-morph" {
+			return false
+		}
+		if node.Type == mdpp.NodeCodeBlock {
+			if n := len(parseHighlightSteps(node.Attr("highlights"))); n > max {
+				max = n
+			}
+		}
+		return true
+	})
+	if slideHasReveal(slide) {
+		fragments := 0
+		for _, node := range slide.Node.Children {
+			if node.Type == mdpp.NodeList {
+				for _, item := range node.Children {
+					if item.Type == mdpp.NodeListItem || item.Type == mdpp.NodeTaskListItem {
+						fragments++
+					}
+				}
+			}
+		}
+		if fragments-1 > max {
+			max = fragments - 1
 		}
 	}
 	return max

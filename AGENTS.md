@@ -79,7 +79,7 @@ directly also works (the parent directory is used).
 | `mcp [deck-dir]` | Serve eight bounded author tools over stdio MCP: list/read/diagnose/hash-checked write/scoped rename/static story assert/address resolution/snapshot export. See `docs/project-authoring.md`; notes and source require author access. |
 | `serve [deck-dir] [--edit] [--collab] [--host 127.0.0.1] [--port 8080] [--rebuild] [--watch]` | Serve live islands and server expressions. `--edit` enables revision-safe editing; `--collab` adds shared CRDT drafts, presence and anchored reviews. Public listeners require authenticated sessions. Use `--watch` separately. |
 | `build [deck-dir] [--out dist]` | Write a static SPA (alias for `export --format spa`): `index.html` + `gosx/` assets; islands stay live. |
-| `export [deck-dir] --format spa\|single\|handout\|pdf\|frames\|video\|pptx [--capture] [--editable] [--steps] [--notes] [--seconds 2] [--fps 15] [--out dist]` | SPA retains live islands; single and handout embed published local assets with static islands. Handout defaults to private notes omitted (`--notes` opts in). PDF/capture/PPTX need Chrome (`SLIDES_CHROME`); video also needs ffmpeg. Editable PPTX supports native text and selected SVG geometry with captured fallbacks. |
+| `export [deck-dir] --format spa\|single\|handout\|pdf\|frames\|video\|pptx [--capture] [--editable] [--steps] [--pdf-navigation] [--notes] [--seconds 2] [--fps 15] [--out dist]` | SPA retains live islands; single and handout embed published local assets with static islands. Handout defaults to private notes omitted (`--notes` opts in). PDF/capture/PPTX need Chrome (`SLIDES_CHROME`); video also needs ffmpeg. Editable PPTX supports native text and selected SVG geometry with captured fallbacks. |
 | `bench [deck-dir] [--runs 3] [--budget file.json]` | Browser readiness, transfer, heap, DOM and frame intervals; requires Chrome. |
 | `import <source.pptx> [--out new-deck-dir] [--json]` | Migrate supported Office content, report fidelity losses and refuse an existing destination. |
 | `check [deck-dir]` | Title, slide/click/notes counts, layout mix. |
@@ -215,7 +215,9 @@ author guide. Keep recipes runnable and inspect captures when sources change.
 - `layout: split`, `:::cards`, and `:::card` provide responsive recipes.
 - Islands defer until active/next; `hydration: eager` restores startup hydration.
 - `--capture` uses real browser pixels for single/PDF; `--steps` captures every
-  click state. `frames` emits PNG; `video --seconds 2 --fps 15` emits silent WebM.
+  click state. PDF-only `--pdf-navigation` implies capture and adds real internal
+  Previous/Next links below the intact frame; combine with `--steps` for a clickable
+  state walkthrough. PDF pages are stills. `frames` emits PNG; `video --seconds 2 --fps 15` emits silent WebM.
   Set `SLIDES_CHROME` for captured exports; video also requires `ffmpeg` VP9.
   Capture bounds: 10,000 states, 18,000 frames, seconds 0.1–60, FPS 1–60.
 - Optional browser developer checks: `npm ci`, `npx playwright install chromium`,
@@ -875,7 +877,11 @@ The presenter is built into `serve` — no separate command needed.
 
 - **Open it:** append `?present` to the URL, or press `p` from any slide.
 - **What you see:** current + next slide, speaker notes, a timer.
-- **Phone remote:** browse to `/remote` on the serving machine.
+- **Cue controls:** Next/Previous advances every cue before changing slides,
+  including the first/last slide. Current-preview animations keep running on
+  cue changes; the live slide is only moved when the slide itself changes.
+- **Phone remote:** browse to `/remote` on the serving machine; it follows the
+  same cue order and displays the current step.
 - **Audience sync:** other machines follow the presenter in lockstep over
   Server-Sent Events. The server mounts `/presenter/events` (SSE stream) and
   `/presenter/state` (POST to advance). Same-machine windows also sync via the

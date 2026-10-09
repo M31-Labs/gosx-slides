@@ -6,8 +6,21 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 )
+
+func TestPDFNavigationRequiresPDF(t *testing.T) {
+	dir := newDeckDirUnderModule(t, "# A presentation\n", nil)
+	for _, format := range []string{"spa", "single", "handout", "frames", "video", "pptx"} {
+		t.Run(format, func(t *testing.T) {
+			err := ExportStatic(dir, ExportOptions{Format: format, PDFNavigation: true, OutDir: filepath.Join(t.TempDir(), "out")})
+			if err == nil || !strings.Contains(err.Error(), "--pdf-navigation requires --format pdf") {
+				t.Fatalf("unexpected PDF navigation result: %v", err)
+			}
+		})
+	}
+}
 
 // export_pdf_test.go proves `export --format pdf` prints a real PDF through a
 // system Chrome. Chrome is an optional dependency, so the test skips (never

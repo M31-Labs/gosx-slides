@@ -147,6 +147,10 @@ your own material, put it on a shape, or vary entrances and replay rules.
 | **V** | Open reading view |
 | **?** | Show the complete shortcut list |
 
+Presenter Next/Previous moves through every cue before changing slides. You can
+also use `/remote` on the serving machine for the same cue controls from a phone.
+The current preview keeps its animations and live scene as cues change.
+
 Shortcuts pause while you type in an editor or input. The toolbar fades after
 inactivity; keyboard focus keeps it visible. Move the pointer to bring it back.
 
@@ -156,13 +160,14 @@ In a second terminal where `slides` is on PATH, run from the deck's parent:
 slides check my-talk
 slides validate my-talk
 slides build my-talk --out my-talk-web
-slides export my-talk --format pdf --capture --steps --out my-talk.pdf
+slides export my-talk --format pdf --steps --pdf-navigation --out my-talk.pdf
 ```
 
 The web folder preserves live interaction. Serve the **whole folder** through
 an HTTP static host; opening `index.html` as a `file://` URL is not a deployment.
 The PDF captures every click state as a still: this exercise produces four
-pages. Configure [Chrome for exports](troubleshooting.md#chrome-is-not-found)
+pages. `--pdf-navigation` adds clickable Previous/Next links; omit that flag
+for full-frame pages without a navigation strip. Configure [Chrome for exports](troubleshooting.md#chrome-is-not-found)
 if capture cannot find it. Use the [format comparison](troubleshooting.md#choose-an-export-format)
 for reading copies, editable PowerPoint or recorded motion. Exporting does not
 require the live server to stay running.

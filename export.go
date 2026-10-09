@@ -36,6 +36,7 @@ type ExportOptions struct {
 	Captions          string  // deck-relative authored WebVTT file for video
 	Capture           bool    // capture live graphics through Chrome for single/PDF
 	Steps             bool    // include every reveal/cue state in captured output
+	PDFNavigation     bool    // clickable previous/next controls below captured PDF slides
 	Seconds           float64 // video hold time per state (default 2)
 	FPS               int     // video sampling rate (default 15)
 	OutDir            string  // output directory (default "dist"); for pdf, may be a .pdf path
@@ -66,6 +67,12 @@ func ExportStatic(dir string, opts ExportOptions) error {
 	// <dir>/build/islands so the export can copy real files (not just the in-process
 	// mounts).
 	format := strings.ToLower(strings.TrimSpace(opts.Format))
+	if opts.PDFNavigation {
+		if format != "pdf" {
+			return fmt.Errorf("--pdf-navigation requires --format pdf")
+		}
+		opts.Capture = true
+	}
 	if err := validateVideoNarrationOptions(opts, format); err != nil {
 		return err
 	}
