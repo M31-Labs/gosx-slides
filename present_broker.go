@@ -237,7 +237,7 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
 <script>
   var cur = 0, step = 0, budgets = __SLIDES_STEP_BUDGETS__;
   var source = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now() + '-' + Math.random();
-  var sequence = 0, pending = null, publishing = false;
+  var sequence = 0, pending = [], publishing = false;
   function show(i, s) {
     cur = Math.max(0, Math.min(budgets.length - 1, Number.isFinite(i) ? i : 0));
     step = Math.max(0, Math.min(budgets[cur] || 0, Number.isFinite(s) ? s : 0));
@@ -247,15 +247,15 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
     document.getElementById('next').disabled = cur >= budgets.length - 1 && step >= (budgets[cur] || 0);
   }
   function publish() {
-    if (publishing || !pending) return;
-    var state = pending; pending = null; publishing = true;
+    if (publishing || !pending.length) return;
+    var state = pending.shift(); publishing = true;
     var headers = {'Content-Type':'application/json'};
     fetch('presenter/state', {method:'POST',headers:window.SlidesSessionHeaders?SlidesSessionHeaders(headers):headers,body:JSON.stringify(state),keepalive:true})
       .then(function(response) { if (!response.ok) throw new Error('Could not advance presentation'); })
       .catch(function() { document.getElementById('step').textContent = 'Connection lost. Reconnect before continuing.'; })
       .finally(function() { publishing = false; publish(); });
   }
-  function go(i, s) { show(i, s || 0); pending = {index:cur,step:step,source:source,sequence:++sequence}; publish(); }
+  function go(i, s) { show(i, s || 0); pending.push({index:cur,step:step,source:source,sequence:++sequence}); publish(); }
   function move(direction) {
     if (direction > 0) { if (step < budgets[cur]) go(cur, step + 1); else if (cur < budgets.length - 1) go(cur + 1, 0); }
     else { if (step > 0) go(cur, step - 1); else if (cur > 0) go(cur - 1, budgets[cur - 1]); }

@@ -5,6 +5,31 @@ const binary = path.resolve(process.argv[2] || './slides');
 const dir = fs.mkdtempSync(path.resolve('testdata/presenter-cues-'));
 const out = process.env.SLIDES_TEST_OUTPUT || 'browser-test-output';
 fs.mkdirSync(out, {recursive: true});
+async function assertOrderedBurst(driver, receivers, advance, expected) {
+  for (const page of receivers) await page.evaluate(() => {
+    if (!window.cueTrace) document.querySelector('main.deck').addEventListener('slides:change', event => cueTrace.push([event.detail.index,event.detail.step]));
+    window.cueTrace = [];
+  });
+  let release, held = false;
+  const gate = new Promise(resolve => { release = resolve; });
+  const route = async route => {
+    if (!held && route.request().method() === 'POST') { held = true; await gate; }
+    await route.continue();
+  };
+  await driver.route('**/presenter/state',route);
+  try {
+    const firstPost = driver.waitForRequest(request => request.url().endsWith('/presenter/state') && request.method()==='POST');
+    // Hold the first POST while the remaining clicks queue, reproducing network latency.
+    await advance();
+    await firstPost;
+    for (const page of receivers) assert.deepEqual(await page.evaluate(()=>cueTrace),[]);
+    release();
+    for (const page of receivers) {
+      await page.waitForFunction(count=>cueTrace.length>=count,expected.length);
+      assert.deepEqual(await page.evaluate(()=>cueTrace),expected,'every cue must arrive in order');
+    }
+  } finally { release(); await driver.unroute('**/presenter/state',route); }
+}
 fs.copyFileSync('examples/storytelling-lab/plot.scene.json', path.join(dir, 'plot.scene.json'));
 fs.writeFileSync(path.join(dir, 'deck.md'), `---
 title: Every beat, from the presenter
@@ -115,6 +140,7 @@ let browser;
   await prev.click();
   await audience.waitForFunction(()=>SlidesNav.step()===0);
   assert.equal(await prev.isDisabled(),true);
+  await assertOrderedBurst(presenter,[audience],()=>next.evaluate(button=>{button.click();button.click();button.click();}),[[0,1],[0,2],[1,0]]);
   await presenter.evaluate(()=>SlidesNav.show(2,0,true));
   for (const page of [audience,presenter]) await page.waitForFunction(()=>document.querySelector('.deck-active .slide-graphic')?.dataset.gosxScene3dReady==='true');
   assert.equal(await next.isEnabled(),true,'last-slide native cues remain reachable');
@@ -132,9 +158,8 @@ let browser;
   await audience.waitForFunction(()=>SlidesNav.current()===1 && SlidesNav.step()===0);
   await remote.locator('#next').click();
   for (const page of [audience,presenter]) await page.waitForFunction(()=>SlidesNav.current()===1 && SlidesNav.step()===1);
-  // A quick burst still ends at the correct cue, without delayed self-echoes.
-  await remote.evaluate(()=>{move(1);move(1);move(1);});
-  await audience.waitForFunction(()=>SlidesNav.current()===2 && SlidesNav.step()===1);
+  await assertOrderedBurst(remote,[audience,presenter],()=>remote.evaluate(()=>{move(1);move(1);move(1);}),[[0,2],[1,0],[1,1]]);
+  assert.deepEqual(await remote.evaluate(()=>[cur,step]),[1,1],'delayed self-echoes must not roll the remote back');
   await remote.locator('#prev').click();
   await audience.waitForFunction(()=>SlidesNav.current()===2 && SlidesNav.step()===0);
   await remote.locator('#prev').click();
@@ -164,5 +189,5 @@ let browser;
   assert.equal((pdf.match(/\/Type\s*\/Page\b/g)||[]).length,states);
   assert.equal((pdf.match(/\/Subtype\s*\/Link\b/g)||[]).length,2*(states-1));
   assert.ok(pdf.includes('capture-1'),'PDF retains named internal destinations');
-  console.log('PASS presenter/remote cue boundaries, live motion, persistent Scene3D, SSE, reduced motion and '+states+' clickable PDF states');
+  console.log('PASS presenter/remote ordered cue delivery, boundaries, live motion, persistent Scene3D, SSE, reduced motion and '+states+' clickable PDF states');
 })().catch(error=>{console.error(error);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();server.kill('SIGTERM');fs.rmSync(dir,{recursive:true,force:true});});
