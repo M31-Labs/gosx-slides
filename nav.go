@@ -420,7 +420,7 @@ func navScript() string {
     authorReload = !!savedReload && savedReload.url === location.href && Date.now() - savedReload.time < 15000;
   } catch (e) {}
   var sourceID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
-  var sequence = 0, pendingState = null, publishing = false;
+  var sequence = 0, pendingStates = [], publishing = false;
   var seenSources = new Map();
   function acceptRemote(data) {
     // Page controls carry their target slide, but never navigate the deck.
@@ -472,11 +472,11 @@ func navScript() string {
     }
   } catch (e) {}
 
-  // Coalesce fast stepping into one ordered POST stream. Origin and sequence also
+  // Deliver each cue in one ordered POST stream. Origin and sequence also
   // deduplicate BroadcastChannel/SSE delivery and prevent our own stale echoes.
   function publishPending() {
-    if (publishing || !pendingState) return;
-    var data = pendingState; pendingState = null; publishing = true;
+    if (publishing || !pendingStates.length) return;
+    var data = pendingStates.shift(); publishing = true;
     try {
       fetch('presenter/state', { method: 'POST', headers: window.SlidesSessionHeaders ? window.SlidesSessionHeaders({ 'Content-Type': 'application/json' }) : { 'Content-Type': 'application/json' }, body: JSON.stringify(data), keepalive: true })
         .catch(function () {}).finally(function () { publishing = false; publishPending(); });
@@ -487,7 +487,7 @@ func navScript() string {
     if (applyingRemote || (initializing && (!location.hash || authorReload))) return;
     var data = { index: index, step: step, source: sourceID, sequence: ++sequence };
     if (channel) { try { channel.postMessage(data); } catch (e) {} }
-    if (deck.getAttribute('data-live-sync') === '1') { pendingState = data; publishPending(); }
+    if (deck.getAttribute('data-live-sync') === '1') { pendingStates.push(data); publishPending(); }
   }
 
   // show(nextIndex, nextStep, push) commits a new (slide, step) position. nextStep

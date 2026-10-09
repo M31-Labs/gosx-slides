@@ -255,12 +255,18 @@ main.deck.` + presenterModeClass + ` .pv-screen > .slide {
   width: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  animation: none !important; /* never run the deck-enter keyframe inside a preview */
+  animation: none;
   pointer-events: none;       /* the preview is for the presenter to READ, not click */
   -webkit-user-select: none; user-select: none;
 }
 main.deck.` + presenterModeClass + ` .pv-current .pv-screen > .slide { zoom: 0.5; }
 main.deck.` + presenterModeClass + ` .pv-next .pv-screen > .slide { zoom: 0.32; }
+@media (prefers-reduced-motion: no-preference) {
+  main.deck.` + presenterModeClass + `:not([data-transition="none"]) .pv-current .slide.deck-active:not([data-transition="none"]),
+  main.deck.` + presenterModeClass + ` .pv-current .slide.deck-active[data-transition="fade"] {
+    animation: slidesDeckEnter var(--slides-transition-duration, 220ms) var(--slides-transition-easing, ease) var(--slides-transition-delay, 0ms) both;
+  }
+}
 /* Empty-screen placeholder (no next slide past the last slide). */
 main.deck.` + presenterModeClass + ` .pv-screen[data-empty="1"]::after {
   content: attr(data-empty-label);
@@ -638,6 +644,9 @@ func presenterScript() string {
       // Remove any previously-placed slide from this screen (back into the deck,
       // hidden by the presenter > .slide rule, so it can be re-placed later).
       var existing = screen.querySelector(':scope > .slide');
+      // A cue change keeps the same live node in place. Reparenting it cancels
+      // browser animations and interrupts embedded engines on every click.
+      if (existing && existing === api.slides[slideIdx]) return;
       if (existing) deck.appendChild(existing);
       if (slideIdx == null || slideIdx < 0 || slideIdx >= api.slides.length) {
         screen.setAttribute('data-empty', '1');
@@ -664,14 +673,14 @@ func presenterScript() string {
       // steps (e.g. "3 / 4 · step 2/2"). getStep/getStepCount come from navScript;
       // guard for older api shapes so a missing fn degrades to the plain counter.
       var stepCount = api.getStepCount ? api.getStepCount() : 0;
+      var st = api.getStep ? api.getStep() : 0;
       var stepHTML = '';
       if (stepCount > 0) {
-        var st = api.getStep ? api.getStep() : 0;
         stepHTML = ' <span class="pv-step">· step ' + st + '/' + stepCount + '</span>';
       }
       counter.innerHTML = '<b>' + (index + 1) + '</b> / ' + api.count + stepHTML;
-      prevBtn.disabled = index <= 0;
-      nextBtn.disabled = index >= api.count - 1;
+      prevBtn.disabled = index <= 0 && st <= 0;
+      nextBtn.disabled = index >= api.count - 1 && st >= stepCount;
     }
 
     // --- Timer (persisted across reloads) ----------------------------------

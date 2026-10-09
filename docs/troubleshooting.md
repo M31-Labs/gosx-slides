@@ -99,6 +99,7 @@ readability, and the [cookbook](shaders-and-motion.md) for complete examples.
 | A readable document | `export my-talk --format handout --out talk-handout` | Static reading flow and text; native graphics use available fallbacks. |
 | PDF with selectable text | `export my-talk --format pdf --out talk-text.pdf` | Browser print layout and static reveal content; native graphics use fallbacks. Needs Chrome. |
 | PDF showing every rendered beat | `export my-talk --format pdf --capture --steps --out talk.pdf` | Image-based pages of shader/3D and cue states. Needs Chrome; no live motion or selectable slide text. |
+| Clickable PDF walkthrough | `export my-talk --format pdf --steps --pdf-navigation --out talk.pdf` | Every rendered state plus internal Previous/Next links; slide pixels fit above a navigation strip. |
 | Editable PowerPoint | `export my-talk --format pptx --editable --steps --out talk.pptx` | Supported native text, tables, SVG and charts; other graphics use captured images. Needs Chrome. |
 | A movie | `export my-talk --format video --steps --seconds 2 --fps 30 --out talk.webm` | Sampled presentation motion in WebM, without live interaction. Needs Chrome and ffmpeg. |
 
@@ -115,6 +116,15 @@ which may intentionally hide cue content. `--steps` includes initial and later
 states and implies capture. Ordinary printing exposes static reveal content,
 but does not preserve native graphics in the same way. Neither PDF route
 retains animation; choose the live web output or video when movement matters.
+
+### Can a PDF play transitions?
+
+`--steps --pdf-navigation` gives readers a clickable sequence of still states,
+including intermediate reveals. It does not embed GoSX animations, shaders or
+interactive islands. Some readers support their own page-transition effects;
+[Acrobat documents those for full-screen presentations](https://helpx.adobe.com/acrobat/using/setting-pdfs-presentation.html).
+Those effects depend on the reader and are not authored by this exporter.
+Use the live web deck to preserve the exact motion and interactions.
 
 ### The exported web deck works locally but not under a URL subdirectory
 

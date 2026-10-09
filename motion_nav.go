@@ -7,7 +7,7 @@ func motionReplayScript() string {
   var currentIndex = null, currentStep = null, attempts = 0;
   function api() { return window.__gosx && window.__gosx.motion; }
   function state() {
-    var slide = document.querySelector('main.deck > .slide.deck-active');
+    var slide = document.querySelector('main.deck .slide.deck-active');
     if (!slide) return null;
     return {slide: slide, index: Number(slide.getAttribute('data-slide')), step: Number(slide.getAttribute('data-active-step') || 0)};
   }
@@ -29,7 +29,7 @@ func motionReplayScript() string {
     var entered = currentIndex !== null && currentIndex !== next.index;
     var stepped = currentStep !== null && currentStep !== step;
     if (entered) {
-      var previous = document.querySelector('main.deck > .slide[data-slide="' + currentIndex + '"]');
+      var previous = document.querySelector('main.deck .slide[data-slide="' + currentIndex + '"]');
       if (previous && api()) previous.querySelectorAll('[data-slides-motion-replay]').forEach(function(element) {
         if (element.getAttribute('data-slides-motion-replay') !== 'once') api().dispose(element);
       });

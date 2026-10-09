@@ -125,6 +125,14 @@ exports embed published local images and CSS font assets. Set `offline-required:
 in headmatter to suppress remote theme fonts; external author URLs remain external.
 PDF printing waits for fonts and images through Chrome's DevTools protocol.
 
+**Clickable state PDFs:** `--steps` captures the initial state and every authored
+cue after its entrance finishes. `--pdf-navigation` adds internal Previous/Next
+links in a strip below each captured frame; it implies capture and requires
+`--format pdf`. The original slide fits above the strip without cropping. Omit
+this flag for full-frame pages. These PDFs preserve still poses, including native
+graphics, rather than running GoSX or JavaScript. For live animation, use SPA;
+for a timed recording, use video.
+
 Try `slides serve examples/storytelling-lab --edit` (or `examples/authoring-lab`).
 **M** opens a docked motion studio beside a fitted live slide preview (a bottom
 sheet on mobile). Opening it preserves the current pose. Playback and seek stay
@@ -274,7 +282,7 @@ hydration reduces initial widget work; the shared GoSX runtime still loads.
 
 ```sh
 slides export my-deck --format single --capture --out snapshot
-slides export my-deck --format pdf --steps --out walkthrough.pdf
+slides export my-deck --format pdf --steps --pdf-navigation --out walkthrough.pdf
 slides export my-deck --format frames --steps --out frames
 slides export my-deck --format video --steps --seconds 2 --fps 15 --out deck.webm
 ```

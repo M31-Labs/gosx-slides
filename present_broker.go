@@ -193,9 +193,15 @@ func (b *presenterBroker) handleState(w http.ResponseWriter, r *http.Request) {
 // handleRemote serves the standalone phone-remote page: prev/next/goto that POST
 // to /presenter/state, and an EventSource that mirrors the live slide number. It
 // is a control surface, not a themed deck, so it carries no island runtime.
-func handleRemote(w http.ResponseWriter, r *http.Request) {
+func handleRemote(w http.ResponseWriter, r *http.Request, deck *IslandDeck) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	doc := remoteHTML
+	budgets := make([]int, len(deck.Slides))
+	graphics := graphicsClickBudgets(DeckGraphics(deck))
+	for i, slide := range deck.Slides {
+		budgets[i] = max(slideClickCount(slide), slideMotionClicks(slide), slideGraphicClicks(slide, graphics))
+	}
+	data, _ := json.Marshal(budgets)
+	doc := strings.Replace(remoteHTML, "__SLIDES_STEP_BUDGETS__", string(data), 1)
 	if csrf := sessionCSRF(r); csrf != "" {
 		doc = strings.Replace(doc, "</head>", `<meta name="slides-csrf" content="`+html.EscapeString(csrf)+`"><script>`+sessionHeadersScript+`</script></head>`, 1)
 	}
@@ -213,26 +219,52 @@ const remoteHTML = `<!doctype html><html><head><meta charset=utf-8>
   .row{display:flex;gap:1rem}
   button{font:700 1.1rem system-ui;color:#0c0f1a;background:#f6b352;border:0;border-radius:14px;padding:1.4rem 2.2rem;cursor:pointer}
   button:active{transform:scale(.97)}
+  button:disabled{opacity:.4;cursor:default}
   .ghost{background:transparent;color:#9aa3bd;border:1px solid rgba(255,255,255,.15)}
   form{display:flex;gap:.5rem}
   input{width:5rem;font:600 1.1rem system-ui;text-align:center;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#161b2e;color:#eef1f8;padding:.6rem}
 </style></head><body>
   <div>slide <span class=cur id=cur>1</span></div>
+  <div id=step aria-live=polite></div>
   <div class=row>
-    <button class=ghost onclick="go(cur-1)">‹ prev</button>
-    <button onclick="go(cur+1)">next ›</button>
+    <button id=prev class=ghost onclick="move(-1)">‹ prev</button>
+    <button id=next onclick="move(1)">next ›</button>
   </div>
   <form onsubmit="go(parseInt(this.n.value,10)-1);return false">
     <input id=n name=n type=number min=1 placeholder=#>
     <button class=ghost type=submit>go</button>
   </form>
 <script>
-  var cur = 0;
-  function go(i){ if(i<0)i=0; var headers={'Content-Type':'application/json'}; fetch('presenter/state',{method:'POST',headers:window.SlidesSessionHeaders?SlidesSessionHeaders(headers):headers,body:JSON.stringify({index:i,step:0}),keepalive:true}); }
+  var cur = 0, step = 0, budgets = __SLIDES_STEP_BUDGETS__;
+  var source = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Date.now() + '-' + Math.random();
+  var sequence = 0, pending = [], publishing = false;
+  function show(i, s) {
+    cur = Math.max(0, Math.min(budgets.length - 1, Number.isFinite(i) ? i : 0));
+    step = Math.max(0, Math.min(budgets[cur] || 0, Number.isFinite(s) ? s : 0));
+    document.getElementById('cur').textContent = cur + 1;
+    document.getElementById('step').textContent = 'Step ' + step + ' / ' + (budgets[cur] || 0);
+    document.getElementById('prev').disabled = cur === 0 && step === 0;
+    document.getElementById('next').disabled = cur >= budgets.length - 1 && step >= (budgets[cur] || 0);
+  }
+  function publish() {
+    if (publishing || !pending.length) return;
+    var state = pending.shift(); publishing = true;
+    var headers = {'Content-Type':'application/json'};
+    fetch('presenter/state', {method:'POST',headers:window.SlidesSessionHeaders?SlidesSessionHeaders(headers):headers,body:JSON.stringify(state),keepalive:true})
+      .then(function(response) { if (!response.ok) throw new Error('Could not advance presentation'); })
+      .catch(function() { document.getElementById('step').textContent = 'Connection lost. Reconnect before continuing.'; })
+      .finally(function() { publishing = false; publish(); });
+  }
+  function go(i, s) { show(i, s || 0); pending.push({index:cur,step:step,source:source,sequence:++sequence}); publish(); }
+  function move(direction) {
+    if (direction > 0) { if (step < budgets[cur]) go(cur, step + 1); else if (cur < budgets.length - 1) go(cur + 1, 0); }
+    else { if (step > 0) go(cur, step - 1); else if (cur > 0) go(cur - 1, budgets[cur - 1]); }
+  }
+  show(0, 0);
   try {
     var es = new EventSource('presenter/events');
     es.addEventListener('state', function(e){
-      try { var d = JSON.parse(e.data); if (!d.web && typeof d.index === 'number'){ cur = d.index; document.getElementById('cur').textContent = (cur+1); } } catch(_){}
+      try { var d = JSON.parse(e.data); if (!d.web && d.source !== source && typeof d.index === 'number') show(d.index, d.step); } catch(_){}
     });
   } catch(_){}
 </script></body></html>`

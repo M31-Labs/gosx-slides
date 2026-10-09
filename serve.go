@@ -228,7 +228,18 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	broker := newPresenterBroker()
 	app.Mount("/presenter/events", http.HandlerFunc(broker.handleEvents))
 	app.Mount("/presenter/state", http.HandlerFunc(broker.handleState))
-	app.Mount("/remote", http.HandlerFunc(handleRemote))
+	app.Mount("/remote", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deck := d
+		if opts.Edit || opts.Dev {
+			fresh, err := LoadIslandDeckAudience(d.Dir, d.Audience)
+			if err != nil {
+				http.Error(w, "could not load presentation", http.StatusInternalServerError)
+				return
+			}
+			deck = fresh
+		}
+		handleRemote(w, r, deck)
+	}))
 
 	title := strings.TrimSpace(opts.Title)
 	if title == "" {

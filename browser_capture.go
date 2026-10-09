@@ -277,7 +277,7 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 		defer pptx.abort()
 	}
 	var pages strings.Builder
-	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + officePageCSS(width, height) + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
+	pages.WriteString(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>` + html.EscapeString(deck.title()) + `</title><style>` + navStyle() + presentationControlsStyle() + authoringStyle + officePageCSS(width, height) + `main.deck>.slide{position:relative;padding:0!important;background:#000}main.deck .capture-frame{display:block;width:100%;height:100vh;max-height:none;object-fit:contain;margin:0}.capture-description{position:absolute;top:0;left:0;margin:0;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media print{main.deck>.slide:last-of-type{break-after:auto;page-break-after:auto}}` + pdfNavigationStyle(opts.PDFNavigation) + `</style></head><body><main class="deck" data-transition="none" data-live-sync="0">`)
 	var video *exec.Cmd
 	var pipe io.WriteCloser
 	var videoLog bytes.Buffer
@@ -404,7 +404,11 @@ func exportCaptured(deck *IslandDeck, opts ExportOptions) error {
 				pageCount++
 				continue
 			}
-			fmt.Fprintf(&pages, `<section class="slide" data-slide="%d"><img class="capture-frame" alt="%s" src="data:image/png;base64,%s"><p class="capture-description">%s</p></section>`, pageCount, html.EscapeString(label), base64.StdEncoding.EncodeToString(pixels), html.EscapeString(slidePlainText(slide)))
+			fmt.Fprintf(&pages, `<section class="slide" id="capture-%d" data-slide="%d"><img class="capture-frame" alt="%s" src="data:image/png;base64,%s"><p class="capture-description">%s</p>`, pageCount, pageCount, html.EscapeString(label), base64.StdEncoding.EncodeToString(pixels), html.EscapeString(slidePlainText(slide)))
+			if opts.PDFNavigation {
+				pages.WriteString(pdfNavigation(pageCount, step < last || i < len(deck.Slides)-1, label))
+			}
+			pages.WriteString(`</section>`)
 			pageCount++
 		}
 	}

@@ -15,7 +15,7 @@ import (
 	slides "m31labs.dev/gosx-slides"
 )
 
-var version = "v0.11.2-dev"
+var version = "v0.11.3-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -411,6 +411,7 @@ func run(args []string) error {
 		capture, rest := takeBoolFlag(rest, "capture")
 		refreshWeb, rest := takeBoolFlag(rest, "refresh-web")
 		steps, rest := takeBoolFlag(rest, "steps")
+		pdfNavigation, rest := takeBoolFlag(rest, "pdf-navigation")
 		editable, rest := takeBoolFlag(rest, "editable")
 		notes, rest := takeBoolFlag(rest, "notes")
 		narration, rest, err := takeStringFlag(rest, "narration", "")
@@ -453,7 +454,7 @@ func run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("invalid --fps: %w", err)
 		}
-		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps, RefreshWeb: refreshWeb})
+		return slides.ExportStatic(deckDir(rest), slides.ExportOptions{Format: format, Audience: audience, OutDir: out, Capture: capture, Steps: steps, PDFNavigation: pdfNavigation, Editable: editable, Notes: notes, Narration: narration, Captions: captions, Aspect: aspect, Width: width, Height: height, PPTXTemplate: template, Seconds: seconds, FPS: fps, RefreshWeb: refreshWeb})
 	case "version":
 		fmt.Println("gosx-slides " + version)
 		return nil
@@ -630,6 +631,7 @@ Commands:
     --editable   Export native text and supported SVG shapes in PPTX
     --notes      Publish speaker notes in SPA, handout or editable PPTX (opt-in)
     --steps      Capture every click state (implies capture)
+    --pdf-navigation  Add clickable previous/next PDF state controls (implies capture)
     --seconds 2  Seconds per video state; --fps 15 (video needs ffmpeg)
   check [deck-dir]                                       title / slide / click / notes / layout counts
   inspect [deck-dir] [--json]                            full authoring analysis (words, estimate, components, warnings)
