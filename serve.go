@@ -407,6 +407,9 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes, editable bool) gosx.Node {
 	editorScript, editorStyle := editorAssets(editable)
 	r := runtimeMounter{rt: ctx.Runtime(), deck: d}
+	// The deck studio consumes the optional framework playhead, even for decks
+	// containing only HTML. It does not ship a parallel animation clock.
+	_ = ctx.Runtime().RequireFeature("motion-transport")
 	if cd != nil {
 		r.graphics = cd.graphics
 		if cd.motion {

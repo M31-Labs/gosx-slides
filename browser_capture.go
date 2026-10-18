@@ -202,7 +202,7 @@ const captureReady = `async function waitFor(test) {
 
 // Adopt ordinary native split text before measuring a still's end pose, so its
 // complete stagger becomes seekable through the shared motion transport.
-const captureStillPose = `(async()=>{if(window.SlidesMotion){SlidesMotion.replay();await SlidesMotion.settled();SlidesMotion.seek(SlidesMotion.duration());await SlidesMotion.settled();}return true;})()`
+const captureStillPose = `(async()=>{if(window.SlidesMotion){SlidesMotion.pause();SlidesMotion.replay();await SlidesMotion.settled();SlidesMotion.seek(SlidesMotion.duration());await SlidesMotion.settled();}return true;})()`
 
 // Capture exports use the same served runtime, including shaders and Scene3D.
 // Every selected state is visited and checked before pixels are read.
