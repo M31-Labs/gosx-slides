@@ -2,7 +2,7 @@ module example.com/composition-pack
 
 go 1.26
 
-require m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1
+require m31labs.dev/gosx v0.57.17-0.20261018192646-22e19e9820d2
 
 require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
