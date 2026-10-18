@@ -16,7 +16,7 @@ func TestStageRuntimeManifestTracksPublishedBytes(t *testing.T) {
 	}
 	wasm := []byte("runtime revision one")
 	js := []byte("bootstrap revision one")
-	for name, data := range map[string][]byte{"gosx-runtime.wasm": wasm, "bootstrap-runtime.js": js, "bootstrap-feature-motion-transport.js": js, "bootstrap-feature-motion-svg.js": js} {
+	for name, data := range map[string][]byte{"gosx-runtime.wasm": wasm, "bootstrap-runtime.js": js, "bootstrap-feature-motion-transport.js": js, "bootstrap-feature-motion-svg.js": js, "bootstrap-feature-motion-scene.js": js} {
 		if err := os.WriteFile(filepath.Join(build, name), data, 0644); err != nil {
 			t.Fatal(err)
 		}
@@ -36,7 +36,7 @@ func TestStageRuntimeManifestTracksPublishedBytes(t *testing.T) {
 		if got := manifest.Runtime.BootstrapRuntime; got.Hash != buildmanifest.ContentHash(js) || got.Integrity != buildmanifest.ContentIntegrity(js) {
 			t.Fatalf("bootstrap metadata does not match staged bytes: %+v", got)
 		}
-		for _, name := range []string{"motion-transport", "motion-svg"} {
+		for _, name := range []string{"motion-transport", "motion-svg", "motion-scene"} {
 			if got := manifest.Runtime.Features[name]; got.Hash != buildmanifest.ContentHash(js) || got.Integrity != buildmanifest.ContentIntegrity(js) {
 				t.Fatalf("%s integrity does not match staged bytes: %+v", name, got)
 			}

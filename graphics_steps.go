@@ -78,6 +78,13 @@ func graphicStepAttrs(payload map[string]any) (map[string]any, error) {
 			}
 		}
 	}
+	// Share command-pose validation with normal GoSX applications.
+	for index, frame := range timeline.Frames {
+		transition := scene.CommandTransition{From: timeline.Frames[max(0, index-1)].Commands, To: frame.Commands}
+		if _, err := transition.Prepare(); err != nil {
+			return nil, fmt.Errorf("graphic frame %d: %w", index, err)
+		}
+	}
 	data, err = json.Marshal(timeline)
 	if err != nil {
 		return nil, err

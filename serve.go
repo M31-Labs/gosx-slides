@@ -419,6 +419,12 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 		}
 	}
 	if cd != nil {
+		for _, graphic := range cd.graphics {
+			if _, ok := graphic.config.MountAttrs["data-slide-steps"]; ok {
+				_ = ctx.Runtime().RequireFeature("motion-scene")
+				break
+			}
+		}
 		r.graphics = cd.graphics
 		if cd.motion {
 			ctx.Runtime().EnableBootstrap()
