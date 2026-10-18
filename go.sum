@@ -140,6 +140,10 @@ m31labs.dev/gosx v0.57.17-0.20261018165654-3837053a2747 h1:v5AEX8Hm/wXhhhl6fDK3A
 m31labs.dev/gosx v0.57.17-0.20261018165654-3837053a2747/go.mod h1:HvK187xNEwIbzK/RJqWO651DnT1R4lxR9BB2e4LrP7M=
 m31labs.dev/gosx v0.57.17-0.20261018170659-eaad7ec08168 h1:5CEf7vab+SAgssS2pbYPRgqpkY/5ERZ7azz+8tsXIik=
 m31labs.dev/gosx v0.57.17-0.20261018170659-eaad7ec08168/go.mod h1:HvK187xNEwIbzK/RJqWO651DnT1R4lxR9BB2e4LrP7M=
+m31labs.dev/gosx v0.57.17-0.20261018172004-3a4af7234ebe h1:wxlKeVLkwPmNMSF6uhnrvwzgRrV1c2lsBlIYbMYcP+E=
+m31labs.dev/gosx v0.57.17-0.20261018172004-3a4af7234ebe/go.mod h1:HvK187xNEwIbzK/RJqWO651DnT1R4lxR9BB2e4LrP7M=
+m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1 h1:C8m036ZjZ1iyUveMMYI/fbArwMtmyTrN3tFQXRas2vw=
+m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1/go.mod h1:HvK187xNEwIbzK/RJqWO651DnT1R4lxR9BB2e4LrP7M=
 m31labs.dev/mdpp v0.5.0 h1:6QjhN+sbBIuRTBJJgG/GQOn/jgxlwcQku40rvrIyhlI=
 m31labs.dev/mdpp v0.5.0/go.mod h1:UJEpZu+H/vrDqXOB+OgDRyQsMNXRUVs5DAbAt3JM+G4=
 m31labs.dev/mll v0.1.0 h1:NQW/QlIVr0mnOUr0xNH4SHsgAiPH82KyY7XlQNHcABQ=

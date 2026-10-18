@@ -2,7 +2,7 @@ module audience-variants
 
 go 1.26
 
-require m31labs.dev/gosx v0.57.17-0.20261018170659-eaad7ec08168
+require m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1
 
 require (
 	github.com/andybalholm/brotli v1.2.1 // indirect
