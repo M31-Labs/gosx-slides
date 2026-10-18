@@ -5,13 +5,13 @@ go 1.26
 require (
 	github.com/dop251/goja v0.0.0-20261004200024-481fdb442bb4
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/odvcencio/gotreesitter v0.55.1
+	github.com/odvcencio/gotreesitter v0.56.0
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
-	m31labs.dev/gosx v0.57.6
+	m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1
 	m31labs.dev/mdpp v0.5.0
-	m31labs.dev/selena v0.5.2
+	m31labs.dev/selena v0.5.3-0.20261010191520-994398415643
 	m31labs.dev/sirena v0.7.0
 )
 

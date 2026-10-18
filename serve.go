@@ -307,8 +307,7 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 
 	// The native WebPage controller needs no GoSX bootstrap assets. A deck made
 	// only of prose and web pages remains portable without a Go module/toolchain.
-	nativeWebOnly := d.web != nil && len(compiled) == 0 && deckProgram != nil && len(deckProgram.graphics) == 0 && !deckProgram.motion && d.Simulations == nil
-	if opts.StageRuntime && !nativeWebOnly {
+	if opts.StageRuntime && !d.nativeWebOnly(compiled, deckProgram) {
 		root, err := stageRuntimeAssets(d.Dir, opts.RebuildRuntime, len(compiled) > 0)
 		if err != nil {
 			return nil, fmt.Errorf("stage runtime assets: %w", err)
@@ -318,6 +317,10 @@ func (d *IslandDeck) NewServer(opts ServeOptions) (*server.App, error) {
 	}
 
 	return app, nil
+}
+
+func (d *IslandDeck) nativeWebOnly(compiled map[string]*compiledComponent, program *compiledDeck) bool {
+	return d.web != nil && len(compiled) == 0 && program != nil && len(program.graphics) == 0 && !program.motion && d.Simulations == nil
 }
 
 // Serve builds the real-lane App for the deck and serves it on opts.Addr,
@@ -407,6 +410,11 @@ func (m runtimeMounter) RenderIslandFromProgram(prog *program.Program, props any
 func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*compiledComponent, dev bool, failures map[string]error, cd *compiledDeck, err error, liveSync, includeNotes, editable bool) gosx.Node {
 	editorScript, editorStyle := editorAssets(editable)
 	r := runtimeMounter{rt: ctx.Runtime(), deck: d}
+	// Match runtime staging: authored motion uses the shared framework playhead;
+	// pure prose/webpage decks require no framework assets.
+	if !d.nativeWebOnly(compiled, cd) {
+		_ = ctx.Runtime().RequireFeature("motion-transport")
+	}
 	if cd != nil {
 		r.graphics = cd.graphics
 		if cd.motion {

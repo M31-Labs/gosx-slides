@@ -3,7 +3,6 @@ package slides
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -143,31 +142,14 @@ func compileGraphicWithStory(dir string, ref ComponentRef, storySteps []byte) (e
 				material.Uniforms[key] = value
 			}
 		}
-		var geometry scene.Geometry
-		rotation := scene.Euler{X: math.Pi / 2}
-		shape := graphicString(props, "Shape", "plane")
-		switch shape {
-		case "plane":
-			geometry = scene.PlaneGeometry{Width: 18, Height: 12}
-		case "sphere":
-			geometry = scene.SphereGeometry{Radius: 2.5, Segments: 48}
-		case "box":
-			geometry = scene.BoxGeometry{Width: 4, Height: 4, Depth: 4}
-		case "torus":
-			geometry = scene.TorusGeometry{Radius: 2.2, Tube: .7, RadialSegments: 24, TubularSegments: 64}
-		default:
-			return engine.Config{}, fmt.Errorf("unknown shader Shape %q (plane, sphere, box, torus)", shape)
+		config, err := (scene.ShaderSurface{
+			Material:    material,
+			Shape:       scene.ShaderShape(graphicString(props, "Shape", "plane")),
+			Interactive: true,
+		}).EngineConfig()
+		if err != nil {
+			return engine.Config{}, err
 		}
-		if shape != "plane" {
-			rotation = scene.Euler{X: .9, Y: .25}
-		}
-		config := scene.Props{
-			Background: "transparent", CanvasAlpha: scene.Bool(true), Responsive: scene.Bool(true), FillHeight: scene.Bool(true),
-			MaxFrameRate: 30, MaxDevicePixelRatio: 1.5, MaxPixels: 2_000_000, AdaptiveQuality: scene.Bool(true),
-			AutoRotate: scene.Bool(shape != "plane"), DragToRotate: scene.Bool(shape != "plane"),
-			Camera: scene.PerspectiveCamera{Position: scene.Vec3(0, 0, 10), FOV: 50, Near: .1, Far: 100},
-			Graph:  scene.NewGraph(scene.Mesh{ID: "shader-shape", Geometry: geometry, Material: material, Rotation: rotation}),
-		}.EngineConfig()
 		if err := json.Unmarshal(config.Props, &payload); err != nil {
 			return engine.Config{}, err
 		}

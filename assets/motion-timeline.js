@@ -1,14 +1,20 @@
-(function () {
+(function initializeMotion() {
   'use strict';
   const deck = document.querySelector('main.deck');
   if (!deck || !window.SlidesNav) return;
+  const motion = window.__gosx?.motion;
+  if (!motion?.createTransport) {
+    document.addEventListener('gosx:ready', initializeMotion, {once: true});
+    return;
+  }
   const records = new WeakMap(), played = new WeakSet(), segments = new WeakMap();
   const pendingUnits = new WeakMap(), unitRecords = new WeakMap();
   let segment = 0;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let lastSlide = null, lastStep = -1;
-  let paused = false, graphicsFrozen = false, panel = null, selected = null, refreshTimer = null;
-  let time = 0, direction = 1, raf = 0, lastTick = null;
+  let paused = false, panel = null, selected = null, refreshTimer = null;
+  let time = 0, direction = 1, transport = null;
+  const clockBindings = new Map();
   const history = [], future = []; let sourceDraft = null, saving = false;
   const editable = !!document.querySelector('meta[name="slides-edit"]');
   const keys = ['preset','duration','delay','easing','replay'];
@@ -213,30 +219,30 @@
     }
     return !(el?.dataset.slidesMotionReplay === 'once' && segments.has(a) && segments.get(a) !== segment);
   }); }
-  function graphicsPause(value) {
-    deck.querySelectorAll(".slide.deck-active .slide-graphic, .deck-graphics-background.deck-background-active").forEach(mount => { const scope = mount.closest("[data-gosx-scene3d-control-scope]"); const toggle = scope && scope.querySelector("[data-gosx-scene3d-animation-toggle]"); if (toggle && !toggle.disabled && (mount.dataset.gosxScene3dAnimationState === "paused") !== value) toggle.click(); });
+  // Only deck membership belongs here. GoSX owns clock inheritance and
+  // submitted-frame readiness, including engines mounted after Pause/Seek.
+  function syncClocks() {
+    const mounts = new Set(nativeMounts());
+    for (const [mount, release] of clockBindings) if (!mounts.has(mount)) { release(); clockBindings.delete(mount); }
+    if (!transport) return;
+    for (const mount of mounts) if (!clockBindings.has(mount)) clockBindings.set(mount, motion.bindTransportScene(transport, mount));
   }
-  deck.querySelectorAll(".slide-graphic, .deck-graphics-background").forEach(mount => {
-    if (mount.closest("[data-gosx-scene3d-control-scope]")) return;
-    // Scene mounting replaces its children; controls must live in an ancestor scope.
-    const scope = document.createElement("div"); scope.style.display = "contents"; scope.setAttribute("data-gosx-scene3d-control-scope", ""); mount.before(scope); scope.appendChild(mount); const toggle = document.createElement("button"); toggle.type = "button"; toggle.hidden = true; toggle.setAttribute("data-gosx-scene3d-animation-toggle", ""); toggle.setAttribute("data-slides-motion-graphics-toggle", ""); toggle.setAttribute("aria-label", "Toggle scene animation"); scope.appendChild(toggle);
-  });
   function pauseActive() {
     window.SlidesDiagramMotion?.pause();
-    graphicsPause(true);
+    syncClocks();
     animations().forEach(a => a.pause());
   }
-  // Deferred engines and step replays inherit Pause or the native clock freeze
-  // used during reverse. Disconnect whenever the transport resumes forward.
+  // Deferred engines and step replays inherit the shared playhead and pause
+  // intent. Refresh membership when the deck's runtime state changes.
   const pauseObserver = new MutationObserver(() => {
     claimUnits();
+    syncClocks();
     if (paused) pauseActive();
-    else if (graphicsFrozen) graphicsPause(true);
     sample();
-    if (!paused && !raf && ((direction > 0 && time < duration()) || (direction < 0 && time > 0))) startClock();
+    transport?.refresh();
   });
-  function setTransport(isPaused, freezeGraphics) {
-    paused = isPaused; graphicsFrozen = freezeGraphics;
+  function setTransport(isPaused) {
+    paused = isPaused;
     pauseObserver.disconnect();
     pauseObserver.observe(deck, {subtree: true, attributes: true,
       attributeFilter: ['data-gosx-scene3d-ready', 'data-gosx-scene3d-animation-state', 'data-gosx-motion-state']});
@@ -263,57 +269,26 @@
       const state = earlier || time >= Number(list[list.length-1].effect.getComputedTiming().endTime) ? 'finished' : 'running';
       if (el.dataset.gosxMotionState !== state) el.dataset.gosxMotionState = state;
     });
-    nativeMounts().forEach(mount => {
-      const handle = mount.__gosxScene3DHandle;
-      if (handle?.setAnimationClock) {
-        const seconds = reduce.matches ? 0 : time / 1000, clock = handle.getAnimationClock?.();
-        if (!clock || clock.timeSeconds !== seconds || !clock.paused) handle.setAnimationClock({timeSeconds: seconds});
-      }
-    });
   }
-  function stopClock() { cancelAnimationFrame(raf); raf = 0; lastTick = null; }
-  function tick(now) {
-    raf = 0;
-    if (paused || document.hidden) return;
-    if (lastTick != null) time = Math.max(0, Math.min(duration(), time + Math.min(250, now - lastTick) * direction));
-    lastTick = now; sample(); updatePanel();
-    if ((direction > 0 && time < duration()) || (direction < 0 && time > 0)) raf = requestAnimationFrame(tick);
-    else lastTick = null;
-  }
-  function startClock() { stopClock(); if (!paused) { if (reduce.matches) { time = duration(); sample(); updatePanel(); } else raf = requestAnimationFrame(tick); } }
-  function pause() { stopClock(); setTransport(true, true); pauseActive(); sample(); updatePanel(); }
-  function play() { setTransport(false, false); graphicsPause(false); direction = 1; startClock(); updatePanel(); }
-  function seek(ms) { stopClock(); setTransport(true, true); pauseActive(); time = Math.max(0, Math.min(duration(), Number(ms) || 0)); sample(); updatePanel(); }
+  function stopClock() { transport?.suspend(); }
+  function startClock() { transport?.restore({paused, time, direction}); }
+  function pause() { setTransport(true); pauseActive(); transport.pause(); }
+  function play() { setTransport(false); syncClocks(); transport.play(); }
+  function seek(ms) { setTransport(true); pauseActive(); transport.seek(Number(ms) || 0); }
   function duration() {
     const story = window.SlidesStory?.current();
     const native = nativeMounts().length ? (story ? story.durationMs : Number(active().dataset.motionDuration) || 10000) : 0;
     return Math.max(native, window.SlidesSimulation?.duration() || 0, window.SlidesStory?.duration() || 0, window.SlidesCodeMotion?.duration() || 0, window.SlidesGraphicsMotion?.duration() || 0, window.SlidesDiagramMotion?.duration() || 0,
       animations().reduce((n,a) => { const end = Number(a.effect.getComputedTiming().endTime); return Number.isFinite(end) ? Math.max(n,end) : n; },0));
   }
-  function reverse() { setTransport(false, true); graphicsPause(true); if (time === 0) time = duration(); direction = -1; sample(); startClock(); updatePanel(); }
-  // Capture waits for the latest command batch and two paint boundaries. Seek
-  // never uses elapsed wall time, so video frame rate cannot change the pose.
-  async function settled() {
-    await window.SlidesGraphicsMotion?.settled();
-    if (paused) {
-      const clock = (reduce.matches ? 0 : time / 1000).toFixed(3), deadline = performance.now() + 3000;
-      // Command acceptance can precede a paced native frame. Wait for its
-      // published clock and render queue before counting paint boundaries.
-      while (nativeMounts().some(mount => mount.__gosxScene3DHandle?.setAnimationClock &&
-        (mount.dataset.gosxScene3dAnimationClock !== clock || window.__gosx_scene3d_debug?.inspect(mount.id)?.renderLoop.scheduled))) {
-        if (performance.now() > deadline) throw new Error('Graphic frame did not settle');
-        await new Promise(resolve => requestAnimationFrame(resolve));
-      }
-    }
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  }
+  function reverse() { setTransport(false); syncClocks(); transport.reverse(); }
+  function settled() { return transport.settled(); }
   document.addEventListener('gosx:ready', () => {
     items().filter(el => pendingUnits.has(el)).forEach(el => window.__gosx?.motion?.observe(el));
     claimUnits();
+    syncClocks();
     sample(); startClock();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopClock(); else startClock(); });
-  reduce.addEventListener('change', () => { if (reduce.matches) { stopClock(); time = duration(); sample(); updatePanel(); } else startClock(); });
   function claimUnits() {
     items().forEach(el => {
       if (!pendingUnits.has(el)) return;
@@ -402,11 +377,11 @@
   deck.addEventListener('slides:change', () => {
     const entered = lastSlide !== active(), previousStep = lastStep, changed = entered || lastStep !== SlidesNav.step();
     if (entered) {
-      setTransport(false, false); history.length = future.length = 0;
+      setTransport(false); history.length = future.length = 0;
       if (panel && panel.open) panel.close();
     }
     if (changed) segment++;
-    graphicsPause(graphicsFrozen); sync(false);
+    syncClocks(); sync(false);
     if (changed) {
       direction = 1; time = 0;
       // Previous steps and direct anchors land on their exact destination.
@@ -538,10 +513,13 @@
     if ((event.key === 'm' || event.key === 'M') && !SlidesNav.isOverview()) { event.preventDefault(); open(); }
   });
   function restoreTransport(state) {
-    stopClock(); setTransport(state.paused, state.paused || state.direction < 0);
+    stopClock(); setTransport(state.paused);
     direction = state.direction; time = Math.max(0,Math.min(duration(),state.time));
-    graphicsPause(graphicsFrozen); if (paused) pauseActive(); sample(); startClock(); updatePanel();
+    syncClocks(); if (paused) pauseActive(); sample(); startClock(); updatePanel();
   }
-  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, restore: restoreTransport, state: () => ({paused, time, direction, duration: duration()}) };
-  setTransport(false, false); sync(false); startClock();
+  transport = motion.createTransport({durationMs: duration});
+  transport.subscribe(state => { time = state.time; direction = state.direction; paused = state.paused; updatePanel(); });
+  transport.attach({sample(ms, state) { time = ms; direction = state.direction; paused = state.paused; sample(); }, settled: () => window.SlidesGraphicsMotion?.settled()});
+  window.SlidesMotion = { pause, play, seek, replay, reverse, open, duration, settled, restore: restoreTransport, state: transport.state };
+  setTransport(false); sync(false); syncClocks(); startClock();
 })();

@@ -4,6 +4,15 @@ Start with the [runnable effects deck](../examples/effects-cookbook) or its
 [exported PDF](examples/effects-cookbook.pdf). Commands below run from your
 project's parent directory; `my-talk` contains `deck.md`.
 
+Playback now uses GoSX's optional shared motion transport. The same framework
+playhead owns pause, seek, reverse, labels and rendered-frame settling;
+`<Shader>` lowers through GoSX's typed `scene.ShaderSurface`. Deck navigation,
+cue grouping and the source editor remain slides adapters. Selena materials
+follow scene time on WebGPU and WebGL, so paused and rewound captures reproduce
+the same declared shader frame. See GoSX's
+[motion transport guide](https://github.com/odvcencio/gosx/blob/main/docs/motion-transport.md)
+for using these constructs outside a deck.
+
 ## 1. Choose and tune a background
 
 ```sh

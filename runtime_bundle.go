@@ -21,6 +21,7 @@ const maxRuntimeBundleBytes = 96 << 20
 // The pinned GoSX release's production modules. Validate the complete set so
 // a damaged installation fails before a slide first requests an optional chunk.
 var requiredRuntimeBundleAssets = []string{
+	"bootstrap-feature-motion-transport.js",
 	"gosx-runtime.wasm", "wasm_exec.js", "patch.js", "bootstrap.js", "bootstrap-lite.js", "bootstrap-runtime.js",
 	"bootstrap-feature-controllers.js", "bootstrap-feature-engines.js", "bootstrap-feature-hubs.js",
 	"bootstrap-feature-islands.js", "bootstrap-feature-textlayout.js", "bootstrap-feature-scene3d.js",

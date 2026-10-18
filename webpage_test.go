@@ -68,6 +68,26 @@ func webTestResponse(t *testing.T, d *IslandDeck, opts ServeOptions) *httptest.R
 	return rec
 }
 
+func TestWebPageRuntimeMatchesAuthoredMotion(t *testing.T) {
+	for _, tc := range []struct {
+		name, content string
+		wantRuntime   bool
+	}{
+		{"native-webpage", `<WebPage src="https://example.com/demo"/>`, false},
+		{"webpage-with-motion", "<WebPage src=\"https://example.com/demo\"/>\n\n:::motion {preset=fade split=word}\nA shared playhead.\n:::\n", true},
+		{"ordinary-html", "Plain prose.", false},
+		{"ordinary-html-with-motion", ":::motion {preset=fade split=word}\nA shared playhead.\n:::\n", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := loadDeckFromSource(t, "---\ntheme: paper\nweb-allow: [example.com]\n---\n\n# Runtime ownership\n\n"+tc.content, nil)
+			response := webTestResponse(t, d, ServeOptions{})
+			if got := strings.Contains(response.Body.String(), `id="gosx-manifest"`); got != tc.wantRuntime {
+				t.Fatalf("framework runtime requested = %v, want %v", got, tc.wantRuntime)
+			}
+		})
+	}
+}
+
 func TestWebPagePolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name, settings, src string

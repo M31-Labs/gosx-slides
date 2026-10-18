@@ -52,6 +52,18 @@ func stageRuntimeManifest(deckDir, buildDir string) error {
 			Integrity: buildmanifest.ContentIntegrity(data),
 		}
 	}
+	// Required generic GoSX features carry the same integrity evidence as the
+	// fixed Scene3D assets. Keep compatibility URLs for portable exports.
+	for _, name := range []string{"motion-transport"} {
+		data, err := os.ReadFile(filepath.Join(buildDir, "bootstrap-feature-"+name+".js"))
+		if err != nil {
+			return fmt.Errorf("hash required feature %s: %w", name, err)
+		}
+		if runtime.Features == nil {
+			runtime.Features = map[string]buildmanifest.HashedAsset{}
+		}
+		runtime.Features[name] = buildmanifest.HashedAsset{Hash: buildmanifest.ContentHash(data), Size: int64(len(data)), Integrity: buildmanifest.ContentIntegrity(data)}
+	}
 	data, err := json.Marshal(manifest)
 	if err != nil {
 		return err

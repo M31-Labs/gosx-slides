@@ -2,12 +2,13 @@ module canopy-migration
 
 go 1.26
 
-require m31labs.dev/gosx v0.57.6
+require m31labs.dev/gosx v0.57.17-0.20261018174247-e9ac799ff8a1
 
 require (
+	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/odvcencio/corkscrewdb v0.2.0 // indirect
-	github.com/odvcencio/gotreesitter v0.50.1 // indirect
+	github.com/odvcencio/gotreesitter v0.56.0 // indirect
 	github.com/odvcencio/turboquant v0.1.3 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
