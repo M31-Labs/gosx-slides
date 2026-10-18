@@ -414,6 +414,9 @@ func (d *IslandDeck) renderPageBody(ctx *server.Context, compiled map[string]*co
 	// pure prose/webpage decks require no framework assets.
 	if !d.nativeWebOnly(compiled, cd) {
 		_ = ctx.Runtime().RequireFeature("motion-transport")
+		if deckHasDiagramMotion(d) {
+			_ = ctx.Runtime().RequireFeature("motion-svg")
+		}
 	}
 	if cd != nil {
 		r.graphics = cd.graphics

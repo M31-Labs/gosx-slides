@@ -1,14 +1,15 @@
 (function(){
   'use strict';const deck=document.querySelector('main.deck');if(!deck||!window.SlidesNav)return;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)'), records=new Map();
-  const numeric=/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi;
-  // Interpolate compatible typed SVG geometry; incompatible paths retain the
-  // exact destination geometry and fade. Every frame originates on the server.
-  function blend(a,b){if(!a||a.replace(numeric,'#')!==b.replace(numeric,'#'))return null;const from=(a.match(numeric)||[]).map(Number),to=(b.match(numeric)||[]).map(Number);if(!from.length||from.length!==to.length||from.some(n=>!Number.isFinite(n))||to.some(n=>!Number.isFinite(n)))return null;return t=>{let i=0;return b.replace(numeric,()=>String(from[i]+(to[i]-from[i++])*t));};}
-  // A single reusable easing effect per transition avoids DOM reads each frame.
-  function curve(value){try{const effect=new KeyframeEffect(null,[{}],{duration:1,fill:'both',easing:value}),animation=new Animation(effect);return t=>{animation.currentTime=t;return effect.getComputedTiming().progress??t;};}catch(_){return t=>t;}}
   function active(){return deck.querySelector('.slide.deck-active');}
-  function render(record,time){record.time=Math.max(0,Math.min(record.duration,time));const t=record.duration?record.ease(record.time/record.duration):1;record.tracks.forEach(track=>track.el.setAttribute(track.key,track.value(t)));record.fades.forEach(el=>el.style.opacity=String(t));if(record.time===record.duration){record.tracks.forEach(track=>track.el.setAttribute(track.key,track.final));record.fades.forEach(el=>el.style.removeProperty('opacity'));}}
+  function render(record,time){
+    record.time=Math.max(0,Math.min(record.duration,time));
+    const morph=window.__gosx?.motion?.createSVGMorph;
+    // Story addresses can be selected before optional GoSX features finish
+    // loading. Retain the authored source and compile at the first ready sample.
+    if(!record.transition&&record.from&&morph){record.transition=morph(record.from,record.svg,{easing:record.easing});record.from=null;}
+    record.transition?.sample(record.duration?record.time/record.duration:1);
+  }
   function cancel(record){record.playback?.dispose();record.playback=null;record.paused=true;}
   function start(record,direction=1){
     cancel(record);
@@ -19,9 +20,9 @@
     playback.attach({sample(ms,state){render(record,ms);record.direction=state.direction;record.paused=state.paused||(state.direction>0?ms>=record.duration:ms<=0);}});
     playback.restore({time,direction,paused:false});
   }
-  function switchState(group,index,animate){let record=records.get(group);const figures=Array.from(group.children).filter(el=>el.matches('figure'));if(!record){record={templates:figures.map(el=>el.querySelector('svg').cloneNode(true)),index:-1,playback:null};records.set(group,record);}if(record.index===index){render(record,record.duration);record.paused=true;return;}cancel(record);const old=record.svg;record.index=index;const next=record.templates[index].cloneNode(true);figures.forEach((el,i)=>{el.hidden=i!==index;el.inert=i!==index;el.setAttribute('aria-hidden',String(i!==index));});figures[index].replaceChildren(next);record.svg=next;record.tracks=[];record.fades=[];record.duration=Math.max(0,Math.min(10000,Number.isFinite(Number(group.dataset.diagramDuration))?Number(group.dataset.diagramDuration):700));record.ease=curve(group.dataset.diagramEasing||'ease-in-out');record.time=0;
+  function switchState(group,index,animate){let record=records.get(group);const figures=Array.from(group.children).filter(el=>el.matches('figure'));if(!record){record={templates:figures.map(el=>el.querySelector('svg').cloneNode(true)),index:-1,playback:null};records.set(group,record);}if(record.index===index){render(record,record.duration);record.paused=true;return;}cancel(record);const old=record.svg?.cloneNode(true);record.index=index;const next=record.templates[index].cloneNode(true);figures.forEach((el,i)=>{el.hidden=i!==index;el.inert=i!==index;el.setAttribute('aria-hidden',String(i!==index));});figures[index].replaceChildren(next);record.transition?.dispose();record.transition=null;record.from=null;record.svg=next;record.easing=group.dataset.diagramEasing||'ease-in-out';record.duration=Math.max(0,Math.min(10000,Number.isFinite(Number(group.dataset.diagramDuration))?Number(group.dataset.diagramDuration):700));record.time=0;
     record.direction=1;
-    if(old&&animate&&!reduced.matches){const identities=new Map(Array.from(old.querySelectorAll('[data-morph-id]')).map(el=>[el.dataset.morphId,el]));next.querySelectorAll('[data-morph-id]').forEach(el=>{const previous=identities.get(el.dataset.morphId);if(!previous){record.fades.push(el);return;}const target=[el,...el.querySelectorAll('rect,circle,ellipse,path,polyline,polygon,use')],source=[previous,...previous.querySelectorAll('rect,circle,ellipse,path,polyline,polygon,use')];target.forEach((shape,i)=>{if(shape.tagName!==source[i]?.tagName)return;for(const key of ['x','y','cx','cy','r','rx','ry','width','height','d','points','transform']){const final=shape.getAttribute(key),value=final&&blend(source[i].getAttribute(key),final);if(value)record.tracks.push({el:shape,key,value,final});}});});render(record,0);if(!window.SlidesMotion)start(record);}else{render(record,record.duration);record.paused=true;}
+    if(old&&animate&&!reduced.matches){record.from=old;render(record,0);if(!window.SlidesMotion)start(record);}else{render(record,record.duration);record.paused=true;}
   }
   function sync(){records.forEach(cancel);active()?.querySelectorAll('.slides-diagram-morph').forEach(group=>{const n=group.children.length;switchState(group,Math.min(n-1,SlidesNav.step()),records.has(group));});}
   function selected(){return Array.from(records).filter(([group])=>active()?.contains(group)).map(([,record])=>record);}

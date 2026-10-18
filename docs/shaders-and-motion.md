@@ -13,6 +13,14 @@ the same declared shader frame. See GoSX's
 [motion transport guide](https://github.com/odvcencio/gosx/blob/main/docs/motion-transport.md)
 for using these constructs outside a deck.
 
+SVG diagram morphing also uses GoSX: geometry sampling, compatible-path
+interpolation, topology fades, easing and reduced-motion cleanup live in the
+optional `motion-svg` feature. Slides supplies the storyboard snapshots and
+navigation. In a GoSX app, `Program.BindSVGMorph(progress, "#before", "#after")`
+connects server-rendered SVG to the same signal graph and transport; mark matching
+actors with `data-morph-id`. See the framework's `examples/motion-svg` app.
+
+
 ## 1. Choose and tune a background
 
 ```sh

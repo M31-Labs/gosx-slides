@@ -59,16 +59,23 @@ func diagramMorphError(message string) gosx.Node {
 	return gosx.El("pre", gosx.Attrs(gosx.Attr("class", "diagram-error")), gosx.Text("diagram story error: "+message))
 }
 
-func deckDiagramMotionScript(deck *IslandDeck) string {
+func deckHasDiagramMotion(deck *IslandDeck) bool {
 	for _, slide := range deck.Slides {
 		if slide.Node == nil {
 			continue
 		}
 		for _, node := range slide.Node.Find(mdpp.NodeContainerDirective) {
 			if node.Attr("name") == "diagram-morph" {
-				return diagramMotionScript
+				return true
 			}
 		}
+	}
+	return false
+}
+
+func deckDiagramMotionScript(deck *IslandDeck) string {
+	if deckHasDiagramMotion(deck) {
+		return diagramMotionScript
 	}
 	return ""
 }
