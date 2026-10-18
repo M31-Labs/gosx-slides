@@ -297,7 +297,7 @@ Effects: https://github.com/M31-Labs/gosx-slides/blob/main/docs/shaders-and-moti
 // binary carries no usable build info (e.g. `go run`/dev builds, where the dep
 // version reads as "(devel)" or is absent). It tracks the gosx version this module
 // is built against (see go.mod). gosxScaffoldVersion prefers the real build info.
-const fallbackGoSXVersion = "v0.57.17-0.20261018165654-3837053a2747"
+const fallbackGoSXVersion = "v0.57.17-0.20261018170659-eaad7ec08168"
 
 // gosxScaffoldVersion returns the gosx module version to pin in a scaffolded
 // deck's go.mod. It reads the RUNNING binary's build info and uses the version of

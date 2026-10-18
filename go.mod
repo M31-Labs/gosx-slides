@@ -9,7 +9,7 @@ require (
 	golang.org/x/net v0.57.0
 	golang.org/x/sys v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
-	m31labs.dev/gosx v0.57.17-0.20261018165654-3837053a2747
+	m31labs.dev/gosx v0.57.17-0.20261018170659-eaad7ec08168
 	m31labs.dev/mdpp v0.5.0
 	m31labs.dev/selena v0.5.3-0.20261010191520-994398415643
 	m31labs.dev/sirena v0.7.0

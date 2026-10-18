@@ -63,7 +63,13 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 		os.RemoveAll(tmp)
 		return nil, err
 	}
-	failed := func(err error) (*captureBrowser, error) { b.close(); return nil, err }
+	failed := func(err error) (*captureBrowser, error) {
+		b.close() // Wait for the stderr writer before reading its buffer.
+		if detail := strings.TrimSpace(logs.String()); detail != "" {
+			err = fmt.Errorf("%w: %.2000s", err, detail)
+		}
+		return nil, err
+	}
 	var port string
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
@@ -175,12 +181,21 @@ func (b *captureBrowser) eval(expression string, out any) error {
 }
 func (b *captureBrowser) wait(expression string) error {
 	deadline := time.Now().Add(30 * time.Second)
+	var lastErr error
 	for time.Now().Before(deadline) {
 		var ready bool
-		if err := b.eval(expression, &ready); err == nil && ready {
+		lastErr = b.eval(expression, &ready)
+		if lastErr == nil && ready {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	if lastErr != nil {
+		return fmt.Errorf("capture page did not become ready: %w", lastErr)
+	}
+	var state json.RawMessage
+	if err := b.eval(`({document:document.readyState,navigation:!!window.SlidesNav,manifest:!!document.getElementById('gosx-manifest'),runtime:!!window.__gosx?.ready})`, &state); err == nil {
+		return fmt.Errorf("capture page did not become ready: %s", state)
 	}
 	return fmt.Errorf("capture page did not become ready")
 }
