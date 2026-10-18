@@ -75,8 +75,10 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 	for time.Now().Before(deadline) {
 		data, err := os.ReadFile(filepath.Join(tmp, "DevToolsActivePort"))
 		if err == nil {
-			port = strings.SplitN(string(data), "\n", 2)[0]
-			break
+			if ready, ok := captureEndpointPort(data); ok {
+				port = ready
+				break
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -84,7 +86,7 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	if _, err := strconv.Atoi(port); err != nil {
+	if port == "" {
 		return failed(fmt.Errorf("Chrome did not start its capture endpoint; check SLIDES_CHROME"))
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -113,6 +115,21 @@ func startCaptureBrowser(ctx context.Context) (*captureBrowser, error) {
 	b.conn.MaxPayloadBytes = 128 << 20
 	return b, nil
 }
+
+// Chrome creates DevToolsActivePort before writing its contents. A readable
+// file or partial digit sequence is not yet a complete endpoint announcement.
+func captureEndpointPort(data []byte) (string, bool) {
+	line, _, complete := strings.Cut(string(data), "\n")
+	if !complete {
+		return "", false
+	}
+	port, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil || port < 1 || port > 65535 {
+		return "", false
+	}
+	return strconv.Itoa(port), true
+}
+
 func (b *captureBrowser) close() {
 	if b.conn != nil {
 		b.conn.Close()

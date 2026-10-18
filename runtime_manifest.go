@@ -54,7 +54,7 @@ func stageRuntimeManifest(deckDir, buildDir string) error {
 	}
 	// Required generic GoSX features carry the same integrity evidence as the
 	// fixed Scene3D assets. Keep compatibility URLs for portable exports.
-	for _, name := range []string{"motion-transport", "motion-svg"} {
+	for _, name := range []string{"motion-transport", "motion-svg", "motion-scene"} {
 		data, err := os.ReadFile(filepath.Join(buildDir, "bootstrap-feature-"+name+".js"))
 		if err != nil {
 			return fmt.Errorf("hash required feature %s: %w", name, err)

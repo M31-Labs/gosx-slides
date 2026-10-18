@@ -162,6 +162,12 @@ and `easing` (`linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`), with a
 600 ms default; explicit zero settles immediately. Stateful water, particle and
 event-driven glTF simulations need their own replay state.
 
+Scene poses use GoSX's prepared `scene.CommandTransition`: the framework owns
+geometry, color and camera interpolation, deferred readiness, coalesced command
+submission and capture settling. Slides supplies cue addresses and timing.
+Decks with scene keyframes request the optional `motion-scene` feature; portable
+runtime packs include its bytes and integrity metadata.
+
 Save uses parsed directive ranges: existing spacing, quoting, other attributes
 and body content stay intact. A fake directive inside a code fence cannot be
 edited as motion. Source editing requires LF line endings.

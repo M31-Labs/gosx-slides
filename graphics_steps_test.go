@@ -19,6 +19,9 @@ func TestGraphicKeyframesTransportAndInventory(t *testing.T) {
 	if !strings.Contains(body, `data-gosx-text-layout="true"`) {
 		t.Fatal("native labels must activate the typography feature")
 	}
+	if !strings.Contains(body, `"bootstrapFeatureMotionScenePath":"/gosx/bootstrap-feature-motion-scene.js"`) {
+		t.Fatal("keyframed graphics must load framework scene motion")
+	}
 	manifest := graphicsManifest(t, body)
 	props := manifest["engines"].([]any)[0].(map[string]any)["props"].(map[string]any)
 	if _, exists := props["slideSteps"]; exists {
@@ -47,6 +50,7 @@ func TestGraphicKeyframesValidation(t *testing.T) {
 		{"data", `{"version":1,"frames":[{"commands":[{"kind":5}]}]}`},
 		{"negative duration", `{"version":1,"frames":[{"durationMs":-1}]}`},
 		{"long duration", `{"version":1,"frames":[{"durationMs":600001}]}`},
+		{"unsafe data", `{"version":1,"frames":[{"commands":[{"kind":5,"data":{"constructor":{"polluted":true}}}]}]}`},
 		{"invalid easing", `{"version":1,"frames":[{"easing":"not-a-curve"}]}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
